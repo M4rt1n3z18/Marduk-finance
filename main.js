@@ -16,28 +16,106 @@ if (process.platform === 'darwin') {
 }
 
 // ── Auto-updater ───────────────────────────────────────────────────────────────
-autoUpdater.autoDownload = true;       // download silently in background
-autoUpdater.autoInstallOnAppQuit = true; // install when user quits normally
+// Windows & Linux: use electron-updater (fully automatic)
+// macOS: custom downloader (electron-updater gets stuck on unsigned Mac apps)
 
-autoUpdater.on('update-available', (info) => {
-  if (win) win.webContents.send('update-available', info.version);
-});
+const GITHUB_OWNER = 'M4rt1n3z18';
+const GITHUB_REPO  = 'Marduk-finance';
 
-autoUpdater.on('download-progress', (progress) => {
-  if (win) win.webContents.send('update-progress', Math.floor(progress.percent));
-});
+// ── macOS custom updater ──────────────────────────────────────────────────────
+async function checkForUpdatesMac() {
+  try {
+    const https = require('https');
 
-autoUpdater.on('update-downloaded', () => {
-  if (win) win.webContents.send('update-downloaded');
-});
+    // 1. Ask GitHub for the latest release
+    const release = await new Promise((resolve, reject) => {
+      https.get({
+        hostname: 'api.github.com',
+        path: `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
+        headers: { 'User-Agent': 'MARDUK-App' }
+      }, res => {
+        let d = ''; res.on('data', c => d += c);
+        res.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } });
+        res.on('error', reject);
+      }).on('error', reject);
+    });
 
-autoUpdater.on('error', (err) => {
-  // Silently ignore update errors — don't bother the user
-  console.log('Auto-updater error (non-fatal):', err.message);
-});
+    const latest = (release.tag_name || '').replace('v', '');
+    if (!latest) return;
 
-ipcMain.handle('install-update', () => {
-  autoUpdater.quitAndInstall();
+    // 2. Compare versions
+    const newer = (a, b) => {
+      const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+      for (let i = 0; i < 3; i++) { if (pa[i] > pb[i]) return true; if (pa[i] < pb[i]) return false; }
+      return false;
+    };
+    if (!newer(latest, app.getVersion())) return; // already up to date
+
+    // 3. Find correct DMG asset for this machine's architecture
+    const isArm = process.arch === 'arm64';
+    const asset = release.assets?.find(a =>
+      a.name.endsWith('.dmg') && (isArm ? a.name.includes('arm64') : !a.name.includes('arm64'))
+    );
+    if (!asset) return;
+
+    if (win) win.webContents.send('update-available', latest);
+
+    // 4. Download the DMG with real progress tracking
+    const dmgPath = path.join(os.tmpdir(), `MARDUK-${latest}.dmg`);
+
+    await new Promise((resolve, reject) => {
+      const download = (url, hops = 0) => {
+        if (hops > 5) return reject(new Error('Too many redirects'));
+        const mod = url.startsWith('https') ? require('https') : require('http');
+        mod.get(url, { headers: { 'User-Agent': 'MARDUK-App' } }, res => {
+          if (res.statusCode === 301 || res.statusCode === 302) { download(res.headers.location, hops + 1); return; }
+          const total = parseInt(res.headers['content-length'] || '0');
+          let done = 0;
+          const file = fs.createWriteStream(dmgPath);
+          res.on('data', chunk => {
+            done += chunk.length; file.write(chunk);
+            if (total > 0 && win) win.webContents.send('update-progress', Math.floor(done / total * 100));
+          });
+          res.on('end',   () => { file.end(); resolve(); });
+          res.on('error', reject);
+        }).on('error', reject);
+      };
+      download(asset.browser_download_url);
+    });
+
+    global._pendingDmg = dmgPath;
+    if (win) win.webContents.send('update-downloaded');
+
+  } catch(e) {
+    console.log('macOS update check (non-fatal):', e.message);
+  }
+}
+
+// ── Windows / Linux: electron-updater ────────────────────────────────────────
+if (process.platform !== 'darwin') {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('update-available',  (i) => { if (win) win.webContents.send('update-available', i.version); });
+  autoUpdater.on('download-progress', (p) => { if (win) win.webContents.send('update-progress', Math.floor(p.percent)); });
+  autoUpdater.on('update-downloaded',  () => { if (win) win.webContents.send('update-downloaded'); });
+  autoUpdater.on('error', (e) => console.log('Updater error (non-fatal):', e.message));
+}
+
+ipcMain.handle('install-update', async () => {
+  if (process.platform === 'darwin' && global._pendingDmg) {
+    // macOS: mount DMG → copy app → clear quarantine → relaunch
+    const { spawnSync } = require('child_process');
+    try {
+      const mountOut = spawnSync('hdiutil', ['attach', global._pendingDmg, '-nobrowse'], { encoding: 'utf8' });
+      const mountPoint = mountOut.stdout.trim().split('\n').pop().split('\t').pop().trim();
+      spawnSync('cp',    ['-Rf', `${mountPoint}/MARDUK.app`, '/Applications/'], { timeout: 30000 });
+      spawnSync('xattr', ['-cr', '/Applications/MARDUK.app'],                  { timeout:  5000 });
+      spawnSync('hdiutil', ['detach', mountPoint, '-quiet'],                    { timeout: 10000 });
+      app.relaunch(); app.exit(0);
+    } catch(e) { console.error('macOS install failed:', e); }
+  } else {
+    autoUpdater.quitAndInstall();
+  }
 });
 
 ipcMain.handle('get-version', () => app.getVersion());
@@ -133,7 +211,10 @@ app.whenReady().then(() => {
   createWindow();
 
   // Check for updates a few seconds after launch (gives the window time to load)
-  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
+  setTimeout(() => {
+    if (process.platform === 'darwin') checkForUpdatesMac();
+    else autoUpdater.checkForUpdates().catch(() => {});
+  }, 5000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
