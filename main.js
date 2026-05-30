@@ -4,6 +4,17 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+// ── macOS quarantine self-heal ────────────────────────────────────────────────
+// Clears the quarantine flag on every launch so macOS never shows
+// the "damaged" error — whether from a manual download or an auto-update.
+if (process.platform === 'darwin') {
+  try {
+    const { spawnSync } = require('child_process');
+    const appBundle = process.execPath.split('/Contents/')[0];
+    spawnSync('xattr', ['-cr', appBundle], { timeout: 3000 });
+  } catch(e) {} // non-fatal, never blocks launch
+}
+
 // ── Auto-updater ───────────────────────────────────────────────────────────────
 autoUpdater.autoDownload = true;       // download silently in background
 autoUpdater.autoInstallOnAppQuit = true; // install when user quits normally
