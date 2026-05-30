@@ -737,13 +737,18 @@
 </header>
 
 <!-- ── Update banner ── -->
-<div id="update-banner" style="display:none;align-items:center;justify-content:space-between;padding:9px 32px;background:rgba(201,168,76,0.08);border-bottom:1px solid rgba(201,168,76,0.2);">
-  <div style="display:flex;align-items:center;gap:10px;">
-    <span style="font-size:15px;">⬆️</span>
-    <span id="update-msg" style="font-size:13px;color:var(--text);">A new version is available. Downloading…</span>
-    <span id="update-pct" style="font-size:12px;color:var(--text2);"></span>
+<div id="update-banner" style="display:none;flex-direction:column;padding:8px 32px 10px;background:rgba(201,168,76,0.08);border-bottom:1px solid rgba(201,168,76,0.2);">
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:15px;">⬆️</span>
+      <span id="update-msg" style="font-size:13px;color:var(--text);">A new version is available. Downloading…</span>
+      <span id="update-pct" style="font-size:12px;color:var(--gold);font-weight:600;"></span>
+    </div>
+    <button id="update-install-btn" onclick="window.electronAPI.installUpdate()" style="display:none;font-size:12px;padding:5px 16px;color:var(--gold);border-color:var(--gold);" class="btn-ghost">Restart &amp; Install</button>
   </div>
-  <button id="update-install-btn" onclick="window.electronAPI.installUpdate()" style="display:none;" class="btn-ghost" style="font-size:12px;padding:5px 16px;color:var(--gold);border-color:var(--gold);">Restart &amp; Install</button>
+  <div id="update-progress-bar" style="display:none;margin-top:7px;height:3px;background:rgba(201,168,76,0.15);border-radius:2px;overflow:hidden;">
+    <div id="update-progress-fill" style="height:100%;width:0%;background:var(--gold);border-radius:2px;transition:width 0.4s ease;"></div>
+  </div>
 </div>
 
 <main>

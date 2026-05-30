@@ -869,22 +869,30 @@ async function buildPortHistoryChart() {
   const pct     = document.getElementById('update-pct');
   const installBtn = document.getElementById('update-install-btn');
 
+  const progressBar  = document.getElementById('update-progress-bar');
+  const progressFill = document.getElementById('update-progress-fill');
+
   window.electronAPI.onUpdateAvailable((version) => {
-    msg.textContent = `New version ${version} available — downloading in the background…`;
-    pct.textContent = '';
-    installBtn.style.display = 'none';
-    banner.style.display = 'flex';
+    msg.textContent        = `New version ${version} available — downloading…`;
+    pct.textContent        = '0%';
+    installBtn.style.display  = 'none';
+    progressBar.style.display = 'block';
+    progressFill.style.width  = '0%';
+    banner.style.display      = 'flex';
   });
 
   window.electronAPI.onUpdateProgress((percent) => {
-    pct.textContent = `${percent}%`;
+    pct.textContent          = `${percent}%`;
+    progressFill.style.width = `${percent}%`;
   });
 
   window.electronAPI.onUpdateDownloaded(() => {
-    msg.textContent = 'Update downloaded and ready to install.';
-    pct.textContent = '';
-    installBtn.style.display = 'inline-flex';
-    banner.style.display = 'flex';
+    msg.textContent           = 'Update downloaded and ready to install.';
+    pct.textContent           = '';
+    progressFill.style.width  = '100%';
+    setTimeout(() => { progressBar.style.display = 'none'; }, 600);
+    installBtn.style.display  = 'inline-flex';
+    banner.style.display      = 'flex';
   });
 })();
 
