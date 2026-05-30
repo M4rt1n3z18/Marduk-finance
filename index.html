@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Marduk — Personal Finance</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Karla:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --gold: #c9a84c;
+    --gold-light: #e8c97a;
+    --gold-dim: #8a6f30;
+    --up: #4caf82;
+    --down: #e05c5c;
+    --bg: #0d0d0f;
+    --bg2: #13131a;
+    --bg3: #1a1a24;
+    --bg4: #21212e;
+    --border: rgba(201,168,76,0.15);
+    --text: #e8e0d0;
+    --text2: #9b9280;
+    --text3: #7a7268;
+    --radius: 14px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  [data-theme="light"] {
+    --bg: #f5f0e8;
+    --bg2: #ede7d9;
+    --bg3: #e4dccb;
+    --bg4: #d9d0bc;
+    --border: rgba(139,111,48,0.2);
+    --text: #1a1510;
+    --text2: #6b5f4a;
+    --text3: #9b8f7a;
+    --shadow: 0 4px 24px rgba(0,0,0,0.1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Karla', sans-serif; font-size: 14px; min-height: 100vh; transition: background .3s, color .3s; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg2); }
+  ::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 32px; height: 62px;
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { font-family: 'Cinzel', serif; font-size: 22px; font-weight: 700; letter-spacing: 3px; color: var(--gold); text-shadow: 0 0 20px rgba(201,168,76,0.4); display: flex; align-items: center; gap: 12px; }
+  .logo span { font-size: 9px; display: block; letter-spacing: 5px; color: var(--text2); font-family: 'Karla', sans-serif; font-weight: 400; text-transform: uppercase; margin-top: -2px; }
+  .logo-icon {
+    width: 42px; height: 42px; border-radius: 50%;
+    object-fit: cover; object-position: center center;
+    border: 1.5px solid rgba(201,168,76,0.4);
+    box-shadow: 0 0 12px rgba(201,168,76,0.25);
+    flex-shrink: 0;
+  }
+  .lock-icon {
+    width: 100px; height: 100px; border-radius: 50%;
+    object-fit: cover; object-position: center center;
+    border: 2px solid rgba(201,168,76,0.5);
+    box-shadow: 0 0 32px rgba(201,168,76,0.3);
+    margin-bottom: 8px;
+  }
+  nav { display: flex; gap: 4px; }
+  nav button {
+    padding: 7px 18px; border-radius: 8px; border: none; cursor: pointer;
+    font-family: 'Karla', sans-serif; font-size: 13px; font-weight: 500;
+    background: transparent; color: var(--text2); transition: all .2s;
+    letter-spacing: .5px;
+  }
+  nav button.active { background: var(--gold); color: #0d0d0f; font-weight: 600; }
+  nav button:not(.active):hover { color: var(--text); background: var(--bg3); }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .theme-toggle {
+    width: 44px; height: 24px; border-radius: 12px; background: var(--bg4);
+    border: 1px solid var(--border); cursor: pointer; position: relative; transition: all .3s;
+  }
+  .theme-toggle::after {
+    content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--gold); top: 2px; left: 2px; transition: left .3s;
+  }
+  [data-theme="light"] .theme-toggle::after { left: 22px; }
+
+  /* ── Layout ── */
+  main { max-width: 1200px; margin: 0 auto; padding: 28px 24px; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 22px;
+    box-shadow: var(--shadow); transition: background .3s, border .3s;
+  }
+  .card-title { font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 2px; color: var(--gold-dim); text-transform: uppercase; margin-bottom: 8px; }
+
+  /* ── Stat cards ── */
+  .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; position: relative; overflow: hidden; }
+  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--gold), transparent); }
+  .stat-label { font-size: 10px; letter-spacing: 2px; color: var(--text2); text-transform: uppercase; font-family: 'Cinzel', serif; margin-bottom: 10px; }
+  .stat-val { font-size: 26px; font-weight: 600; letter-spacing: -1px; color: var(--text); margin-bottom: 4px; }
+  .stat-sub { font-size: 12px; color: var(--text2); }
+  .stat-sub.up { color: var(--up); }
+  .stat-sub.down { color: var(--down); }
+
+  /* ── Chart grid ── */
+  .chart-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-grid-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-wrap { position: relative; height: 220px; }
+  .chart-wrap-sm { position: relative; height: 180px; }
+
+  /* ── Tables ── */
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th { font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 1.5px; color: var(--gold-dim); text-transform: uppercase; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  .data-table td { padding: 13px 12px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text); vertical-align: middle; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: var(--bg3); }
+  .data-table td.up-text { color: var(--up); }
+  .data-table td.down-text { color: var(--down); }
+
+  /* ── Forms ── */
+  .form-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; }
+  .field input, .field select {
+    padding: 9px 12px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: 'Karla', sans-serif; font-size: 13px;
+    outline: none; transition: border .2s;
+  }
+  .field input:focus, .field select:focus { border-color: var(--gold); }
+  .field select option { background: var(--bg3); }
+
+  /* ── Custom select arrow — !important beats inline styles and shorthand resets ── */
+  select {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    padding-right: 32px !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23c9a84c' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 10px center !important;
+    background-size: 12px 8px !important;
+    cursor: pointer;
+  }
+  select option { background: var(--bg3); color: var(--text); }
+
+  /* ── Hide number input spinners ── */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+
+  /* ── Date field (custom picker trigger) ── */
+  .date-field {
+    cursor: pointer; caret-color: transparent; user-select: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23c9a84c' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center; background-size: 14px 14px;
+    padding-right: 32px;
+  }
+  .date-field:focus { border-color: var(--gold); }
+
+  /* ── Custom Calendar Popup ── */
+  #cal-popup {
+    position: fixed; z-index: 9999; display: none;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px;
+    box-shadow: 0 16px 56px rgba(0,0,0,0.65);
+    width: 272px;
+  }
+  #cal-popup.open { display: block; }
+  .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .cal-month-label { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 1px; }
+  .cal-nav-btn {
+    background: none; border: 1px solid var(--border); border-radius: 7px;
+    color: var(--gold); cursor: pointer; font-size: 15px; width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center; transition: background .15s;
+  }
+  .cal-nav-btn:hover { background: var(--bg3); }
+  .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
+  .cal-dow {
+    font-family: 'Cinzel', serif; font-size: 8px; letter-spacing: 1px;
+    color: var(--text3); text-align: center; padding: 6px 0; text-transform: uppercase;
+  }
+  .cal-day {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; font-size: 12px; cursor: pointer; transition: all .12s;
+    color: var(--text2); font-family: 'Karla', sans-serif;
+  }
+  .cal-day:hover:not(.cal-other):not(.cal-empty) { background: var(--bg4); color: var(--text); }
+  .cal-day.cal-today { color: var(--gold); font-weight: 700; }
+  .cal-day.cal-selected { background: var(--gold) !important; color: #0d0d0f !important; font-weight: 700; border-radius: 50%; }
+  .cal-day.cal-other { color: var(--text3); pointer-events: none; }
+  .cal-today-btn {
+    display: block; width: 100%; margin-top: 12px;
+    background: none; border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text2); font-family: 'Karla', sans-serif; font-size: 11px;
+    padding: 6px; cursor: pointer; transition: all .15s; letter-spacing: .5px;
+  }
+  .cal-today-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* ── Expandable Holdings Table ── */
+  .holding-row { cursor: pointer; transition: background .15s; }
+  .holding-chevron { display: inline-block; transition: transform .2s; color: var(--gold-dim); font-size: 9px; margin-right: 8px; }
+  .holding-row.open .holding-chevron { transform: rotate(90deg); color: var(--gold); }
+  .holding-detail td { padding: 0 !important; }
+  .lots-wrap { padding: 8px 16px 16px 44px; background: var(--bg); border-top: 1px solid var(--border); }
+  .lots-table { width: 100%; border-collapse: collapse; }
+  .lots-table th { font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 1.2px; color: var(--text3); text-transform: uppercase; padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  .lots-table td { padding: 9px 10px; font-size: 12px; color: var(--text2); border-bottom: 1px solid var(--border); }
+  .lots-table tr:last-child td { border-bottom: none; }
+  .lots-table tr:hover td { background: var(--bg2); }
+
+  /* ── Detected class badge in form ── */
+  .class-detect { display: flex; flex-direction: column; gap: 4px; justify-content: flex-end; }
+  .class-detect .badge {
+    display: block; width: 100%; box-sizing: border-box;
+    padding: 7px 10px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    text-align: center; border: 1px solid var(--border);
+    background: var(--bg3); letter-spacing: .5px;
+  }
+  .btn {
+    padding: 9px 20px; background: var(--gold); color: #0d0d0f;
+    border: none; border-radius: 8px; cursor: pointer;
+    font-family: 'Cinzel', serif; font-size: 12px; font-weight: 600;
+    letter-spacing: 1px; white-space: nowrap; transition: all .2s;
+    align-self: flex-end;
+  }
+  .btn:hover { background: var(--gold-light); }
+  .btn-ghost {
+    padding: 8px 16px; background: transparent; color: var(--gold);
+    border: 1px solid var(--gold-dim); border-radius: 8px; cursor: pointer;
+    font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 1px; transition: all .2s;
+  }
+  .btn-ghost:hover { background: rgba(201,168,76,0.1); }
+  .del-btn { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 16px; transition: color .2s; padding: 2px 6px; }
+  .del-btn:hover { color: var(--down); }
+
+  /* ── Badges ── */
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.etf { background: rgba(201,168,76,0.15); color: var(--gold); }
+  .badge.crypto { background: rgba(120,100,220,0.15); color: #9b87f5; }
+  .badge.stock { background: rgba(76,130,175,0.15); color: #4c8aaf; }
+  .badge.buy { background: rgba(76,175,130,0.15); color: var(--up); }
+  .badge.sell { background: rgba(224,92,92,0.15); color: var(--down); }
+
+  /* ── Progress bar ── */
+  .prog-wrap { height: 6px; background: var(--bg4); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .prog-bar { height: 100%; border-radius: 3px; transition: width .5s; }
+
+  /* ── Section header ── */
+  .sec-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .sec-title { font-family: 'Cinzel', serif; font-size: 18px; font-weight: 600; color: var(--text); }
+  .sec-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+  /* ── Net worth bar ── */
+  .nw-split { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin: 12px 0; }
+
+  /* ── Filter chips ── */
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .chip {
+    padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: transparent; color: var(--text2); font-size: 12px; cursor: pointer; transition: all .2s;
+    font-family: 'Karla', sans-serif;
+  }
+  .chip.active { background: var(--gold); color: #0d0d0f; border-color: var(--gold); font-weight: 600; }
+
+  /* ── Animations ── */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .tab.active > * { animation: fadeUp .35s ease both; }
+  .tab.active > *:nth-child(2) { animation-delay: .05s; }
+  .tab.active > *:nth-child(3) { animation-delay: .1s; }
+  .tab.active > *:nth-child(4) { animation-delay: .15s; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .stats-grid { grid-template-columns: repeat(2,1fr); }
+    .chart-grid-2, .chart-grid-3 { grid-template-columns: 1fr; }
+  }
+
+  .empty { color: var(--text3); font-size: 13px; text-align: center; padding: 30px; }
+  .gold-text { color: var(--gold); }
+  .up-text { color: var(--up); }
+  .down-text { color: var(--down); }
+  .muted { color: var(--text2); }
+
+  /* top positions bar */
+  .pos-bar-wrap { height: 4px; background: var(--bg4); border-radius: 2px; margin-top: 4px; }
+  .pos-bar { height: 4px; border-radius: 2px; background: var(--gold); }
+
+
+  /* ── Custom prompt modal ── */
+  #prompt-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10000;
+    display: none; align-items: center; justify-content: center;
+  }
+  #prompt-overlay.open { display: flex; }
+  #prompt-box {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 16px;
+    padding: 28px 32px; width: 360px; display: flex; flex-direction: column; gap: 16px;
+    box-shadow: 0 16px 56px rgba(0,0,0,0.6);
+  }
+  #prompt-title { font-family: 'Cinzel', serif; font-size: 14px; letter-spacing: 1.5px; color: var(--text); }
+  #prompt-input {
+    padding: 11px 14px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 9px; color: var(--text); font-family: 'Karla', sans-serif;
+    font-size: 14px; outline: none; transition: border .2s;
+  }
+  #prompt-input:focus { border-color: var(--gold); }
+  #prompt-btns { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* ── Lock Screen ── */
+  #lock-screen {
+    position: fixed; inset: 0; background: var(--bg); z-index: 9999;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  }
+  .lock-logo { font-family: 'Cinzel', serif; font-size: 36px; font-weight: 700; letter-spacing: 6px; color: var(--gold); text-shadow: 0 0 40px rgba(201,168,76,0.5); }
+  .lock-sub { font-size: 11px; letter-spacing: 5px; color: var(--text2); text-transform: uppercase; margin-bottom: 32px; }
+  .lock-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 36px 40px; width: 360px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 8px 48px rgba(0,0,0,0.5); }
+  .lock-title { font-family: 'Cinzel', serif; font-size: 15px; letter-spacing: 2px; color: var(--text); text-align: center; margin-bottom: 4px; }
+  .lock-input { padding: 12px 16px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-family: 'Karla', sans-serif; font-size: 15px; outline: none; transition: border .2s; letter-spacing: 6px; }
+  .lock-input::placeholder { letter-spacing: 3px; }
+  .lock-input:focus { border-color: var(--gold); }
+  .lock-input.error { animation: shake .3s ease; border-color: var(--down); }
+  .lock-confirm { display: none; }
+  .lock-btn { padding: 12px; background: var(--gold); color: #0d0d0f; border: none; border-radius: 10px; cursor: pointer; font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; letter-spacing: 2px; transition: all .2s; }
+  .lock-btn:hover { background: var(--gold-light); }
+  .lock-hint { font-size: 12px; color: var(--text2); text-align: center; min-height: 18px; }
+  .lock-hint.err { color: var(--down); }
+  #app-wrapper { display: none; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+  @keyframes pulse-live { 0%,100%{opacity:1} 50%{opacity:0.25} }
+  #live-dot { animation: pulse-live 2s ease-in-out infinite; }
+
+  /* ── Ticker Autocomplete ── */
+  .autocomplete-wrap { position: relative; }
+  .autocomplete-drop {
+    position: fixed;
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5); z-index: 5000; max-height: 220px; overflow-y: auto;
+    display: none; min-width: 280px;
+  }
+  .autocomplete-drop.open { display: block; }
+  .ac-item { padding: 9px 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: background .15s; }
+  .ac-item:hover, .ac-item.selected { background: var(--bg3); }
+  .ac-ticker { font-weight: 700; font-size: 13px; color: var(--gold); min-width: 60px; }
+  .ac-name { font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ── History range buttons ── */
+  .range-bar { display: flex; gap: 4px; margin-bottom: 14px; }
+  .range-btn {
+    padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--text2); cursor: pointer;
+    font-family: 'Karla', sans-serif; font-size: 12px; font-weight: 500;
+    transition: all .15s;
+  }
+  .range-btn.active { background: var(--gold); color: #0d0d0f; border-color: var(--gold); font-weight: 600; }
+  .range-btn:not(.active):hover { color: var(--text); border-color: var(--gold-dim); }
+
+  /* ── Sector allocation bar chart ── */
+  .sector-bar-wrap { height: 14px; border-radius: 7px; overflow: hidden; display: flex; margin: 14px 0 18px; }
+  .sector-bar-seg { height: 100%; transition: width .5s; }
+  .sector-legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; }
+  .sector-legend-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .sector-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .sector-legend-name { flex: 1; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sector-legend-val { font-weight: 600; white-space: nowrap; }
+  .sector-legend-pct { color: var(--text2); font-size: 12px; white-space: nowrap; }
+
+  /* ── Transaction pagination ── */
+  .tx-pagination { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 2px; }
+  .tx-page-info { font-size: 12px; color: var(--text2); }
+  .tx-page-btns { display: flex; gap: 6px; }
+  .tx-page-btn {
+    padding: 5px 14px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--text2); cursor: pointer;
+    font-family: 'Karla', sans-serif; font-size: 12px; transition: all .15s;
+  }
+  .tx-page-btn:hover:not(:disabled) { color: var(--text); border-color: var(--gold-dim); }
+  .tx-page-btn:disabled { opacity: 0.35; cursor: default; }
+
+  /* ── Portfolio switcher bar ── */
+  .portfolio-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; gap: 12px; flex-wrap: wrap;
+  }
+  .portfolio-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .portfolio-tab {
+    padding: 7px 18px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg3); color: var(--text2); cursor: pointer;
+    font-family: 'Karla', sans-serif; font-size: 13px; font-weight: 500;
+    transition: all .2s; white-space: nowrap;
+  }
+  .portfolio-tab.active { background: var(--gold); color: #0d0d0f; border-color: var(--gold); font-weight: 600; }
+  .portfolio-tab:not(.active):hover { color: var(--text); border-color: var(--gold-dim); }
+
+  /* ── Add Holding grid layout ── */
+  .add-holding-grid {
+    display: grid;
+    grid-template-columns: 110px 1fr 88px 120px 90px 140px 155px 105px;
+    gap: 10px 14px;
+    align-items: end;
+  }
+  .add-holding-grid .field input,
+  .add-holding-grid .field select { width: 100%; }
+
+  /* ── Salary drag-and-drop ── */
+  .salary-drop-zone {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 20px 24px; text-align: center; color: var(--text3);
+    font-size: 13px; margin-bottom: 20px; transition: all .2s; cursor: default;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .salary-drop-zone.drag-over {
+    border-color: var(--gold); background: rgba(201,168,76,0.07);
+    color: var(--gold); box-shadow: 0 0 0 4px rgba(201,168,76,0.12);
+  }
+  .salary-drop-zone .drop-icon { font-size: 20px; transition: transform .2s; }
+  .salary-drop-zone.drag-over .drop-icon { transform: scale(1.3); }
+
+  /* ── Toast notification ── */
+  #marduk-toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(16px);
+    background: var(--bg2); border: 1px solid var(--gold-dim);
+    color: var(--text); padding: 12px 22px; border-radius: 10px; font-size: 13px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45); opacity: 0;
+    transition: opacity .25s, transform .25s; z-index: 9999;
+    pointer-events: none; white-space: nowrap;
+  }
+  #marduk-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ── Benchmark modal ── */
+  .benchmark-overlay {
+    position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:1000;
+    display:none;align-items:center;justify-content:center;
+  }
+  .benchmark-overlay.open { display:flex; }
+  .benchmark-modal {
+    background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
+    padding:24px 28px;min-width:360px;max-width:460px;width:90%;
+    box-shadow:var(--shadow);
+  }
+  .benchmark-modal h3 { font-family:'Cinzel',serif;color:var(--gold);font-size:15px;margin-bottom:8px; }
+  .benchmark-list { display:flex;flex-direction:column;gap:6px;margin:14px 0; }
+  .benchmark-item {
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 14px;border-radius:9px;border:1px solid var(--border);
+    background:var(--bg3);cursor:pointer;transition:all .15s;
+  }
+  .benchmark-item:hover { border-color:var(--gold-dim); }
+  .benchmark-item.active { border-color:var(--gold);background:rgba(201,168,76,0.1); }
+  .benchmark-item .bm-name { font-weight:600;font-size:13px; }
+  .benchmark-item .bm-ticker { font-size:11px;color:var(--text3);margin-top:2px; }
+
+  /* ── Holdings performance bars ── */
+  .hperf-item { display:flex;align-items:center;gap:10px;margin-bottom:9px; }
+  .hperf-label { width:62px;font-size:12px;font-weight:600;color:var(--gold);text-align:right;flex-shrink:0; }
+  .hperf-bar-wrap { flex:1;background:var(--bg3);border-radius:4px;height:20px;overflow:hidden;position:relative; }
+  .hperf-bar { height:100%;border-radius:4px;transition:width .4s ease; }
+  .hperf-val { width:72px;font-size:12px;font-weight:600;flex-shrink:0; }
+  .hperf-bm  { border-left:2px dashed rgba(201,168,76,0.7);position:absolute;top:0;bottom:0; }
+
+  /* ── Multi-currency cash table ── */
+  .cash-multi-table { width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed; }
+  .cash-multi-table col.col-currency { width:20%; }
+  .cash-multi-table col.col-amount   { width:24%; }
+  .cash-multi-table col.col-rate     { width:22%; }
+  .cash-multi-table col.col-eur      { width:24%; }
+  .cash-multi-table col.col-del      { width:10%; }
+  .cash-multi-table th { color:var(--text2);font-weight:500;font-size:11px;text-transform:uppercase;
+    letter-spacing:.5px;padding:5px 8px;border-bottom:1px solid var(--border);text-align:left; }
+  .cash-multi-table th:nth-child(2),
+  .cash-multi-table th:nth-child(3),
+  .cash-multi-table th:nth-child(4) { text-align:right; }
+  .cash-multi-table th:nth-child(5) { text-align:center; }
+  .cash-multi-table td { padding:8px 8px;border-bottom:1px solid rgba(201,168,76,0.06);text-align:left; }
+  .cash-multi-table td:nth-child(2),
+  .cash-multi-table td:nth-child(3),
+  .cash-multi-table td:nth-child(4) { text-align:right; }
+  .cash-multi-table td:nth-child(5) { text-align:center; }
+  .cash-multi-table .total-row td { font-weight:700;border-top:1px solid var(--border);
+    border-bottom:none;padding-top:10px;color:var(--text); }
+  .cash-add-form { display:flex;gap:8px;margin-top:12px;align-items:flex-end;flex-wrap:wrap; }
+  .cash-add-form select, .cash-add-form input {
+    padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+    color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;
+  }
+  .cash-add-form select { width:100px; }
+  .cash-add-form input  { width:130px; }
+
+  /* ── Holdings sub-tabs ── */
+  .holdings-subtab-bar {
+    display:flex;gap:2px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:0;
+  }
+  .holdings-subtab {
+    padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;
+    color:var(--text2);font-family:Karla,sans-serif;font-size:13px;cursor:pointer;
+    transition:all .15s;margin-bottom:-1px;
+  }
+  .holdings-subtab:hover { color:var(--text); }
+  .holdings-subtab.active { color:var(--gold);border-bottom-color:var(--gold);font-weight:600; }
+
+  /* ── Company logo / letter avatar ── */
+  .holding-logo-wrap { display:flex;align-items:center;gap:10px; }
+  .holding-logo { width:30px;height:30px;border-radius:8px;object-fit:contain;background:var(--bg4);flex-shrink:0; }
+  .holding-logo-fb {
+    width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:12px;color:#fff;flex-shrink:0;letter-spacing:0;
+  }
+  .holding-logo-name { font-weight:700;color:var(--gold);font-size:13px; }
+
+  /* ── Dividend analysis section ── */
+  .div-stats-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px; }
+  .div-stat-card { background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 18px; }
+  .div-stat-label { font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;font-family:'Cinzel',serif; }
+  .div-stat-val { font-size:22px;font-weight:600;color:var(--text);letter-spacing:-0.5px; }
+  .div-stat-sub { font-size:11px;color:var(--text3);margin-top:3px; }
+
+  /* ── Company Detail Modal ── */
+  .company-modal-overlay {
+    position:fixed;inset:0;z-index:2000;
+    background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .2s;
+  }
+  .company-modal-overlay.open { opacity:1;pointer-events:all; }
+  .company-modal {
+    background:var(--bg2);border:1px solid var(--border);border-radius:20px;
+    width:min(780px,96vw);max-height:88vh;overflow-y:auto;
+    box-shadow:0 32px 80px rgba(0,0,0,.7);
+    transform:translateY(16px);transition:transform .2s;
+  }
+  .company-modal-overlay.open .company-modal { transform:translateY(0); }
+
+  .cmod-header {
+    display:flex;align-items:center;gap:16px;
+    padding:24px 28px 18px;border-bottom:1px solid var(--border);
+    position:sticky;top:0;background:var(--bg2);z-index:1;
+  }
+  .cmod-logo { width:52px;height:52px;border-radius:14px;object-fit:contain;background:var(--bg4);flex-shrink:0; }
+  .cmod-logo-fb {
+    width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:20px;color:#fff;flex-shrink:0;
+  }
+  .cmod-ticker { font-family:'Cinzel',serif;font-size:22px;font-weight:700;color:var(--gold);letter-spacing:1px; }
+  .cmod-name { font-size:13px;color:var(--text2);margin-top:2px; }
+  .cmod-badges { display:flex;gap:8px;flex-wrap:wrap;margin-top:6px; }
+  .cmod-badge {
+    font-size:10px;letter-spacing:.6px;text-transform:uppercase;padding:3px 10px;
+    border-radius:20px;background:var(--bg4);color:var(--text2);border:1px solid var(--border);
+  }
+  .cmod-close {
+    margin-left:auto;width:34px;height:34px;border-radius:50%;background:var(--bg4);border:none;
+    cursor:pointer;color:var(--text2);font-size:18px;display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;transition:background .15s;
+  }
+  .cmod-close:hover { background:var(--down);color:#fff; }
+
+  .cmod-body { padding:22px 28px 28px;display:flex;flex-direction:column;gap:22px; }
+
+  .cmod-stats-grid {
+    display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
+  }
+  @media(max-width:600px){ .cmod-stats-grid { grid-template-columns:repeat(2,1fr); } }
+  .cmod-stat {
+    background:var(--bg3);border:1px solid var(--border);border-radius:12px;
+    padding:12px 14px;
+  }
+  .cmod-stat-label { font-size:10px;letter-spacing:.7px;text-transform:uppercase;color:var(--text3);margin-bottom:5px; }
+  .cmod-stat-val { font-size:16px;font-weight:700;color:var(--text); }
+  .cmod-stat-sub { font-size:10px;color:var(--text3);margin-top:2px; }
+
+  .cmod-section-title {
+    font-family:'Cinzel',serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;
+    color:var(--gold-dim);margin-bottom:12px;
+  }
+  .cmod-two-col { display:grid;grid-template-columns:1fr 1fr;gap:18px; }
+  @media(max-width:540px){ .cmod-two-col { grid-template-columns:1fr; } }
+  .cmod-panel { background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:16px 18px; }
+
+  .cmod-field { display:flex;justify-content:space-between;align-items:center;padding:7px 0; }
+  .cmod-field:not(:last-child) { border-bottom:1px solid var(--border); }
+  .cmod-field-label { font-size:12px;color:var(--text2); }
+  .cmod-field-val { font-size:12px;font-weight:600;color:var(--text); }
+
+  .cmod-earnings-date {
+    display:flex;align-items:center;gap:10px;padding:10px 0;
+  }
+  .cmod-earnings-date:not(:last-child) { border-bottom:1px solid var(--border); }
+  .cmod-earnings-dot { width:8px;height:8px;border-radius:50%;background:var(--gold);flex-shrink:0; }
+
+  .cmod-desc {
+    font-size:12px;color:var(--text2);line-height:1.7;
+    display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;
+    cursor:pointer;transition:all .2s;
+  }
+  .cmod-desc.expanded { -webkit-line-clamp:unset; }
+
+  .cmod-rec {
+    display:inline-block;font-size:10px;letter-spacing:.5px;text-transform:uppercase;
+    padding:4px 12px;border-radius:20px;font-weight:700;
+  }
+  .cmod-rec.buy,.cmod-rec.strong_buy { background:rgba(76,175,130,.18);color:var(--up); }
+  .cmod-rec.hold,.cmod-rec.neutral   { background:rgba(201,168,76,.14);color:var(--gold); }
+  .cmod-rec.sell,.cmod-rec.strong_sell,.cmod-rec.underperform { background:rgba(224,92,92,.18);color:var(--down); }
+  .cmod-rec.underweight { background:rgba(224,92,92,.12);color:var(--down); }
+
+  .cmod-loading {
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;padding:60px 0;color:var(--text3);font-size:13px;
+  }
+  .cmod-spinner {
+    width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--gold);
+    border-radius:50%;animation:spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .holding-logo-name-btn {
+    background:none;border:none;cursor:pointer;padding:0;
+    font-weight:700;color:var(--gold);font-size:13px;font-family:inherit;
+    text-align:left;transition:opacity .15s;
+  }
+  .holding-logo-name-btn:hover { opacity:.75; }
+</style>
+</head>
+<body data-theme="dark">
+
+<!-- ── Lock Screen ── -->
+<div id="lock-screen">
+  <img src="header-icon.png" class="lock-icon" alt="MARDUK">
+  <div class="lock-logo">MARDUK</div>
+  <div class="lock-sub">Wealth of Babylon</div>
+  <div class="lock-box">
+    <div class="lock-title" id="lock-title">Enter Password</div>
+    <input class="lock-input" type="password" id="lock-input" placeholder="••••••••" autocomplete="off" />
+    <input class="lock-input lock-confirm" type="password" id="lock-confirm" placeholder="Confirm password" autocomplete="off" />
+    <button class="lock-btn" id="lock-btn" onclick="handleLock()">Unlock</button>
+    <div class="lock-hint" id="lock-hint"></div>
+    <div style="text-align:center;margin-top:4px;">
+      <button onclick="resetPassword()" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;font-family:Karla,sans-serif;">Forgot password? Reset password only</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Custom Prompt Modal ── -->
+<div id="prompt-overlay">
+  <div id="prompt-box">
+    <div id="prompt-title">Enter name</div>
+    <input id="prompt-input" type="text" autocomplete="off" onkeydown="if(event.key==='Enter')promptConfirm();if(event.key==='Escape')promptCancel();" />
+    <div id="prompt-btns">
+      <button class="btn-ghost" onclick="promptCancel()" style="font-size:12px;">Cancel</button>
+      <button class="btn" onclick="promptConfirm()" style="font-size:12px;padding:8px 22px;">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<div id="app-wrapper">
+<header>
+  <div class="logo">
+    <img src="header-icon.png" class="logo-icon" alt="MARDUK">
+    <div>MARDUK<span>Wealth of Babylon</span></div>
+  </div>
+  <nav>
+    <button class="active" onclick="showTab('overview',this)">Overview</button>
+    <button onclick="showTab('portfolio',this)">Portfolio</button>
+    <button onclick="showTab('expenses',this)">Expenses</button>
+    <button onclick="showTab('networth',this)">Net Worth</button>
+    <button onclick="showTab('budget',this)">Budget</button>
+    <button onclick="showTab('goals',this)">Goals</button>
+    <button onclick="showTab('salary',this)">Salary</button>
+  </nav>
+  <div class="header-right">
+    <button class="btn-ghost" onclick="exportData()">↓ Export</button>
+    <button class="btn-ghost" onclick="importData()">↑ Import</button>
+    <button class="btn-ghost" onclick="lockApp()" title="Lock">🔒 Lock</button>
+    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></div>
+  </div>
+</header>
+
+<!-- ── Update banner ── -->
+<div id="update-banner" style="display:none;align-items:center;justify-content:space-between;padding:9px 32px;background:rgba(201,168,76,0.08);border-bottom:1px solid rgba(201,168,76,0.2);">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span style="font-size:15px;">⬆️</span>
+    <span id="update-msg" style="font-size:13px;color:var(--text);">A new version is available. Downloading…</span>
+    <span id="update-pct" style="font-size:12px;color:var(--text2);"></span>
+  </div>
+  <button id="update-install-btn" onclick="window.electronAPI.installUpdate()" style="display:none;" class="btn-ghost" style="font-size:12px;padding:5px 16px;color:var(--gold);border-color:var(--gold);">Restart &amp; Install</button>
+</div>
+
+<main>
+
+<!-- ══════════════ OVERVIEW ══════════════ -->
+<div class="tab active" id="tab-overview">
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Net Worth</div>
+      <div class="stat-val" id="ov-networth">€0</div>
+      <div class="stat-sub">assets – liabilities</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Portfolio Value</div>
+      <div class="stat-val" id="ov-portfolio">€0</div>
+      <div class="stat-sub" id="ov-port-sub">0 positions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">P&L Total</div>
+      <div class="stat-val" id="ov-pnl">€0</div>
+      <div class="stat-sub" id="ov-pnl-sub">all-time return</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Spent This Month</div>
+      <div class="stat-val" id="ov-spent">€0</div>
+      <div class="stat-sub" id="ov-spent-sub">0 transactions</div>
+    </div>
+  </div>
+
+  <div class="chart-grid-3">
+    <div class="card">
+      <div class="card-title">Spending — Last 6 Months</div>
+      <div class="chart-wrap"><canvas id="chart-spending"></canvas></div>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;">
+      <div class="card-title">Allocation by Class</div>
+      <div style="flex:1;display:flex;align-items:center;gap:16px;">
+        <div style="flex-shrink:0;width:150px;height:150px;position:relative;"><canvas id="chart-alloc"></canvas></div>
+        <div id="alloc-legend" style="flex:1;min-width:0;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-grid-2">
+    <div class="card">
+      <div class="card-title">Top Positions (% of Portfolio)</div>
+      <div id="top-positions"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Spending by Category</div>
+      <div class="chart-wrap-sm"><canvas id="chart-catspend"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Recent Transactions</div>
+    <table class="data-table">
+      <thead><tr><th>Type</th><th>Description</th><th>Date</th><th>Amount</th></tr></thead>
+      <tbody id="ov-recent-body"></tbody>
+    </table>
+  </div>
+
+  <div class="chart-grid-3" style="margin-top:24px;">
+    <div class="card">
+      <div class="card-title">Net Worth History</div>
+      <div class="chart-wrap"><canvas id="chart-nw-history"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Savings Rate History</div>
+      <div class="chart-wrap"><canvas id="chart-savrate"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:0;">
+    <div class="card-title">Income History — Last 6 Months</div>
+    <div class="chart-wrap"><canvas id="chart-income-history"></canvas></div>
+  </div>
+</div>
+
+<!-- ══════════════ PORTFOLIO ══════════════ -->
+<div class="tab" id="tab-portfolio">
+  <!-- Portfolio switcher bar -->
+  <div class="portfolio-bar">
+    <div class="portfolio-tabs" id="portfolio-tabs"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn-ghost" onclick="renamePortfolio()" style="font-size:11px;">✎ Rename</button>
+      <button class="btn-ghost" onclick="addPortfolio()" style="font-size:11px;">+ New Portfolio</button>
+      <button class="btn-ghost" onclick="deletePortfolio()" style="font-size:11px;color:var(--down);border-color:rgba(224,92,92,0.4);" id="del-port-btn">✕ Delete</button>
+    </div>
+  </div>
+
+  <div class="sec-header">
+    <div><div class="sec-title" id="port-sec-title">Portfolio</div><div class="sec-sub">Track your investments with live-refreshable prices</div></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <select id="port-currency-sel" onchange="setPortCurrency(this.value)"
+        style="padding:7px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;outline:none;cursor:pointer;"
+        title="Display currency for this portfolio">
+        <option value="EUR">€ EUR</option>
+        <option value="USD">$ USD</option>
+        <option value="GBP">£ GBP</option>
+        <option value="CHF">₣ CHF</option>
+        <option value="BRL">R$ BRL</option>
+      </select>
+      <button class="btn-ghost" onclick="exportPortfolioCSV()" style="font-size:11px;">↓ CSV</button>
+      <button class="btn-ghost" onclick="importXtbExcel()" style="font-size:11px;" title="Import open positions from XTB Excel export">⬆ XTB Import</button>
+      <button class="btn-ghost" onclick="refreshPrices()" id="refresh-btn">↻ Refresh Prices</button>
+      <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);">
+        <span id="live-dot" style="color:var(--up);font-size:9px;">●</span>
+        <span id="live-countdown" style="font-variant-numeric:tabular-nums;min-width:32px;">—</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Portfolio Value</div>
+      <div class="stat-val" id="p-value">€0</div>
+      <div class="stat-sub">current market value</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Invested</div>
+      <div class="stat-val" id="p-cost">€0</div>
+      <div class="stat-sub">at avg buy price</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Gain / Loss</div>
+      <div class="stat-val" id="p-gain">€0</div>
+      <div class="stat-sub" id="p-gain-pct">+0.00%</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Open Positions</div>
+      <div class="stat-val" id="p-count">0</div>
+      <div class="stat-sub">active holdings</div>
+    </div>
+  </div>
+
+  <!-- Uninvested Cash (multi-currency) -->
+  <div class="card" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div class="card-title" style="margin-bottom:2px;">Uninvested Cash</div>
+        <div style="font-size:12px;color:var(--text2);">Counts toward portfolio value · Rates updated on price refresh</div>
+      </div>
+      <button class="btn-ghost" onclick="showAddCashForm()" style="font-size:11px;">+ Add Cash</button>
+    </div>
+    <div id="cash-table-wrap"><!-- filled by renderCashTable() --></div>
+    <div id="cash-add-form" style="display:none;" class="cash-add-form">
+      <select id="cash-add-currency">
+        <option value="EUR">€ EUR</option>
+        <option value="USD">$ USD</option>
+        <option value="GBP">£ GBP</option>
+        <option value="CHF">₣ CHF</option>
+        <option value="BRL">R$ BRL</option>
+      </select>
+      <input type="number" id="cash-add-amount" placeholder="Amount" min="0" step="0.01"
+        onkeydown="if(event.key==='Enter')saveCashEntry();if(event.key==='Escape')hideAddCashForm();">
+      <button class="btn" onclick="saveCashEntry()" style="padding:7px 16px;font-size:12px;">Add</button>
+      <button class="btn-ghost" onclick="hideAddCashForm()" style="font-size:12px;">Cancel</button>
+    </div>
+    <!-- Legacy hidden input for backward compat -->
+    <input type="hidden" id="p-cash">
+  </div>
+
+  <div class="chart-grid-2" style="margin-bottom:20px;">
+    <div class="card" style="display:flex;flex-direction:column;">
+      <div class="card-title">Allocation by Asset Class</div>
+      <div style="flex:1;display:flex;align-items:center;gap:20px;min-height:185px;">
+        <div style="flex-shrink:0;width:200px;height:200px;position:relative;"><canvas id="chart-port-donut"></canvas></div>
+        <div id="port-legend" style="flex:1;min-width:0;"></div>
+      </div>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;">
+      <div class="card-title">Gain / Loss by Position</div>
+      <div style="flex:1;position:relative;min-height:185px;"><canvas id="chart-pnl-bar"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div class="card-title" style="margin-bottom:0;">Portfolio Value History</div>
+        <button class="btn-ghost" id="benchmark-btn" onclick="openBenchmarkModal()"
+          style="font-size:11px;padding:4px 11px;border-radius:6px;" title="Change benchmark">
+          ⟳ vs <span id="benchmark-name-label">S&P 500</span>
+        </button>
+      </div>
+      <div class="range-bar" id="port-history-ranges">
+        <button class="range-btn" onclick="setPortRange('1D',this)">1D</button>
+        <button class="range-btn" onclick="setPortRange('1W',this)">1W</button>
+        <button class="range-btn" onclick="setPortRange('1M',this)">1M</button>
+        <button class="range-btn" onclick="setPortRange('3M',this)">3M</button>
+        <button class="range-btn" onclick="setPortRange('6M',this)">6M</button>
+        <button class="range-btn" onclick="setPortRange('YTD',this)">YTD</button>
+        <button class="range-btn" onclick="setPortRange('1Y',this)">1Y</button>
+        <button class="range-btn active" onclick="setPortRange('All',this)">All</button>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="chart-port-history"></canvas></div>
+    <div id="port-history-empty" class="empty" style="display:none;padding:20px;">No history yet — values are recorded each time you refresh prices.</div>
+  </div>
+
+  <!-- Monthly Dynamics -->
+  <div class="card" style="margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+      <div class="card-title" style="margin-bottom:0;">Monthly Returns</div>
+      <span id="port-dynamics-bm-label" style="font-size:11px;color:var(--text3);"></span>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Month-by-month portfolio performance — last 24 months</div>
+    <div class="chart-wrap" style="height:160px;"><canvas id="chart-port-dynamics"></canvas></div>
+    <div id="port-dynamics-empty" class="empty" style="display:none;padding:16px 0;">No data — refresh prices first.</div>
+  </div>
+
+  <!-- Holdings Performance -->
+  <div class="card" style="margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div class="card-title" style="margin-bottom:0;">Holdings Performance</div>
+      <div class="range-bar" id="hperf-ranges">
+        <button class="range-btn active" onclick="setHperfRange('1M',this)">1M</button>
+        <button class="range-btn" onclick="setHperfRange('3M',this)">3M</button>
+        <button class="range-btn" onclick="setHperfRange('6M',this)">6M</button>
+        <button class="range-btn" onclick="setHperfRange('YTD',this)">YTD</button>
+        <button class="range-btn" onclick="setHperfRange('1Y',this)">1Y</button>
+        <button class="range-btn" onclick="setHperfRange('All',this)">All</button>
+      </div>
+    </div>
+    <div id="hperf-chart-wrap" style="min-height:60px;"></div>
+    <div id="hperf-empty" class="empty" style="display:none;padding:16px 0;">No data — refresh prices first.</div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title" style="margin-bottom:4px;">Sector Allocation</div>
+    <div id="sector-empty" class="muted" style="font-size:12px;padding:16px 0;display:none;">Refresh prices to load sector data for your holdings.</div>
+    <div id="sector-chart-wrap">
+      <div class="sector-bar-wrap" id="sector-bar"></div>
+      <div class="sector-legend-grid" id="sector-legend"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title" style="margin-bottom:14px;">Add Holding</div>
+    <div class="add-holding-grid">
+      <div class="field">
+        <label>Type</label>
+        <select id="h-type">
+          <option>Buy</option><option>Sell</option>
+        </select>
+      </div>
+      <div class="field autocomplete-wrap">
+        <label>Ticker / Name</label>
+        <input id="h-ticker" placeholder="e.g. AAPL, Nvidia…" autocomplete="off" oninput="acTicker(this)" onkeydown="acKey(event)" onblur="acAutoDetect(this)">
+      </div>
+      <input type="hidden" id="h-class" value="Stock">
+      <div class="class-detect">
+        <label style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;">Class</label>
+        <span id="h-class-badge" class="badge stock">Stock</span>
+      </div>
+      <div class="field">
+        <label>Shares / Units</label>
+        <input id="h-shares" type="number" placeholder="10">
+      </div>
+      <div class="field">
+        <label>Buy Currency</label>
+        <select id="h-buy-currency" onchange="updateBuyLabel()">
+          <option value="EUR">€ EUR</option>
+          <option value="USD">$ USD</option>
+          <option value="GBP">£ GBP</option>
+          <option value="CHF">₣ CHF</option>
+          <option value="BRL">R$ BRL</option>
+        </select>
+      </div>
+      <div class="field">
+        <label id="h-buy-label">Avg Buy Price (€)</label>
+        <input id="h-buy" type="number" placeholder="150.00">
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input id="h-date" type="text" class="date-field" readonly placeholder="Select date…">
+      </div>
+      <div style="display:flex;align-items:flex-end;">
+        <button class="btn" onclick="addHolding()" style="width:100%;">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <!-- Sub-tab bar: General | Dividends | Returns -->
+    <div class="holdings-subtab-bar">
+      <button class="holdings-subtab active" id="hstab-general"  onclick="setHoldingsSubTab('general',this)">General</button>
+      <button class="holdings-subtab"        id="hstab-dividends" onclick="setHoldingsSubTab('dividends',this)">Dividends</button>
+      <button class="holdings-subtab"        id="hstab-returns"  onclick="setHoldingsSubTab('returns',this)">Returns</button>
+    </div>
+    <div id="holdings-table-wrap"><!-- filled by renderHoldingsTable() --></div>
+  </div>
+
+  <!-- Dividend Analysis -->
+  <div class="card" id="div-analysis-card" style="margin-top:16px;display:none;">
+    <div class="card-title" style="margin-bottom:16px;">Dividend Analysis</div>
+    <div class="div-stats-grid" id="div-stats-grid"></div>
+    <div class="chart-grid-2" style="margin-bottom:0;">
+      <div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:600;">Yield / Annual Income by Holding</div>
+        <div style="position:relative;height:180px;"><canvas id="chart-div-yield"></canvas></div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:600;">Passive Income Diversification</div>
+        <div style="display:flex;align-items:center;gap:16px;min-height:180px;">
+          <canvas id="chart-div-donut" width="150" height="150" style="flex-shrink:0;"></canvas>
+          <div id="div-donut-legend" style="flex:1;min-width:0;font-size:12px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transaction History -->
+  <div class="card" style="margin-top:16px;">
+    <div class="card-title" style="margin-bottom:14px;">Transaction History</div>
+    <table class="data-table">
+      <thead><tr><th>Type</th><th>Ticker</th><th>Shares</th><th>Price</th><th>Date</th><th>Notes</th><th></th></tr></thead>
+      <tbody id="tx-body"></tbody>
+    </table>
+    <div class="tx-pagination" id="tx-pagination" style="display:none;">
+      <span class="tx-page-info" id="tx-page-info"></span>
+      <div class="tx-page-btns">
+        <button class="tx-page-btn" id="tx-prev" onclick="txChangePage(-1)">← Prev</button>
+        <button class="tx-page-btn" id="tx-next" onclick="txChangePage(1)">Next →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ EXPENSES ══════════════ -->
+<div class="tab" id="tab-expenses">
+
+  <!-- Month selector + salary header -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div class="sec-title">Expenses</div>
+      <div class="sec-sub" id="e-period-sub">Loading…</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <select id="e-month-sel" onchange="onMonthChange()" style="padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;cursor:pointer;">
+      </select>
+      <button class="btn-ghost" onclick="goToCurrentMonth()" style="font-size:11px;padding:7px 14px;">Today</button>
+      <button class="btn-ghost" onclick="exportExpensesCSV()" style="font-size:11px;padding:7px 14px;">↓ CSV</button>
+    </div>
+  </div>
+
+  <!-- Stat cards for selected month -->
+  <div class="stats-grid" style="margin-bottom:20px;">
+    <div class="stat-card">
+      <div class="stat-label">Salary</div>
+      <div class="stat-val up-text" id="e-stat-salary">€0</div>
+      <div class="stat-sub" id="e-stat-salary-sub">not logged</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Extra Income</div>
+      <div class="stat-val up-text" id="e-stat-extra">€0</div>
+      <div class="stat-sub" id="e-stat-extra-sub">0 entries</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Spent</div>
+      <div class="stat-val" id="e-stat-spent">€0</div>
+      <div class="stat-sub" id="e-stat-count">0 transactions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Remaining</div>
+      <div class="stat-val" id="e-stat-remaining">€0</div>
+      <div class="stat-sub" id="e-stat-remaining-sub">after expenses</div>
+    </div>
+  </div>
+  <!-- Salary day info + paycheck day setting -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--text2);margin:-12px 0 20px 4px;">
+    <div>💼 Salary day this month: <span id="e-stat-salday" style="color:var(--gold);font-weight:600;">—</span> &nbsp;·&nbsp; 2nd to last business day</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:11px;color:var(--text3);">Paycheck day of month:</span>
+      <input id="paycheck-day-input" type="number" min="1" max="31" placeholder="off"
+        style="width:58px;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;outline:none;text-align:center;"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"
+        onchange="setPaycheckDay(this.value)" title="Expenses on/after this day count for the next budget month">
+      <span id="paycheck-day-badge" style="font-size:11px;color:var(--text3);"></span>
+    </div>
+  </div>
+
+  <!-- Add expense -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="form-row">
+      <div class="field" style="flex:1;min-width:160px;"><label>Description</label><input id="e-desc" placeholder="e.g. Grocery run"></div>
+      <div class="field"><label>Amount (€)</label><input id="e-amount" type="number" placeholder="0.00" style="width:110px;"></div>
+      <div class="field"><label>Category</label>
+        <select id="e-cat" style="width:140px;">
+          <option>Housing</option><option>Food</option><option>Transport</option><option>Healthcare</option>
+          <option>Entertainment</option><option>Shopping</option><option>Utilities</option><option>Other</option>
+        </select>
+      </div>
+      <div class="field"><label>Date</label><input id="e-date" type="text" class="date-field" readonly placeholder="Select date…" style="width:140px;"></div>
+      <div class="field"><label>Recurring</label>
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 0;">
+          <input type="checkbox" id="e-recurring" style="width:16px;height:16px;accent-color:var(--gold);cursor:pointer;">
+          <span style="font-size:12px;color:var(--text2);">Monthly</span>
+        </div>
+      </div>
+      <button class="btn" onclick="addExpense()">Add</button>
+    </div>
+  </div>
+
+  <!-- Recurring suggestions banner -->
+  <div id="recurring-banner" style="display:none;margin-bottom:12px;background:rgba(201,168,76,0.08);border-color:rgba(201,168,76,0.3);" class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span style="font-size:13px;font-weight:600;color:var(--gold);">🔄 Recurring expenses to add this month</span>
+      <button class="btn-ghost" onclick="addAllRecurring()" style="font-size:11px;padding:5px 12px;">Add All</button>
+    </div>
+    <div id="recurring-list"></div>
+  </div>
+
+  <!-- Chart + category breakdown -->
+  <div class="chart-grid-2" style="margin-bottom:16px;">
+    <div class="card">
+      <div class="card-title">Spending by Category</div>
+      <div class="chart-wrap-sm"><canvas id="chart-exp-cat"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Daily Spending</div>
+      <div class="chart-wrap-sm"><canvas id="chart-exp-daily"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Search bar -->
+  <div style="margin-bottom:12px;">
+    <input id="e-search" placeholder="🔍 Search expenses…" oninput="renderExpenses()"
+      style="width:100%;padding:9px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;transition:border .2s;"
+      onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+  </div>
+
+  <!-- Filter chips -->
+  <div class="chips" id="expense-filters"></div>
+
+  <!-- Expenses table -->
+  <div class="card">
+    <table class="data-table">
+      <thead><tr><th>Description</th><th>Category</th><th>Date</th><th>Amount</th><th></th></tr></thead>
+      <tbody id="expenses-body"></tbody>
+    </table>
+    <div id="expenses-pagination"></div>
+  </div>
+</div>
+
+<!-- ══════════════ NET WORTH ══════════════ -->
+<div class="tab" id="tab-networth">
+  <div class="sec-header">
+    <div><div class="sec-title">Net Worth</div><div class="sec-sub">Your complete financial picture</div></div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Total Assets</div>
+      <div class="stat-val up-text" id="nw-assets">€0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Liabilities</div>
+      <div class="stat-val down-text" id="nw-liab">€0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Net Worth</div>
+      <div class="stat-val" id="nw-total">€0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Debt Ratio</div>
+      <div class="stat-val" id="nw-ratio">0%</div>
+      <div class="stat-sub">liabilities / assets</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">Assets vs Liabilities</div>
+    <div id="nw-bar-wrap" class="nw-split"></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-top:6px;">
+      <span id="nw-bar-a-label" class="up-text"></span>
+      <span id="nw-bar-l-label" class="down-text"></span>
+    </div>
+  </div>
+
+  <div class="chart-grid-2">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">Add Asset</div>
+      <div class="form-row">
+        <div class="field" style="flex:1;"><label>Name</label><input id="a-name" placeholder="e.g. Real Estate"></div>
+        <div class="field"><label>Value (€)</label><input id="a-val" type="number" placeholder="0.00" style="width:120px;"></div>
+        <button class="btn" onclick="addAsset()">Add</button>
+      </div>
+      <table class="data-table"><thead><tr><th>Asset</th><th>Value</th><th></th></tr></thead>
+      <tbody id="assets-body"></tbody></table>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">Add Liability</div>
+      <div class="form-row" style="flex-wrap:wrap;">
+        <div class="field" style="flex:1;min-width:120px;"><label>Name</label><input id="l-name" placeholder="e.g. Mortgage"></div>
+        <div class="field"><label>Type</label>
+          <select id="l-type" onchange="toggleCreditFields()" style="padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;">
+            <option value="regular">Regular</option>
+            <option value="credit">Credit / Loan</option>
+          </select>
+        </div>
+        <div class="field"><label>Current balance (€)</label><input id="l-val" type="number" placeholder="0.00" style="width:130px;"></div>
+        <button class="btn" onclick="addLiab()">Add</button>
+      </div>
+      <div id="l-credit-fields" style="display:none;margin-top:10px;">
+        <div class="form-row" style="flex-wrap:wrap;gap:10px 14px;">
+          <div class="field"><label>Original loan (€)</label><input id="l-orig" type="number" placeholder="e.g. 150000" style="width:140px;"></div>
+          <div class="field"><label>Monthly instalment (€)</label><input id="l-instalment" type="number" placeholder="e.g. 650" style="width:150px;"></div>
+          <div class="field" style="flex:1;min-width:160px;"><label>Linked expense keyword</label><input id="l-keyword" placeholder="e.g. Prestação Casa" style="width:100%;"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">When an expense description contains the keyword, the credit balance is automatically reduced.</div>
+      </div>
+      <table class="data-table" style="margin-top:14px;"><thead><tr><th>Liability</th><th>Balance</th><th>Progress</th><th></th></tr></thead>
+      <tbody id="liabs-body"></tbody></table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:8px;">
+    <div class="card-title">Net Worth History</div>
+    <div class="chart-wrap"><canvas id="chart-nw-history-tab"></canvas></div>
+  </div>
+</div>
+
+<!-- ══════════════ BUDGET ══════════════ -->
+<div class="tab" id="tab-budget">
+  <div class="sec-header">
+    <div><div class="sec-title">Budget & Income</div><div class="sec-sub">Manage your income, set limits and monitor spending</div></div>
+  </div>
+
+  <!-- Income management card -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-title" style="margin-bottom:16px;">Income — <span id="bud-month-label" style="color:var(--text2);font-size:10px;">this month</span></div>
+
+    <!-- Month selector for budget -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+      <select id="bud-month-sel" onchange="onBudgetMonthChange()" style="padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;cursor:pointer;"></select>
+      <span style="font-size:12px;color:var(--text2);">💼 Salary day: <span id="bud-sal-day" style="color:var(--gold);font-weight:600;">—</span></span>
+    </div>
+
+    <!-- Salary row -->
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;min-width:90px;">💼 Salary</span>
+      <input id="e-sal-amount" type="number" placeholder="e.g. 2500.00"
+        style="flex:1;min-width:120px;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;">
+      <input id="e-sal-date" type="text" class="date-field" readonly placeholder="Select date…"
+        style="padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;width:160px;">
+      <button class="btn" onclick="logSalary()" style="background:var(--up);color:#0d0d0f;" id="e-sal-btn">Log</button>
+      <button class="btn-ghost" onclick="clearSalary()" id="e-sal-clear" style="display:none;font-size:11px;padding:7px 12px;border-color:var(--down);color:var(--down);">✕ Clear</button>
+    </div>
+
+    <!-- Extra income row -->
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;min-width:90px;">✚ Extra</span>
+      <input id="e-extra-desc" placeholder="e.g. Freelance, Bonus…"
+        style="flex:1;min-width:120px;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;">
+      <input id="e-extra-amount" type="number" placeholder="0.00"
+        style="width:110px;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;">
+      <input id="e-extra-date" type="text" class="date-field" readonly placeholder="Select date…"
+        style="padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;width:160px;">
+      <button class="btn" onclick="logExtra()" style="background:var(--gold);color:#0d0d0f;">Add</button>
+    </div>
+
+    <!-- Extra income logged list -->
+    <div id="e-extra-list" style="margin-top:4px;"></div>
+  </div>
+
+  <!-- Monthly summary cards -->
+  <div class="stats-grid" style="margin-bottom:24px;">
+    <div class="stat-card">
+      <div class="stat-label">Income This Month</div>
+      <div class="stat-val up-text" id="bud-income">€0</div>
+      <div class="stat-sub" id="bud-income-sub">logged entries</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Spent This Month</div>
+      <div class="stat-val" id="bud-spent">€0</div>
+      <div class="stat-sub">across all categories</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Remaining</div>
+      <div class="stat-val" id="bud-remaining">€0</div>
+      <div class="stat-sub" id="bud-remaining-sub">income – expenses</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Savings Rate</div>
+      <div class="stat-val" id="bud-savrate">0%</div>
+      <div class="stat-sub">of income saved</div>
+    </div>
+  </div>
+
+  <!-- Income vs Spending bar -->
+  <div class="card" style="margin-bottom:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span style="font-size:13px;font-weight:600;">Monthly Overview — Income vs Spending</span>
+      <span id="budget-summary" style="font-size:13px;color:var(--text2);">€0 spent / €0 budget</span>
+    </div>
+    <div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--bg4);margin-bottom:8px;">
+      <div id="bud-bar-spent" style="height:100%;background:var(--down);transition:width .5s;width:0%;"></div>
+      <div id="bud-bar-saved" style="height:100%;background:var(--up);transition:width .5s;width:0%;"></div>
+    </div>
+    <div style="display:flex;gap:20px;font-size:11px;color:var(--text2);">
+      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--down);margin-right:4px;"></span>Spent</span>
+      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--up);margin-right:4px;"></span>Saved / Remaining</span>
+    </div>
+    <div class="prog-wrap" style="height:8px;margin-top:16px;">
+      <div class="prog-bar" id="budget-total-bar" style="width:0%;"></div>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-top:4px;">Budget limit usage</div>
+  </div>
+
+  <!-- Manage categories -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-title" style="margin-bottom:12px;">Categories</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+      <input id="new-cat-input" placeholder="Add a new category…"
+        style="flex:1;min-width:140px;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;transition:border .2s;"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"
+        onkeydown="if(event.key==='Enter')addCategory()">
+      <button class="btn" onclick="addCategory()">Add</button>
+    </div>
+    <div id="cats-chips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+  </div>
+
+  <div id="budget-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;"></div>
+</div>
+
+<!-- ══════════════ GOALS ══════════════ -->
+<div class="tab" id="tab-goals">
+  <div class="sec-header">
+    <div><div class="sec-title">Goals</div><div class="sec-sub">Track your milestones · Calculate your path to financial independence</div></div>
+  </div>
+
+  <!-- ── FIRE Calculator ── -->
+  <div class="card" id="fire-section" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div>
+        <div class="card-title">🔥 FIRE Calculator</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px;">Financial Independence · Retire Early</div>
+      </div>
+      <span style="font-size:11px;color:var(--text3);font-style:italic;">Based on last 12 months of data</span>
+    </div>
+
+    <!-- Stats row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;" id="fire-stats-row">
+      <div style="background:var(--bg3);border-radius:10px;padding:14px;">
+        <div class="div-stat-label">FIRE Number</div>
+        <div id="fire-number" class="div-stat-val" style="color:var(--gold);">—</div>
+        <div class="div-stat-sub">25× annual expenses</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:14px;">
+        <div class="div-stat-label">Current Net Worth</div>
+        <div id="fire-nw" class="div-stat-val">—</div>
+        <div class="div-stat-sub">assets − liabilities</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:14px;">
+        <div class="div-stat-label">Annual Expenses</div>
+        <div id="fire-ann-exp" class="div-stat-val">—</div>
+        <div class="div-stat-sub">12-month average</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:14px;">
+        <div class="div-stat-label">Annual Savings</div>
+        <div id="fire-ann-sav" class="div-stat-val">—</div>
+        <div class="div-stat-sub">income − expenses</div>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:12px;color:var(--text2);">Progress to FIRE</span>
+        <span id="fire-pct" style="font-size:13px;font-weight:700;color:var(--gold);">0%</span>
+      </div>
+      <div style="height:14px;background:var(--bg4);border-radius:7px;overflow:hidden;position:relative;">
+        <div id="fire-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#4caf82,#c9a84c);border-radius:7px;transition:width 1s ease;"></div>
+      </div>
+    </div>
+
+    <!-- ETA + Sliders row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
+      <!-- Time to FIRE -->
+      <div style="background:var(--bg3);border-radius:12px;padding:20px;text-align:center;">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">Estimated Time to FIRE</div>
+        <div id="fire-years" style="font-size:44px;font-weight:700;color:var(--gold);line-height:1;letter-spacing:-1px;">—</div>
+        <div id="fire-years-label" style="font-size:13px;color:var(--text2);margin-top:6px;"></div>
+        <div id="fire-years-sub" style="font-size:11px;color:var(--text3);margin-top:4px;"></div>
+      </div>
+      <!-- What-if sliders -->
+      <div style="background:var(--bg3);border-radius:12px;padding:16px;">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;">What-If Scenarios</div>
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+            <span style="color:var(--text2);">Real annual return</span>
+            <span style="color:var(--gold);font-weight:700;" id="fire-return-val">7.0%</span>
+          </div>
+          <input type="range" id="fire-return-slider" min="1" max="15" value="7" step="0.5"
+            oninput="document.getElementById('fire-return-val').textContent=parseFloat(this.value).toFixed(1)+'%';renderFire()"
+            style="width:100%;accent-color:var(--gold);cursor:pointer;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:3px;"><span>1%</span><span>15%</span></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+            <span style="color:var(--text2);">Monthly savings</span>
+            <span style="color:var(--gold);font-weight:700;" id="fire-savings-val">—</span>
+          </div>
+          <input type="range" id="fire-savings-slider" min="0" max="5000" value="1000" step="50"
+            oninput="document.getElementById('fire-savings-val').textContent='€'+Number(this.value).toLocaleString('de-DE');renderFire()"
+            style="width:100%;accent-color:var(--gold);cursor:pointer;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:3px;" id="fire-savings-range"><span>€0</span><span id="fire-savings-max">€5,000</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Add Goal Form ── -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-title" style="margin-bottom:14px;">Add Goal</div>
+    <div class="form-row">
+      <div class="field" style="flex:1;min-width:160px;"><label>Goal Name</label><input id="goal-name" placeholder="e.g. Emergency Fund, House Down-payment…"></div>
+      <div class="field"><label>Target (€)</label><input id="goal-target" type="number" placeholder="10000" style="width:130px;"></div>
+      <div class="field"><label>Saved so far (€)</label><input id="goal-current" type="number" placeholder="0" style="width:130px;"></div>
+      <div class="field"><label>Deadline (optional)</label><input id="goal-deadline" type="text" class="date-field" readonly placeholder="Select date…" style="width:145px;"></div>
+      <button class="btn" onclick="addGoal()">Add</button>
+    </div>
+  </div>
+
+  <div id="goals-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;"></div>
+</div>
+
+<!-- ══════════════ SALARY ══════════════ -->
+<div class="tab" id="tab-salary">
+  <div class="sec-header">
+    <div>
+      <div class="sec-title">Salary</div>
+      <div class="sec-sub">Track income evolution · compare periods · see your progression</div>
+    </div>
+    <button class="btn" onclick="importPayslip()">↑ Import Payslip (PDF)</button>
+  </div>
+
+  <!-- Drag-and-drop zone -->
+  <div class="salary-drop-zone" id="salary-drop-zone">
+    <span class="drop-icon">📄</span>
+    <span>Drop a payslip PDF anywhere here — or use the button above</span>
+  </div>
+
+  <!-- Summary cards — rendered by JS -->
+  <div id="salary-summary"></div>
+
+  <!-- Charts row -->
+  <div class="chart-grid-2" id="salary-charts-row" style="margin-bottom:20px;display:none;">
+    <div class="card">
+      <div class="card-title">Gross vs Net Evolution</div>
+      <div class="chart-wrap"><canvas id="chart-salary-evo"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Monthly Breakdown</div>
+      <div class="chart-wrap"><canvas id="chart-salary-bkd"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Tax burden chart -->
+  <div class="card" id="salary-tax-card" style="margin-bottom:20px;display:none;">
+    <div class="card-title">Tax Burden Over Time</div>
+    <div class="chart-wrap-sm"><canvas id="chart-salary-tax"></canvas></div>
+  </div>
+
+  <!-- Payslips history table -->
+  <div class="card">
+    <div class="card-title">Payslips History</div>
+    <div id="salary-list"><div class="empty">No payslips imported yet.</div></div>
+  </div>
+</div>
+
+</main>
+</div><!-- end app-wrapper -->
+
+<!-- Autocomplete dropdown overlay -->
+<div class="autocomplete-drop" id="ac-drop"></div>
+
+<script src="js/state.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/render.js"></script>
+<script src="js/actions.js"></script>
+<script src="js/salary.js"></script>
+<script src="js/app.js"></script>
+<script src="js/charts2.js"></script>
+<script src="js/xtb.js"></script>
+<script src="js/calendar.js"></script>
+<div id="marduk-toast"></div>
+
+<!-- ── Benchmark Selector Modal ── -->
+<div class="benchmark-overlay" id="benchmark-overlay" onclick="if(event.target===this)closeBenchmarkModal()">
+  <div class="benchmark-modal">
+    <h3>Select Benchmark</h3>
+    <p style="font-size:12px;color:var(--text2);">Compare your portfolio against a market index. The benchmark line shows what the same initial value would have returned.</p>
+    <div class="benchmark-list" id="benchmark-list"></div>
+    <div style="display:flex;justify-content:flex-end;">
+      <button class="btn-ghost" onclick="closeBenchmarkModal()" style="font-size:12px;">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Company Detail Modal ── -->
+<div class="company-modal-overlay" id="company-modal-overlay" onclick="closeCompanyModal(event)">
+  <div class="company-modal" id="company-modal">
+    <div id="company-modal-content">
+      <!-- filled dynamically -->
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,80 @@
+{
+  "name": "marduk",
+  "version": "1.0.0",
+  "description": "MARDUK — Wealth of Babylon. Personal finance dashboard.",
+  "main": "main.js",
+  "author": "Pedro",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build-win": "electron-builder --win portable",
+    "build-mac": "electron-builder --mac && rm -rf dist/mac dist/mac-arm64",
+    "update": "npm run build-mac && node deploy.js",
+    "build-linux": "electron-builder --linux",
+    "release": "electron-builder --mac --win --linux --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3",
+    "pdf-parse": "^2.4.5",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^29.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.pedro.marduk",
+    "productName": "MARDUK",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "js/**",
+      "icon.png",
+      "header-icon.png"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "M4rt1n3z18",
+      "repo": "Marduk-finance"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "icon.png",
+      "category": "public.app-category.finance"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Finance"
+    },
+    "nsis": {
+      "oneClick": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "MARDUK.exe"
+    }
+  }
+}
