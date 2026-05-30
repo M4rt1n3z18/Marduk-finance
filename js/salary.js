@@ -24,111 +24,125 @@ function _psParseNum(s) {
   return isNaN(n) ? null : n;
 }
 
-let _psActiveRow = null;  // currently active field row
+let _psActiveRow = null;
+let _psPdf       = null;   // cached PDF document
+let _psScale     = 1.2;    // current zoom level
 
 function _psSetActive(row) {
   document.querySelectorAll('.ps-field-row').forEach(r => r.classList.remove('ps-active'));
   _psActiveRow = row || null;
   const hint = document.getElementById('ps-active-hint');
-  if (row) {
-    row.classList.add('ps-active');
-    if (hint) hint.style.display = 'block';
-  } else {
-    if (hint) hint.style.display = 'none';
+  if (row) { row.classList.add('ps-active'); if (hint) hint.style.display = 'block'; }
+  else     { if (hint) hint.style.display = 'none'; }
+}
+
+function _psFlashInput(input, ok) {
+  input.style.borderColor = ok ? 'var(--up)' : 'var(--down)';
+  setTimeout(() => { input.style.borderColor = ''; }, 700);
+}
+
+async function _psDrawPages() {
+  if (!_psPdf) return;
+  const pagesEl = document.getElementById('ps-pdf-pages');
+  if (!pagesEl) return;
+  pagesEl.innerHTML = '';
+
+  for (let p = 1; p <= _psPdf.numPages; p++) {
+    const page     = await _psPdf.getPage(p);
+    const viewport = page.getViewport({ scale: _psScale });
+
+    // Page wrapper
+    const wrap = document.createElement('div');
+    wrap.className = 'ps-pdf-page';
+    wrap.style.width  = viewport.width  + 'px';
+    wrap.style.height = viewport.height + 'px';
+
+    // Canvas — renders the visual PDF
+    const canvas  = document.createElement('canvas');
+    canvas.width  = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+    // Text layer — invisible clickable spans over each word/number
+    const textDiv = document.createElement('div');
+    textDiv.className = 'ps-text-layer';
+
+    const { items } = await page.getTextContent();
+    items.forEach(item => {
+      if (!item.str.trim()) return;
+
+      // Transform item coordinates into canvas (viewport) space
+      const [a, b, , d, e, f] = pdfjsLib.Util.transform(viewport.transform, item.transform);
+      const fontH = Math.hypot(a, b);       // rendered font height
+      const fontW = Math.hypot(item.transform[0], item.transform[1]) * _psScale;
+
+      const span = document.createElement('span');
+      span.textContent = item.str;
+      span.style.cssText = `left:${e}px;top:${f - fontH}px;font-size:${fontH}px;` +
+        (item.width > 0 ? `width:${item.width * fontW / Math.max(item.transform[0], 0.1)}px;` : '') +
+        (b !== 0 ? `transform:rotate(${Math.atan2(b, a)}rad);` : '');
+
+      span.addEventListener('click', e => {
+        e.stopPropagation();
+        if (!_psActiveRow) return;
+
+        const fieldId = _psActiveRow.dataset.field;
+        const input   = document.getElementById(fieldId);
+        if (!input) return;
+
+        const text = item.str.trim();
+        if (input.type === 'number') {
+          const n = _psParseNum(text);
+          if (n !== null) { input.value = n; _psFlashInput(input, true); }
+          else             { _psFlashInput(input, false); }
+        } else {
+          input.value = text;
+          _psFlashInput(input, true);
+        }
+      });
+
+      textDiv.appendChild(span);
+    });
+
+    wrap.appendChild(canvas);
+    wrap.appendChild(textDiv);
+    pagesEl.appendChild(wrap);
   }
 }
 
 async function _psRenderPDF(filePath) {
-  const pagesEl  = document.getElementById('ps-pdf-pages');
-  const loadEl   = document.getElementById('ps-pdf-loading');
-  pagesEl.innerHTML = '';
+  const loadEl  = document.getElementById('ps-pdf-loading');
+  const pagesEl = document.getElementById('ps-pdf-pages');
+  _psPdf = null;
+  if (pagesEl) pagesEl.innerHTML = '';
+  if (loadEl)  { loadEl.style.display = 'block'; loadEl.textContent = 'Loading PDF…'; }
 
   if (!filePath || typeof pdfjsLib === 'undefined') {
     if (loadEl) loadEl.textContent = 'PDF preview unavailable.';
     return;
   }
-
   try {
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-    const url  = 'file://' + filePath.replace(/\\/g, '/');
-    const pdf  = await pdfjsLib.getDocument(url).promise;
+    const url = 'file://' + filePath.replace(/\\/g, '/');
+    _psPdf = await pdfjsLib.getDocument(url).promise;
     if (loadEl) loadEl.style.display = 'none';
 
-    for (let p = 1; p <= pdf.numPages; p++) {
-      const page     = await pdf.getPage(p);
-      const scale    = 1.4;
-      const viewport = page.getViewport({ scale });
-
-      // Page wrapper
-      const wrap = document.createElement('div');
-      wrap.className = 'ps-pdf-page';
-      wrap.style.cssText = `width:${viewport.width}px;height:${viewport.height}px;`;
-
-      // Canvas
-      const canvas = document.createElement('canvas');
-      canvas.width  = viewport.width;
-      canvas.height = viewport.height;
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-
-      // Text layer (makes text selectable)
-      const textDiv = document.createElement('div');
-      textDiv.className = 'ps-text-layer';
-      const textContent = await page.getTextContent();
-      const textItems = textContent.items;
-      textItems.forEach(item => {
-        if (!item.str) return;
-        const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-        const span = document.createElement('span');
-        span.textContent = item.str;
-        const angle = Math.atan2(tx[1], tx[0]);
-        const scaleX = Math.sqrt(tx[0]*tx[0] + tx[1]*tx[1]);
-        const scaleY = Math.sqrt(tx[2]*tx[2] + tx[3]*tx[3]);
-        span.style.cssText = [
-          `left:${tx[4]}px`,
-          `top:${tx[5] - item.height * scaleY}px`,
-          `font-size:${item.height * scaleY}px`,
-          `transform:scaleX(${item.width > 0 ? (item.width * scaleX) / (item.str.length * item.height * scaleY * 0.56) : 1})`,
-          angle !== 0 ? `rotate(${-angle}rad)` : '',
-        ].filter(Boolean).join(';');
-        textDiv.appendChild(span);
-      });
-
-      wrap.appendChild(canvas);
-      wrap.appendChild(textDiv);
-      pagesEl.appendChild(wrap);
+    // Auto-fit to panel width on first load
+    const scrollEl = document.getElementById('ps-pdf-scroll');
+    if (scrollEl && _psPdf.numPages > 0) {
+      const firstPage = await _psPdf.getPage(1);
+      const nativeW   = firstPage.getViewport({ scale: 1 }).width;
+      const panelW    = scrollEl.clientWidth - 40;
+      _psScale = Math.min(Math.max(panelW / nativeW, 0.5), 2.5);
+      const pctEl = document.getElementById('ps-zoom-pct');
+      if (pctEl) pctEl.textContent = Math.round(_psScale * 100) + '%';
     }
 
-    // Capture text selection in the PDF panel
-    const pdfPanel = document.getElementById('ps-pdf-panel');
-    pdfPanel.addEventListener('mouseup', () => {
-      if (!_psActiveRow) return;
-      const sel = window.getSelection()?.toString().trim();
-      if (!sel) return;
-
-      const fieldId = _psActiveRow.dataset.field;
-      const input   = document.getElementById(fieldId);
-      if (!input) return;
-
-      if (input.type === 'number') {
-        const n = _psParseNum(sel);
-        if (n !== null) {
-          input.value = n;
-          // Flash green to confirm
-          input.style.borderColor = 'var(--up)';
-          setTimeout(() => { input.style.borderColor = ''; }, 800);
-        }
-      } else {
-        input.value = sel;
-        input.style.borderColor = 'var(--up)';
-        setTimeout(() => { input.style.borderColor = ''; }, 800);
-      }
-      window.getSelection()?.removeAllRanges();
-    });
-
+    await _psDrawPages();
   } catch(e) {
-    if (loadEl) loadEl.textContent = 'Could not render PDF preview: ' + e.message;
+    if (loadEl) loadEl.textContent = 'Could not render PDF: ' + e.message;
   }
 }
 
@@ -159,10 +173,27 @@ function showPayslipModal(data) {
       row.onclick = () => _psSetActive(_psActiveRow === row ? null : row);
     });
 
+    // Zoom controls
+    const updateZoom = (delta) => {
+      _psScale = Math.min(3.0, Math.max(0.4, _psScale + delta));
+      const pctEl = document.getElementById('ps-zoom-pct');
+      if (pctEl) pctEl.textContent = Math.round(_psScale * 100) + '%';
+      _psDrawPages();
+    };
+    document.getElementById('ps-zoom-out').onclick = () => updateZoom(-0.15);
+    document.getElementById('ps-zoom-in').onclick  = () => updateZoom(+0.15);
+    document.getElementById('ps-zoom-fit').onclick = async () => {
+      if (!_psPdf) return;
+      const scrollEl = document.getElementById('ps-pdf-scroll');
+      const firstPage = await _psPdf.getPage(1);
+      const nativeW   = firstPage.getViewport({ scale: 1 }).width;
+      _psScale = Math.min(Math.max((scrollEl.clientWidth - 40) / nativeW, 0.4), 2.5);
+      const pctEl = document.getElementById('ps-zoom-pct');
+      if (pctEl) pctEl.textContent = Math.round(_psScale * 100) + '%';
+      _psDrawPages();
+    };
+
     // Render PDF preview
-    document.getElementById('ps-pdf-loading').style.display = 'block';
-    document.getElementById('ps-pdf-loading').textContent = 'Loading PDF…';
-    document.getElementById('ps-pdf-pages').innerHTML = '';
     _psRenderPDF(data?._filePath);
 
     const num     = id => parseFloat(document.getElementById(id).value) || 0;

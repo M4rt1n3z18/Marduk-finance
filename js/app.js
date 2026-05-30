@@ -275,7 +275,7 @@ async function initApp() {
         if (correct !== 'Stock') { h.assetClass = correct; _classFixed = true; }
       }
     }
-    if (_classFixed) { console.log('[migration] Auto-corrected asset classes'); save(); }
+    if (_classFixed) { save(); }
   }
 
   syncCats();

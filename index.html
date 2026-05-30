@@ -625,16 +625,15 @@
   }
   .holding-logo-name-btn:hover { opacity:.75; }
   /* ── PDF text layer (payslip viewer) ── */
-  .ps-pdf-page { position:relative; margin-bottom:10px; box-shadow:0 2px 12px rgba(0,0,0,0.4); }
+  .ps-pdf-page { position:relative; margin-bottom:10px; box-shadow:0 2px 12px rgba(0,0,0,0.4); flex-shrink:0; }
   .ps-pdf-page canvas { display:block; }
-  .ps-text-layer {
-    position:absolute; inset:0; overflow:hidden; line-height:1; pointer-events:auto;
-  }
+  .ps-text-layer { position:absolute; inset:0; overflow:hidden; line-height:1; pointer-events:auto; }
   .ps-text-layer span {
-    color:transparent; position:absolute; white-space:pre; cursor:text;
-    transform-origin:0% 0%;
+    position:absolute; white-space:pre; transform-origin:0% 0%;
+    color:transparent; border-radius:3px; cursor:pointer;
+    transition:background .08s, color .08s;
   }
-  .ps-text-layer ::selection { background:rgba(201,168,76,0.45); color:transparent; }
+  .ps-text-layer span:hover { background:rgba(201,168,76,0.35); color:rgba(30,20,0,0.85); }
   /* Active field highlight */
   .ps-field-row { border-radius:8px; padding:2px 4px; transition:background .15s; cursor:pointer; }
   .ps-field-row:hover { background:rgba(201,168,76,0.05); }
@@ -736,9 +735,21 @@
       </div>
 
       <!-- RIGHT: PDF preview -->
-      <div id="ps-pdf-panel" style="flex:1;overflow-y:auto;background:var(--bg);padding:16px;display:flex;flex-direction:column;align-items:center;">
-        <div id="ps-pdf-loading" style="color:var(--text2);font-size:13px;margin-top:40px;">Loading PDF…</div>
-        <div id="ps-pdf-pages"></div>
+      <div id="ps-pdf-panel" style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);">
+        <!-- Zoom toolbar -->
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;">
+          <span style="font-size:11px;color:var(--text3);">ZOOM</span>
+          <button id="ps-zoom-out" class="btn-ghost" style="padding:1px 9px;font-size:17px;line-height:1.2;">−</button>
+          <span id="ps-zoom-pct" style="font-size:12px;color:var(--text2);min-width:38px;text-align:center;font-weight:600;">100%</span>
+          <button id="ps-zoom-in"  class="btn-ghost" style="padding:1px 9px;font-size:17px;line-height:1.2;">+</button>
+          <button id="ps-zoom-fit" class="btn-ghost" style="font-size:11px;padding:3px 10px;">Fit</button>
+          <span style="margin-left:10px;font-size:11px;color:var(--text3);">👆 Click a field on the left → click a value here</span>
+        </div>
+        <!-- Scrollable PDF content -->
+        <div id="ps-pdf-scroll" style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;">
+          <div id="ps-pdf-loading" style="color:var(--text2);font-size:13px;margin-top:40px;">Loading PDF…</div>
+          <div id="ps-pdf-pages"></div>
+        </div>
       </div>
     </div>
 

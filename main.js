@@ -855,10 +855,6 @@ ipcMain.handle('fetch-prices', async (event, tickers) => {
 });
 
 // ══════════════ PAYSLIP PARSER ══════════════
-const PT_MONTHS_MAP = {
-  'Janeiro':1,'Fevereiro':2,'Março':3,'Abril':4,'Maio':5,'Junho':6,
-  'Julho':7,'Agosto':8,'Setembro':9,'Outubro':10,'Novembro':11,'Dezembro':12
-};
 function parsePayslipText(t) {
   // Smart number parser — handles European (1.234,56) and US/UK (1,234.56) formats
   // Rejects values that look like dates (years, months, MM/YYYY patterns)
@@ -1095,7 +1091,7 @@ function parsePayslipText(t) {
     ytdSSDeduction:   ptNum(t.match(/Ac\. Retenção SS:\s*([\d.,]+)/)?.[1]),
     ytdIRSDeduction:  ptNum(t.match(/Ac\. Retenção IRS:\s*([\d.,]+)/)?.[1]),
     department:       t.match(/Departamento:\s*(.+)/)?.[1]?.trim() || null,
-    _rawText:         t,  // exposed to modal for debugging
+    _rawText:         t,  // kept for future debugging / re-parsing
   };
 }
 
