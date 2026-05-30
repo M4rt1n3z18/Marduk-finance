@@ -766,38 +766,207 @@ const PT_MONTHS_MAP = {
   'Julho':7,'Agosto':8,'Setembro':9,'Outubro':10,'Novembro':11,'Dezembro':12
 };
 function parsePayslipText(t) {
-  const ptNum = s => { if (!s) return null; return parseFloat(s.replace(/\./g,'').replace(',','.')); };
-  const periodM   = t.match(/Período\s+([A-Za-zÀ-ú]+)\s+(\d{4})/);
-  const monthName = periodM?.[1] || '';
-  const year      = parseInt(periodM?.[2]) || new Date().getFullYear();
-  const monthNum  = PT_MONTHS_MAP[monthName] || 1;
-  const irs401    = ptNum(t.match(/\/401\s+Ded\.imposto rends\. ctg\.A.*?([\d.,]+)\s*$/m)?.[1]) || 0;
-  const irs403    = ptNum(t.match(/\/403\s+Dedução fiscal SF ctg\.A.*?([\d.,]+)\s*$/m)?.[1])   || 0;
-  const irs404    = ptNum(t.match(/\/404\s+Dedução fiscal SN ctg\.A.*?([\d.,]+)\s*$/m)?.[1])   || 0;
-  const mealMatches = [...t.matchAll(/\/430\s+Cartão Refeição.*?([\d.,]+)\s*$/mg)];
+  // Smart number parser — handles European (1.234,56) and US/UK (1,234.56) formats
+  const ptNum = s => {
+    if (!s) return null;
+    s = s.trim().replace(/\s/g, '');
+    if (/^\d{1,3}(\.\d{3})*(,\d{1,2})?$/.test(s)) return parseFloat(s.replace(/\./g,'').replace(',','.'));
+    if (/^\d{1,3}(,\d{3})*(\.\d{1,2})?$/.test(s)) return parseFloat(s.replace(/,/g,''));
+    const n = parseFloat(s.replace(/[^\d.]/g,''));
+    return isNaN(n) ? null : n;
+  };
+
+  // Try a list of regex patterns, return the first captured group that matches
+  const first = (...patterns) => {
+    for (const p of patterns) { const m = t.match(p); if (m?.[1]) return m[1]; }
+    return null;
+  };
+
+  // ── Period detection (multilingual) ──────────────────────────────────────
+  const MONTHS = {
+    // PT
+    janeiro:1,fevereiro:2,março:3,marco:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12,
+    // ES
+    enero:1,febrero:2,marzo:3,mayo:5,junio:6,julio:7,septiembre:9,octubre:10,noviembre:11,diciembre:12,
+    // FR
+    janvier:1,fevrier:2,février:2,mars:3,avril:4,mai:5,juin:6,juillet:7,aout:8,août:8,septembre:9,octobre:10,novembre:11,decembre:12,décembre:12,
+    // DE
+    januar:1,februar:2,marz:3,märz:3,april:4,juni:6,juli:7,september:9,oktober:10,november:11,dezember:12,
+    // EN
+    january:1,february:2,march:3,june:6,july:7,september:9,october:10,november:11,december:12,
+    // IT/NL
+    gennaio:1,febbraio:2,aprile:4,maggio:5,giugno:6,luglio:7,settembre:9,ottobre:10,
+    januari:1,februari:2,maart:3,mei:5,augustus:8,
+  };
+  const MONTH_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  let year = null, monthNum = null, monthName = null;
+  // "MonthName YYYY"
+  for (const m of (t.match(/\b([A-Za-zÀ-ú]{3,})\s+(\d{4})\b/g) || [])) {
+    const [name, yr] = m.trim().split(/\s+/);
+    const mn = MONTHS[name.toLowerCase()]; const y = parseInt(yr);
+    if (mn && y > 2000 && y < 2100) { monthNum = mn; monthName = name; year = y; break; }
+  }
+  // "YYYY/MM" or "MM/YYYY"
+  if (!year) {
+    const m1 = t.match(/\b(\d{4})[\/\-](\d{1,2})\b/);
+    const m2 = t.match(/\b(\d{1,2})[\/\-](\d{4})\b/);
+    if (m1 && +m1[1] > 2000) { year = +m1[1]; monthNum = +m1[2]; }
+    else if (m2 && +m2[2] > 2000) { year = +m2[2]; monthNum = +m2[1]; }
+  }
+  if (!year) year = new Date().getFullYear();
+  if (!monthNum || monthNum < 1 || monthNum > 12) monthNum = new Date().getMonth() + 1;
+  const period      = `${year}-${String(monthNum).padStart(2,'0')}`;
+  const periodLabel = monthName ? `${monthName} ${year}` : `${MONTH_EN[monthNum-1]} ${year}`;
+
+  // ── Gross salary ─────────────────────────────────────────────────────────
+  const grossRaw = first(
+    /vencimento\s+bruto\s*:?\s*([\d][\d.,]*)/i,          // PT
+    /gross\s+(?:salary|pay|wage|earnings?)\s*:?\s*([\d][\d.,]*)/i, // EN
+    /total\s+(?:gross|earnings?)\s*:?\s*([\d][\d.,]*)/i,
+    /salario\s+bruto\s*:?\s*([\d][\d.,]*)/i,             // ES
+    /total\s+devengado\s*:?\s*([\d][\d.,]*)/i,
+    /salaire\s+brut\s*:?\s*([\d][\d.,]*)/i,              // FR
+    /brut\s+(?:total|mensuel)\s*:?\s*([\d][\d.,]*)/i,
+    /bruttogehalt\s*:?\s*([\d][\d.,]*)/i,                // DE
+    /bruttolohn\s*:?\s*([\d][\d.,]*)/i,
+    /retribuzione\s+lorda\s*:?\s*([\d][\d.,]*)/i,        // IT
+    /totale\s+competenze\s*:?\s*([\d][\d.,]*)/i,
+    /\bbruto\s*:?\s*([\d][\d.,]*)/i,                     // generic
+    /\bgross\s*:?\s*([\d][\d.,]*)/i,
+  );
+
+  // ── Net salary ───────────────────────────────────────────────────────────
+  const netRaw = first(
+    /venc\.?\s*l[íi]q\.?\s*(?:impostos?)?\s*:?\s*([\d][\d.,]*)/i,  // PT
+    /l[íi]quido\s*a?\s*(?:receber|pagar)?\s*:?\s*([\d][\d.,]*)/i,
+    /net\s+(?:salary|pay|wage|take[- ]home)\s*:?\s*([\d][\d.,]*)/i, // EN
+    /total\s+net\s*:?\s*([\d][\d.,]*)/i,
+    /net\s+(?:à\s+payer|payé)\s*:?\s*([\d][\d.,]*)/i,              // FR
+    /salaire\s+net\s*:?\s*([\d][\d.,]*)/i,
+    /l[íi]quido\s+a\s+percibir\s*:?\s*([\d][\d.,]*)/i,             // ES
+    /neto\s+a\s+percibir\s*:?\s*([\d][\d.,]*)/i,
+    /nettogehalt\s*:?\s*([\d][\d.,]*)/i,                           // DE
+    /auszahlungsbetrag\s*:?\s*([\d][\d.,]*)/i,
+    /netto\s+(?:in\s+busta|a\s+pagare)\s*:?\s*([\d][\d.,]*)/i,    // IT
+    /totale\s+netto\s*:?\s*([\d][\d.,]*)/i,
+    /\bnett?o\s*:?\s*([\d][\d.,]*)/i,                              // generic
+  );
+
+  // ── Base salary ──────────────────────────────────────────────────────────
+  const baseRaw = first(
+    /venc\.?\s*base\s*:?\s*([\d][\d.,]*)/i,
+    /base\s+salary\s*:?\s*([\d][\d.,]*)/i,
+    /basic\s+(?:salary|pay)\s*:?\s*([\d][\d.,]*)/i,
+    /salario\s+base\s*:?\s*([\d][\d.,]*)/i,
+    /salaire\s+de\s+base\s*:?\s*([\d][\d.,]*)/i,
+    /grundgehalt\s*:?\s*([\d][\d.,]*)/i,
+    /retribuzione\s+base\s*:?\s*([\d][\d.,]*)/i,
+  );
+
+  // ── Tax deduction ────────────────────────────────────────────────────────
+  const taxRaw = first(
+    /(?:reten[çc][aã]o\s+)?irs\s*:?\s*([\d][\d.,]*)/i,
+    /income\s+tax\s*:?\s*([\d][\d.,]*)/i,
+    /(?:paye|tax\s+withheld)\s*:?\s*([\d][\d.,]*)/i,
+    /(?:retenci[oó]n\s+)?irpf\s*:?\s*([\d][\d.,]*)/i,
+    /impôt\s+(?:sur\s+le\s+revenu|prélevé)\s*:?\s*([\d][\d.,]*)/i,
+    /prélèvement\s+à\s+la\s+source\s*:?\s*([\d][\d.,]*)/i,
+    /lohnsteuer\s*:?\s*([\d][\d.,]*)/i,
+    /irpef\s*:?\s*([\d][\d.,]*)/i,
+    /ritenuta\s+fiscale\s*:?\s*([\d][\d.,]*)/i,
+  );
+  // EY legacy: sum /401+/403+/404 lines
+  const irs401 = ptNum(t.match(/\/401\s.*?([\d.,]+)\s*$/m)?.[1]) || 0;
+  const irs403 = ptNum(t.match(/\/403\s.*?([\d.,]+)\s*$/m)?.[1]) || 0;
+  const irs404 = ptNum(t.match(/\/404\s.*?([\d.,]+)\s*$/m)?.[1]) || 0;
+  const irsFromLines = irs401 + irs403 + irs404;
+
+  // ── Social security ──────────────────────────────────────────────────────
+  const ssRaw = first(
+    /contrib\.?\s*(?:empregado\s+)?(?:p\/?\s*)?ss\s*:?\s*([\d][\d.,]*)/i,
+    /seguran[çc]a\s+social\s*:?\s*([\d][\d.,]*)/i,
+    /(?:national\s+insurance|ni\b)\s*:?\s*([\d][\d.,]*)/i,
+    /social\s+security\s*:?\s*([\d][\d.,]*)/i,
+    /seguridad\s+social\s*:?\s*([\d][\d.,]*)/i,
+    /cotisations?\s+salariales?\s*:?\s*([\d][\d.,]*)/i,
+    /sécurité\s+sociale\s*:?\s*([\d][\d.,]*)/i,
+    /sozialversicherung\s*:?\s*([\d][\d.,]*)/i,
+    /contributi?\s+(?:inps|previdenziali?)\s*:?\s*([\d][\d.,]*)/i,
+  );
+
+  // ── Meal allowance ───────────────────────────────────────────────────────
+  const mealRaw = first(
+    /cart[aã]o\s+refei[çc][aã]o\s*:?\s*([\d][\d.,]*)/i,
+    /meal\s+(?:allowance|voucher)\s*:?\s*([\d][\d.,]*)/i,
+    /ticket\s+(?:restaurant|repas|meal)\s*:?\s*([\d][\d.,]*)/i,
+    /vales?\s+(?:de\s+)?comida\s*:?\s*([\d][\d.,]*)/i,
+    /essensz[ou]schuss\s*:?\s*([\d][\d.,]*)/i,
+    /buoni?\s+pasto\s*:?\s*([\d][\d.,]*)/i,
+  );
+  // EY legacy /430 line
+  const mealLegacy = ptNum([...t.matchAll(/\/430\s.*?([\d.,]+)\s*$/mg)]?.[0]?.[1]);
+
+  // ── Holiday subsidy ──────────────────────────────────────────────────────
+  const holidayRaw = first(
+    /sub\.?\s*(?:de\s+)?f[eé]rias\s*:?\s*([\d][\d.,]*)/i,
+    /holiday\s+(?:pay|allowance|bonus)\s*:?\s*([\d][\d.,]*)/i,
+    /vacation\s+(?:pay|allowance)\s*:?\s*([\d][\d.,]*)/i,
+    /urlaubsgeld\s*:?\s*([\d][\d.,]*)/i,
+    /indemnit[eé]\s+(?:de\s+)?cong[eé]\s*:?\s*([\d][\d.,]*)/i,
+  );
+
+  // ── Christmas / year-end bonus ───────────────────────────────────────────
+  const christmasRaw = first(
+    /sub\.?\s*(?:de\s+)?natal\s*:?\s*([\d][\d.,]*)/i,
+    /christmas\s+(?:bonus|allowance)\s*:?\s*([\d][\d.,]*)/i,
+    /13\.?\s*(?:th\s+)?(?:month|salary|salario)\s*:?\s*([\d][\d.,]*)/i,
+    /weihnachtsgeld\s*:?\s*([\d][\d.,]*)/i,
+    /tredicesima\s*:?\s*([\d][\d.,]*)/i,
+    /aguinaldo\s*:?\s*([\d][\d.,]*)/i,
+    /gratifica[cç][aã]o\s+natalina\s*:?\s*([\d][\d.,]*)/i,
+  );
+
+  // ── Employer & function ───────────────────────────────────────────────────
+  const employerRaw = first(
+    /empregador\s*:?\s*(.+)/i, /employer\s*:?\s*(.+)/i,
+    /empresa\s*:?\s*(.+)/i,    /employeur\s*:?\s*(.+)/i,
+    /arbeitgeber\s*:?\s*(.+)/i,/company\s*:?\s*(.+)/i,
+    /RECIBO DE REMUNERAÇÕES\n([^\n]+)/,
+  );
+  const functionRaw = first(
+    /fun[çc][aã]o\s*:?\s*(.+)/i, /cargo\s*:?\s*(.+)/i,
+    /job\s+(?:title|position)\s*:?\s*(.+)/i,
+    /position\s*:?\s*(.+)/i,     /poste\s*:?\s*(.+)/i,
+    /stelle\s*:?\s*(.+)/i,       /mansione\s*:?\s*(.+)/i,
+  );
+
+  const irsDeduction = irsFromLines > 0 ? irsFromLines : (ptNum(taxRaw) || 0);
+  const mealAllowance = mealLegacy || ptNum(mealRaw) || 0;
+
   return {
-    period:          `${year}-${String(monthNum).padStart(2,'0')}`,
-    periodLabel:     `${monthName} ${year}`,
-    grossSalary:     ptNum(t.match(/Vencimento Bruto:\s*([\d.,]+)/)?.[1]),
-    netSalary:       ptNum(t.match(/Venc\. Líq\. Impostos:\s*([\d.,]+)/)?.[1]),
-    baseSalary:      ptNum(t.match(/Venc\. Base:\s*([\d.,]+)\s+EUR/)?.[1]),
-    baseComp:        ptNum(t.match(/0100\s+Vencimento Base.*?([\d.,]+)\s*$/m)?.[1])            || 0,
-    hoursExemption:  ptNum(t.match(/0124\s+Isenção de Horário.*?([\d.,]+)\s*$/m)?.[1])        || 0,
-    mealAllowance:   mealMatches.length ? (ptNum(mealMatches[0]?.[1]) || 0) : 0,
-    holidaySubsidy:  ptNum(t.match(/0171\s+Duodécimo de Sub\. Férias.*?([\d.,]+)\s*$/m)?.[1]) || 0,
-    christmasSubsidy:ptNum(t.match(/0172\s+Duodécimo de Sub\. Natal.*?([\d.,]+)\s*$/m)?.[1])  || 0,
-    ssDeduction:     ptNum(t.match(/\/350\s+Contrib\.?empregado p\/ SS.*?([\d.,]+)\s*$/m)?.[1]) || 0,
-    irsDeduction:    irs401 + irs403 + irs404,
-    irsBase:         ptNum(t.match(/Base IRS:\s*([\d.,]+)/)?.[1]),
-    ssBase:          ptNum(t.match(/Base SS:\s*([\d.,]+)/)?.[1]),
-    totalAbonos:     ptNum(t.match(/TOTAIS\s+([\d.,]+)\s+[\d.,]+/)?.[1]),
-    totalDescontos:  ptNum(t.match(/TOTAIS\s+[\d.,]+\s+([\d.,]+)/)?.[1]),
-    ytdIRSBase:      ptNum(t.match(/Ac\. Base IRS:\s*([\d.,]+)/)?.[1]),
-    ytdSSDeduction:  ptNum(t.match(/Ac\. Retenção SS:\s*([\d.,]+)/)?.[1]),
-    ytdIRSDeduction: ptNum(t.match(/Ac\. Retenção IRS:\s*([\d.,]+)/)?.[1]),
-    functionTitle:   t.match(/Função:\s*(.+)/)?.[1]?.trim()      || null,
-    department:      t.match(/Departamento:\s*(.+)/)?.[1]?.trim() || null,
-    employer:        t.match(/RECIBO DE REMUNERAÇÕES\n([^\n]+)/)?.[1]?.trim() || null,
+    period, periodLabel,
+    grossSalary:      ptNum(grossRaw),
+    netSalary:        ptNum(netRaw),
+    baseSalary:       ptNum(baseRaw),
+    ssDeduction:      ptNum(ssRaw)     || 0,
+    irsDeduction,
+    mealAllowance,
+    holidaySubsidy:   ptNum(holidayRaw)   || 0,
+    christmasSubsidy: ptNum(christmasRaw) || 0,
+    employer:         employerRaw?.trim().slice(0,80) || null,
+    functionTitle:    functionRaw?.trim().slice(0,80) || null,
+    // Legacy / EY-specific (kept for backwards compatibility)
+    baseComp:         ptNum(baseRaw) || 0,
+    hoursExemption:   ptNum(t.match(/0124\s.*?([\d.,]+)\s*$/m)?.[1]) || 0,
+    irsBase:          ptNum(t.match(/Base IRS:\s*([\d.,]+)/)?.[1]),
+    ssBase:           ptNum(t.match(/Base SS:\s*([\d.,]+)/)?.[1]),
+    totalAbonos:      ptNum(t.match(/TOTAIS\s+([\d.,]+)\s+[\d.,]+/)?.[1]),
+    totalDescontos:   ptNum(t.match(/TOTAIS\s+[\d.,]+\s+([\d.,]+)/)?.[1]),
+    ytdIRSBase:       ptNum(t.match(/Ac\. Base IRS:\s*([\d.,]+)/)?.[1]),
+    ytdSSDeduction:   ptNum(t.match(/Ac\. Retenção SS:\s*([\d.,]+)/)?.[1]),
+    ytdIRSDeduction:  ptNum(t.match(/Ac\. Retenção IRS:\s*([\d.,]+)/)?.[1]),
+    department:       t.match(/Departamento:\s*(.+)/)?.[1]?.trim() || null,
   };
 }
 
@@ -815,11 +984,16 @@ function parsePdfAtPath(filePath) {
 
   // Try common Python locations in order — Electron's PATH differs from the terminal's
   const pythonCandidates = [
+    '/opt/homebrew/bin/python3',          // macOS Apple Silicon (Homebrew)
+    '/usr/local/bin/python3',             // macOS Intel (Homebrew)
+    '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3',
+    '/Library/Frameworks/Python.framework/Versions/3.11/bin/python3',
     '/Library/Frameworks/Python.framework/Versions/3.10/bin/python3',
-    '/usr/local/bin/python3',
-    '/opt/homebrew/bin/python3',
-    '/usr/bin/python3',
-    'python3',
+    '/usr/bin/python3',                   // Linux / macOS system
+    '/usr/bin/python',                    // Linux fallback
+    '/usr/local/bin/python',
+    'python3',                            // PATH fallback
+    'python',
   ];
 
   let result;
@@ -828,7 +1002,8 @@ function parsePdfAtPath(filePath) {
     if (!result.error) break; // found a working Python
   }
 
-  if (result.error) throw new Error('python3 not found — install Python 3 to import payslips.');
+  if (result.error) throw new Error('Python 3 not found.\nInstall it from https://python.org then run:\n  pip install pdfplumber');
+  if (result.stderr?.includes('No module named')) throw new Error('Missing Python library.\nRun this in your terminal:\n  pip install pdfplumber');
   if (result.status !== 0) throw new Error('PDF text extraction failed:\n' + (result.stderr || 'unknown error'));
 
   return parsePayslipText(result.stdout);

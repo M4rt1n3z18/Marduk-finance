@@ -3,17 +3,75 @@
 async function importPayslip() {
   if (!window.electronAPI?.parsePayslip) { alert('PDF import requires the desktop app.'); return; }
   try {
-    const data = await window.electronAPI.parsePayslip();
-    await processParsedPayslip(data);
+    const raw = await window.electronAPI.parsePayslip();
+    const confirmed = await showPayslipModal(raw);
+    if (confirmed) await processParsedPayslip(confirmed);
   } catch (err) {
     alert('Could not read payslip:\n' + (err?.message || err));
   }
 }
 
+// Show the payslip confirmation modal pre-filled with parsed data.
+// Returns the (possibly edited) data object, or null if cancelled.
+function showPayslipModal(data) {
+  return new Promise(resolve => {
+    const modal = document.getElementById('payslip-modal');
+    const MONTH_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+    // Parse period
+    const [pYear, pMonth] = (data?.period || '').split('-').map(Number);
+    const monthNum = pMonth || (new Date().getMonth() + 1);
+    const year     = pYear  || new Date().getFullYear();
+
+    // Pre-fill fields
+    document.getElementById('ps-month').value    = monthNum;
+    document.getElementById('ps-year').value     = year;
+    document.getElementById('ps-gross').value    = data?.grossSalary    || '';
+    document.getElementById('ps-net').value      = data?.netSalary      || '';
+    document.getElementById('ps-base').value     = data?.baseSalary     || '';
+    document.getElementById('ps-meal').value     = data?.mealAllowance  || '';
+    document.getElementById('ps-tax').value      = data?.irsDeduction   || '';
+    document.getElementById('ps-ss').value       = data?.ssDeduction    || '';
+    document.getElementById('ps-holiday').value  = data?.holidaySubsidy || '';
+    document.getElementById('ps-xmas').value     = data?.christmasSubsidy || '';
+    document.getElementById('ps-employer').value = data?.employer       || '';
+    document.getElementById('ps-function').value = data?.functionTitle  || '';
+
+    const num = id => parseFloat(document.getElementById(id).value) || 0;
+
+    const cleanup = () => { modal.style.display = 'none'; };
+
+    document.getElementById('ps-cancel-btn').onclick = () => { cleanup(); resolve(null); };
+    document.getElementById('ps-confirm-btn').onclick = () => {
+      const m  = parseInt(document.getElementById('ps-month').value);
+      const y  = parseInt(document.getElementById('ps-year').value);
+      const period      = `${y}-${String(m).padStart(2,'0')}`;
+      const periodLabel = `${MONTH_EN[m-1]} ${y}`;
+      cleanup();
+      resolve({
+        ...data,
+        period, periodLabel,
+        grossSalary:      num('ps-gross'),
+        netSalary:        num('ps-net'),
+        baseSalary:       num('ps-base') || null,
+        mealAllowance:    num('ps-meal'),
+        irsDeduction:     num('ps-tax'),
+        ssDeduction:      num('ps-ss'),
+        holidaySubsidy:   num('ps-holiday'),
+        christmasSubsidy: num('ps-xmas'),
+        employer:         document.getElementById('ps-employer').value.trim() || null,
+        functionTitle:    document.getElementById('ps-function').value.trim() || null,
+      });
+    };
+
+    modal.style.display = 'flex';
+  });
+}
+
 async function processParsedPayslip(data) {
   if (!data) return;
   if (!data.period || data.period.includes('NaN')) {
-    alert('Could not read the period from this payslip.\nMake sure it matches the expected Portuguese payslip format.');
+    alert('Could not determine the payslip period. Please check the Month and Year fields.');
     return;
   }
   if (!state.payslips) state.payslips = [];
@@ -25,9 +83,9 @@ async function processParsedPayslip(data) {
   data.id = uid();
   state.payslips.push(data);
   state.payslips.sort((a, b) => a.period.localeCompare(b.period));
-  const budgetInfo = autoLogPayslipSalary(data);   // ← auto-populate budget income
+  const budgetInfo = autoLogPayslipSalary(data);
   if (budgetInfo) {
-    selectedBudgetMonth = budgetInfo.key;           // so Budget tab shows the right month
+    selectedBudgetMonth = budgetInfo.key;
     showToast(`✓ ${data.periodLabel} payslip imported · Budget salary for ${budgetInfo.label} set to ${eur(data.netSalary)}`);
   }
   save();
@@ -91,8 +149,9 @@ function initSalaryDropZone() {
     const filePath = file.path;   // Electron adds .path to File objects
     if (!filePath) { alert('Could not read file path. Please use the Import button instead.'); return; }
     try {
-      const data = await window.electronAPI?.parsePayslipFromPath(filePath);
-      await processParsedPayslip(data);
+      const raw = await window.electronAPI?.parsePayslipFromPath(filePath);
+      const confirmed = await showPayslipModal(raw);
+      if (confirmed) await processParsedPayslip(confirmed);
     } catch (err) {
       alert('Could not read payslip:\n' + (err?.message || err));
     }
