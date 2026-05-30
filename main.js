@@ -861,14 +861,28 @@ const PT_MONTHS_MAP = {
 };
 function parsePayslipText(t) {
   // Smart number parser — handles European (1.234,56) and US/UK (1,234.56) formats
+  // Rejects values that look like dates (years, months, MM/YYYY patterns)
   const ptNum = s => {
     if (!s) return null;
     s = s.trim().replace(/\s/g, '');
+    // Reject year values (2000–2100)
+    if (/^\d{4}$/.test(s) && +s >= 2000 && +s <= 2100) return null;
+    // Reject bare month values (1–12 or 01–12 without decimals)
+    if (/^(0?[1-9]|1[0-2])$/.test(s)) return null;
+    // Reject date patterns like MM/YYYY, YYYY/MM, MM-YYYY
+    if (/^(0?[1-9]|1[0-2])[\/\-]\d{4}$/.test(s)) return null;
+    if (/^\d{4}[\/\-](0?[1-9]|1[0-2])$/.test(s)) return null;
+    // European format: 1.234,56 or 1.234 or 500,00
     if (/^\d{1,3}(\.\d{3})*(,\d{1,2})?$/.test(s)) return parseFloat(s.replace(/\./g,'').replace(',','.'));
+    // US format: 1,234.56 or 1,234 or 500.00
     if (/^\d{1,3}(,\d{3})*(\.\d{1,2})?$/.test(s)) return parseFloat(s.replace(/,/g,''));
     const n = parseFloat(s.replace(/[^\d.]/g,''));
     return isNaN(n) ? null : n;
   };
+
+  // Amount pattern — prefers values with decimal separator (monetary amounts)
+  // Matches: 1.234,56 | 500,00 | 1,234.56 | 500.00 | 1234,5 | plain large numbers
+  const A = '([\\d][\\d.]*,[\\d]{1,2}|[\\d][\\d,]*\\.[\\d]{1,2}|[\\d]{2,}(?![\\d\\/\\-]))';
 
   // Try a list of regex patterns, return the first captured group that matches
   const first = (...patterns) => {
@@ -915,144 +929,164 @@ function parsePayslipText(t) {
 
   // ── Gross salary ─────────────────────────────────────────────────────────
   const grossRaw = first(
-    /vencimento\s+bruto\s*:?\s*([\d][\d.,]*)/i,          // PT
-    /gross\s+(?:salary|pay|wage|earnings?)\s*:?\s*([\d][\d.,]*)/i, // EN
-    /total\s+(?:gross|earnings?)\s*:?\s*([\d][\d.,]*)/i,
-    /salario\s+bruto\s*:?\s*([\d][\d.,]*)/i,             // ES
-    /total\s+devengado\s*:?\s*([\d][\d.,]*)/i,
-    /salaire\s+brut\s*:?\s*([\d][\d.,]*)/i,              // FR
-    /brut\s+(?:total|mensuel)\s*:?\s*([\d][\d.,]*)/i,
-    /bruttogehalt\s*:?\s*([\d][\d.,]*)/i,                // DE
-    /bruttolohn\s*:?\s*([\d][\d.,]*)/i,
-    /retribuzione\s+lorda\s*:?\s*([\d][\d.,]*)/i,        // IT
-    /totale\s+competenze\s*:?\s*([\d][\d.,]*)/i,
-    /\bbruto\s*:?\s*([\d][\d.,]*)/i,                     // generic
-    /\bgross\s*:?\s*([\d][\d.,]*)/i,
+    new RegExp(`vencimento\\s+bruto\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`gross\\s+(?:salary|pay|wage|earnings?)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`total\\s+(?:gross|earnings?)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`salario\\s+bruto\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`total\\s+devengado\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`salaire\\s+brut\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`bruttogehalt\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`bruttolohn\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`retribuzione\\s+lorda\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`totale\\s+competenze\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`\\bbruto\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`\\bgross\\s*:?\\s*${A}`, 'i'),
   );
 
   // ── Net salary ───────────────────────────────────────────────────────────
   const netRaw = first(
-    /venc\.?\s*l[íi]q\.?\s*(?:impostos?)?\s*:?\s*([\d][\d.,]*)/i,  // PT
-    /l[íi]quido\s*a?\s*(?:receber|pagar)?\s*:?\s*([\d][\d.,]*)/i,
-    /net\s+(?:salary|pay|wage|take[- ]home)\s*:?\s*([\d][\d.,]*)/i, // EN
-    /total\s+net\s*:?\s*([\d][\d.,]*)/i,
-    /net\s+(?:à\s+payer|payé)\s*:?\s*([\d][\d.,]*)/i,              // FR
-    /salaire\s+net\s*:?\s*([\d][\d.,]*)/i,
-    /l[íi]quido\s+a\s+percibir\s*:?\s*([\d][\d.,]*)/i,             // ES
-    /neto\s+a\s+percibir\s*:?\s*([\d][\d.,]*)/i,
-    /nettogehalt\s*:?\s*([\d][\d.,]*)/i,                           // DE
-    /auszahlungsbetrag\s*:?\s*([\d][\d.,]*)/i,
-    /netto\s+(?:in\s+busta|a\s+pagare)\s*:?\s*([\d][\d.,]*)/i,    // IT
-    /totale\s+netto\s*:?\s*([\d][\d.,]*)/i,
-    /\bnett?o\s*:?\s*([\d][\d.,]*)/i,                              // generic
+    new RegExp(`venc\\.?\\s*l[íi]q\\.?\\s*(?:impostos?)?\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`l[íi]quido\\s*a?\\s*(?:receber|pagar)?\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`net\\s+(?:salary|pay|wage|take[- ]home)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`total\\s+net\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`net\\s+(?:à\\s+payer|payé)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`salaire\\s+net\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`l[íi]quido\\s+a\\s+percibir\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`neto\\s+a\\s+percibir\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`nettogehalt\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`auszahlungsbetrag\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`netto\\s+(?:in\\s+busta|a\\s+pagare)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`totale\\s+netto\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`\\bnett?o\\s*:?\\s*${A}`, 'i'),
   );
 
   // ── Base salary ──────────────────────────────────────────────────────────
   const baseRaw = first(
-    /venc\.?\s*base\s*:?\s*([\d][\d.,]*)/i,
-    /base\s+salary\s*:?\s*([\d][\d.,]*)/i,
-    /basic\s+(?:salary|pay)\s*:?\s*([\d][\d.,]*)/i,
-    /salario\s+base\s*:?\s*([\d][\d.,]*)/i,
-    /salaire\s+de\s+base\s*:?\s*([\d][\d.,]*)/i,
-    /grundgehalt\s*:?\s*([\d][\d.,]*)/i,
-    /retribuzione\s+base\s*:?\s*([\d][\d.,]*)/i,
+    new RegExp(`venc\\.?\\s*base\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`base\\s+salary\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`basic\\s+(?:salary|pay)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`salario\\s+base\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`salaire\\s+de\\s+base\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`grundgehalt\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`retribuzione\\s+base\\s*:?\\s*${A}`, 'i'),
   );
 
   // ── Tax deduction ────────────────────────────────────────────────────────
-  const taxRaw = first(
-    /(?:reten[çc][aã]o\s+)?irs\s*:?\s*([\d][\d.,]*)/i,
-    /income\s+tax\s*:?\s*([\d][\d.,]*)/i,
-    /(?:paye|tax\s+withheld)\s*:?\s*([\d][\d.,]*)/i,
-    /(?:retenci[oó]n\s+)?irpf\s*:?\s*([\d][\d.,]*)/i,
-    /impôt\s+(?:sur\s+le\s+revenu|prélevé)\s*:?\s*([\d][\d.,]*)/i,
-    /prélèvement\s+à\s+la\s+source\s*:?\s*([\d][\d.,]*)/i,
-    /lohnsteuer\s*:?\s*([\d][\d.,]*)/i,
-    /irpef\s*:?\s*([\d][\d.,]*)/i,
-    /ritenuta\s+fiscale\s*:?\s*([\d][\d.,]*)/i,
-  );
-  // EY legacy: sum /401+/403+/404 lines
-  const irs401 = ptNum(t.match(/\/401\s.*?([\d.,]+)\s*$/m)?.[1]) || 0;
-  const irs403 = ptNum(t.match(/\/403\s.*?([\d.,]+)\s*$/m)?.[1]) || 0;
-  const irs404 = ptNum(t.match(/\/404\s.*?([\d.,]+)\s*$/m)?.[1]) || 0;
+  // EY legacy: sum /401+/403+/404 lines (most reliable for EY PT payslips)
+  const irs401 = ptNum(t.match(/\/401\s[^\n]*([\d.,]{4,})\s*$/m)?.[1]) || 0;
+  const irs403 = ptNum(t.match(/\/403\s[^\n]*([\d.,]{4,})\s*$/m)?.[1]) || 0;
+  const irs404 = ptNum(t.match(/\/404\s[^\n]*([\d.,]{4,})\s*$/m)?.[1]) || 0;
   const irsFromLines = irs401 + irs403 + irs404;
+  const taxRaw = first(
+    new RegExp(`(?:reten[çc][aã]o\\s+)?irs\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`income\\s+tax\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`(?:paye|tax\\s+withheld)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`(?:retenci[oó]n\\s+)?irpf\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`lohnsteuer\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`irpef\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`ritenuta\\s+fiscale\\s*:?\\s*${A}`, 'i'),
+  );
 
   // ── Social security ──────────────────────────────────────────────────────
+  // EY legacy /350 line (most reliable)
+  const ssLegacy = ptNum(t.match(/\/350\s[^\n]*([\d.,]{4,})\s*$/m)?.[1]);
   const ssRaw = first(
-    /contrib\.?\s*(?:empregado\s+)?(?:p\/?\s*)?ss\s*:?\s*([\d][\d.,]*)/i,
-    /seguran[çc]a\s+social\s*:?\s*([\d][\d.,]*)/i,
-    /(?:national\s+insurance|ni\b)\s*:?\s*([\d][\d.,]*)/i,
-    /social\s+security\s*:?\s*([\d][\d.,]*)/i,
-    /seguridad\s+social\s*:?\s*([\d][\d.,]*)/i,
-    /cotisations?\s+salariales?\s*:?\s*([\d][\d.,]*)/i,
-    /sécurité\s+sociale\s*:?\s*([\d][\d.,]*)/i,
-    /sozialversicherung\s*:?\s*([\d][\d.,]*)/i,
-    /contributi?\s+(?:inps|previdenziali?)\s*:?\s*([\d][\d.,]*)/i,
+    new RegExp(`contrib\\.?\\s*(?:empregado\\s+)?(?:p\\/? ?)?ss\\s*[^\\d]*(${A.slice(1,-1)})`, 'i'),
+    new RegExp(`seguran[çc]a\\s+social\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`(?:national\\s+insurance|ni\\b)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`social\\s+security\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`seguridad\\s+social\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`cotisations?\\s+salariales?\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`sozialversicherung\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`contributi?\\s+(?:inps|previdenziali?)\\s*:?\\s*${A}`, 'i'),
   );
 
   // ── Meal allowance ───────────────────────────────────────────────────────
+  // EY legacy /430 line (most reliable)
+  const mealLegacy = ptNum([...t.matchAll(/\/430\s[^\n]*([\d.,]{4,})\s*$/mg)]?.[0]?.[1]);
   const mealRaw = first(
-    /cart[aã]o\s+refei[çc][aã]o\s*:?\s*([\d][\d.,]*)/i,
-    /meal\s+(?:allowance|voucher)\s*:?\s*([\d][\d.,]*)/i,
-    /ticket\s+(?:restaurant|repas|meal)\s*:?\s*([\d][\d.,]*)/i,
-    /vales?\s+(?:de\s+)?comida\s*:?\s*([\d][\d.,]*)/i,
-    /essensz[ou]schuss\s*:?\s*([\d][\d.,]*)/i,
-    /buoni?\s+pasto\s*:?\s*([\d][\d.,]*)/i,
+    new RegExp(`cart[aã]o\\s+refei[çc][aã]o\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`meal\\s+(?:allowance|voucher)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`ticket\\s+(?:restaurant|repas|meal)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`vales?\\s+(?:de\\s+)?comida\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`buoni?\\s+pasto\\s*:?\\s*${A}`, 'i'),
   );
-  // EY legacy /430 line
-  const mealLegacy = ptNum([...t.matchAll(/\/430\s.*?([\d.,]+)\s*$/mg)]?.[0]?.[1]);
 
   // ── Holiday subsidy ──────────────────────────────────────────────────────
+  // EY legacy /0171 line (most reliable)
+  const holidayLegacy = ptNum(t.match(/0171\s[^\n]*([\d.,]{4,})\s*$/m)?.[1]);
   const holidayRaw = first(
-    /sub\.?\s*(?:de\s+)?f[eé]rias\s*:?\s*([\d][\d.,]*)/i,
-    /holiday\s+(?:pay|allowance|bonus)\s*:?\s*([\d][\d.,]*)/i,
-    /vacation\s+(?:pay|allowance)\s*:?\s*([\d][\d.,]*)/i,
-    /urlaubsgeld\s*:?\s*([\d][\d.,]*)/i,
-    /indemnit[eé]\s+(?:de\s+)?cong[eé]\s*:?\s*([\d][\d.,]*)/i,
+    new RegExp(`doud[eé]cimo\\s+(?:de\\s+)?sub\\.?\\s*f[eé]rias\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`sub\\.?\\s*(?:de\\s+)?f[eé]rias\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`holiday\\s+(?:pay|allowance|bonus)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`vacation\\s+(?:pay|allowance)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`urlaubsgeld\\s*:?\\s*${A}`, 'i'),
   );
 
   // ── Christmas / year-end bonus ───────────────────────────────────────────
+  // EY legacy /0172 line (most reliable)
+  const christmasLegacy = ptNum(t.match(/0172\s[^\n]*([\d.,]{4,})\s*$/m)?.[1]);
   const christmasRaw = first(
-    /sub\.?\s*(?:de\s+)?natal\s*:?\s*([\d][\d.,]*)/i,
-    /christmas\s+(?:bonus|allowance)\s*:?\s*([\d][\d.,]*)/i,
-    /13\.?\s*(?:th\s+)?(?:month|salary|salario)\s*:?\s*([\d][\d.,]*)/i,
-    /weihnachtsgeld\s*:?\s*([\d][\d.,]*)/i,
-    /tredicesima\s*:?\s*([\d][\d.,]*)/i,
-    /aguinaldo\s*:?\s*([\d][\d.,]*)/i,
-    /gratifica[cç][aã]o\s+natalina\s*:?\s*([\d][\d.,]*)/i,
+    new RegExp(`doud[eé]cimo\\s+(?:de\\s+)?sub\\.?\\s*natal\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`sub\\.?\\s*(?:de\\s+)?natal\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`christmas\\s+(?:bonus|allowance)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`13\\.?\\s*(?:th\\s+)?(?:month|salary|salario)\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`weihnachtsgeld\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`tredicesima\\s*:?\\s*${A}`, 'i'),
+    new RegExp(`aguinaldo\\s*:?\\s*${A}`, 'i'),
   );
 
-  // ── Employer & function ───────────────────────────────────────────────────
-  const employerRaw = first(
-    /empregador\s*:?\s*(.+)/i, /employer\s*:?\s*(.+)/i,
-    /empresa\s*:?\s*(.+)/i,    /employeur\s*:?\s*(.+)/i,
-    /arbeitgeber\s*:?\s*(.+)/i,/company\s*:?\s*(.+)/i,
-    /RECIBO DE REMUNERAÇÕES\n([^\n]+)/,
+  // ── Employer ─────────────────────────────────────────────────────────────
+  // Try to extract the first meaningful company-like line after the header
+  let employerRaw = first(
+    /entidade\s+empregadora\s*:?\s*(.+)/i,   // PT formal
+    /empregador\s*:?\s*(.+)/i,
+    /employer\s*:?\s*(.+)/i,
+    /empresa\s*:?\s*(.+)/i,
+    /employeur\s*:?\s*(.+)/i,
+    /arbeitgeber\s*:?\s*(.+)/i,
+    /company\s*:?\s*(.+)/i,
+    /RECIBO\s+DE\s+REMUNERA[ÇC][OÕ]ES\s*\n([^\n]+)/i,
   );
+  // Fallback: first ALL-CAPS line that looks like a company name (≥4 chars)
+  if (!employerRaw) {
+    const capsLine = t.match(/^([A-ZÁÉÍÓÚÀÂÊÔÃÕÇ][A-ZÁÉÍÓÚÀÂÊÔÃÕÇ\s,\.&\-]{3,60})$/m);
+    if (capsLine) employerRaw = capsLine[1];
+  }
+
+  // ── Function / job title ─────────────────────────────────────────────────
   const functionRaw = first(
-    /fun[çc][aã]o\s*:?\s*(.+)/i, /cargo\s*:?\s*(.+)/i,
+    /fun[çc][aã]o\s*:?\s*(.+)/i,
+    /categoria\s+profissional\s*:?\s*(.+)/i,
+    /cargo\s*:?\s*(.+)/i,
     /job\s+(?:title|position)\s*:?\s*(.+)/i,
-    /position\s*:?\s*(.+)/i,     /poste\s*:?\s*(.+)/i,
-    /stelle\s*:?\s*(.+)/i,       /mansione\s*:?\s*(.+)/i,
+    /position\s*:?\s*(.+)/i,
+    /poste\s*:?\s*(.+)/i,
+    /stelle\s*:?\s*(.+)/i,
+    /mansione\s*:?\s*(.+)/i,
   );
 
-  const irsDeduction = irsFromLines > 0 ? irsFromLines : (ptNum(taxRaw) || 0);
-  const mealAllowance = mealLegacy || ptNum(mealRaw) || 0;
+  const irsDeduction  = irsFromLines > 0 ? irsFromLines : (ptNum(taxRaw) || 0);
+  const ssDeduction   = ssLegacy != null ? ssLegacy : (ptNum(ssRaw) || 0);
+  const mealAllowance = mealLegacy != null ? mealLegacy : (ptNum(mealRaw) || 0);
+  const holidaySubsidy   = holidayLegacy != null ? holidayLegacy : (ptNum(holidayRaw) || 0);
+  const christmasSubsidy = christmasLegacy != null ? christmasLegacy : (ptNum(christmasRaw) || 0);
 
   return {
     period, periodLabel,
     grossSalary:      ptNum(grossRaw),
     netSalary:        ptNum(netRaw),
     baseSalary:       ptNum(baseRaw),
-    ssDeduction:      ptNum(ssRaw)     || 0,
+    ssDeduction,
     irsDeduction,
     mealAllowance,
-    holidaySubsidy:   ptNum(holidayRaw)   || 0,
-    christmasSubsidy: ptNum(christmasRaw) || 0,
-    employer:         employerRaw?.trim().slice(0,80) || null,
-    functionTitle:    functionRaw?.trim().slice(0,80) || null,
+    holidaySubsidy,
+    christmasSubsidy,
+    employer:         employerRaw?.trim().replace(/\s+/g,' ').slice(0,80) || null,
+    functionTitle:    functionRaw?.trim().replace(/\s+/g,' ').slice(0,80) || null,
     // Legacy / EY-specific (kept for backwards compatibility)
     baseComp:         ptNum(baseRaw) || 0,
-    hoursExemption:   ptNum(t.match(/0124\s.*?([\d.,]+)\s*$/m)?.[1]) || 0,
+    hoursExemption:   ptNum(t.match(/0124\s[^\n]*([\d.,]{4,})\s*$/m)?.[1]) || 0,
     irsBase:          ptNum(t.match(/Base IRS:\s*([\d.,]+)/)?.[1]),
     ssBase:           ptNum(t.match(/Base SS:\s*([\d.,]+)/)?.[1]),
     totalAbonos:      ptNum(t.match(/TOTAIS\s+([\d.,]+)\s+[\d.,]+/)?.[1]),
@@ -1061,6 +1095,7 @@ function parsePayslipText(t) {
     ytdSSDeduction:   ptNum(t.match(/Ac\. Retenção SS:\s*([\d.,]+)/)?.[1]),
     ytdIRSDeduction:  ptNum(t.match(/Ac\. Retenção IRS:\s*([\d.,]+)/)?.[1]),
     department:       t.match(/Departamento:\s*(.+)/)?.[1]?.trim() || null,
+    _rawText:         t,  // exposed to modal for debugging
   };
 }
 

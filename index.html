@@ -692,6 +692,12 @@
       <div class="field"><label>Function / Title</label><input id="ps-function" type="text" placeholder="Job title" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;width:100%;"></div>
     </div>
 
+    <!-- Raw text toggle for debugging -->
+    <details style="margin-bottom:16px;">
+      <summary style="font-size:11px;color:var(--text3);cursor:pointer;user-select:none;letter-spacing:1px;">🔍 Show extracted PDF text (for debugging)</summary>
+      <pre id="ps-raw-text" style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--text2);white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto;font-family:monospace;"></pre>
+    </details>
+
     <div style="display:flex;justify-content:flex-end;gap:10px;">
       <button id="ps-cancel-btn" class="btn-ghost" style="font-size:13px;">Cancel</button>
       <button id="ps-confirm-btn" class="btn" style="font-size:13px;padding:9px 24px;">Save Payslip</button>

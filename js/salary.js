@@ -36,6 +36,8 @@ function showPayslipModal(data) {
     document.getElementById('ps-xmas').value     = data?.christmasSubsidy || '';
     document.getElementById('ps-employer').value = data?.employer       || '';
     document.getElementById('ps-function').value = data?.functionTitle  || '';
+    const rawEl = document.getElementById('ps-raw-text');
+    if (rawEl) rawEl.textContent = data?._rawText || '(no raw text available)';
 
     const num = id => parseFloat(document.getElementById(id).value) || 0;
 
