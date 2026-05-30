@@ -815,6 +815,38 @@ async function buildPortHistoryChart() {
   buildHoldingsPerfChart(_preFetchedHperfData);
 }
 
+// ── Lock screen init ──────────────────────────────────────────────────────────
+(async function initLockScreen() {
+  // Focus the input immediately
+  const input = document.getElementById('lock-input');
+  if (input) {
+    input.focus();
+    // Allow Enter key to submit
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') handleLock(); });
+  }
+  const confirm = document.getElementById('lock-confirm');
+  if (confirm) confirm.addEventListener('keydown', e => { if (e.key === 'Enter') handleLock(); });
+
+  // Detect first run — if no password exists, switch UI to "Create" mode
+  try {
+    const pw = await getPw();
+    if (!pw) {
+      document.getElementById('lock-title').textContent = 'Create Password';
+      document.getElementById('lock-btn').textContent   = 'Set Password';
+      const hint = document.getElementById('lock-hint');
+      hint.textContent  = 'First time here — choose a password to protect your data.';
+      hint.className    = 'lock-hint';
+    }
+  } catch(e) {
+    // If getPw fails, still show create-password UI so user isn't stuck
+    document.getElementById('lock-title').textContent = 'Create Password';
+    document.getElementById('lock-btn').textContent   = 'Set Password';
+    const hint = document.getElementById('lock-hint');
+    hint.textContent = 'First time here — choose a password to protect your data.';
+    hint.className   = 'lock-hint';
+  }
+})();
+
 // ── Auto-updater UI ───────────────────────────────────────────────────────────
 (function initUpdater() {
   if (!window.electronAPI) return;
