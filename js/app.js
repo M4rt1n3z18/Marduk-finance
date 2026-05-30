@@ -815,6 +815,19 @@ async function buildPortHistoryChart() {
   buildHoldingsPerfChart(_preFetchedHperfData);
 }
 
+// ── App version display ───────────────────────────────────────────────────────
+(async function showVersion() {
+  const version = window.electronAPI?.getVersion
+    ? await window.electronAPI.getVersion()
+    : null;
+  if (!version) return;
+  const label = `v${version}`;
+  const header = document.getElementById('app-version');
+  const lock   = document.getElementById('lock-version');
+  if (header) header.textContent = label;
+  if (lock)   lock.textContent   = label;
+})();
+
 // ── Lock screen init ──────────────────────────────────────────────────────────
 (async function initLockScreen() {
   // Focus the input immediately

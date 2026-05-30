@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Info
   getDataPath: () => ipcRenderer.invoke('get-data-path'),
 
+  // App version
+  getVersion: () => ipcRenderer.invoke('get-version'),
+
   // Auto-updater
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_, version) => cb(version)),
   onUpdateProgress:  (cb) => ipcRenderer.on('update-progress',  (_, pct)     => cb(pct)),

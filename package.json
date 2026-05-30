@@ -1,6 +1,6 @@
 {
   "name": "marduk",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "MARDUK — Wealth of Babylon. Personal finance dashboard.",
   "main": "main.js",
   "author": "Pedro",
@@ -37,7 +37,8 @@
     "publish": {
       "provider": "github",
       "owner": "M4rt1n3z18",
-      "repo": "Marduk-finance"
+      "repo": "Marduk-finance",
+      "releaseType": "release"
     },
     "mac": {
       "target": [

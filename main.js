@@ -29,6 +29,8 @@ ipcMain.handle('install-update', () => {
   autoUpdater.quitAndInstall();
 });
 
+ipcMain.handle('get-version', () => app.getVersion());
+
 // ── Find Google Drive folder ──────────────────────────────────────────────────
 function findGoogleDriveFolder() {
   const home = os.homedir();
