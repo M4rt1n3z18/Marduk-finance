@@ -11,48 +11,172 @@ async function importPayslip() {
   }
 }
 
-// Show the payslip confirmation modal pre-filled with parsed data.
-// Returns the (possibly edited) data object, or null if cancelled.
+// ── Payslip modal with PDF viewer ────────────────────────────────────────────
+const MONTH_EN_PS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// Parse a selected string into a number (handles European/US formats)
+function _psParseNum(s) {
+  if (!s) return null;
+  s = s.trim().replace(/[€$£\s]/g, '');
+  if (/^\d{1,3}(\.\d{3})*(,\d{1,2})?$/.test(s)) return parseFloat(s.replace(/\./g,'').replace(',','.'));
+  if (/^\d{1,3}(,\d{3})*(\.\d{1,2})?$/.test(s)) return parseFloat(s.replace(/,/g,''));
+  const n = parseFloat(s.replace(/[^\d.]/g,''));
+  return isNaN(n) ? null : n;
+}
+
+let _psActiveRow = null;  // currently active field row
+
+function _psSetActive(row) {
+  document.querySelectorAll('.ps-field-row').forEach(r => r.classList.remove('ps-active'));
+  _psActiveRow = row || null;
+  const hint = document.getElementById('ps-active-hint');
+  if (row) {
+    row.classList.add('ps-active');
+    if (hint) hint.style.display = 'block';
+  } else {
+    if (hint) hint.style.display = 'none';
+  }
+}
+
+async function _psRenderPDF(filePath) {
+  const pagesEl  = document.getElementById('ps-pdf-pages');
+  const loadEl   = document.getElementById('ps-pdf-loading');
+  pagesEl.innerHTML = '';
+
+  if (!filePath || typeof pdfjsLib === 'undefined') {
+    if (loadEl) loadEl.textContent = 'PDF preview unavailable.';
+    return;
+  }
+
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const url  = 'file://' + filePath.replace(/\\/g, '/');
+    const pdf  = await pdfjsLib.getDocument(url).promise;
+    if (loadEl) loadEl.style.display = 'none';
+
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page     = await pdf.getPage(p);
+      const scale    = 1.4;
+      const viewport = page.getViewport({ scale });
+
+      // Page wrapper
+      const wrap = document.createElement('div');
+      wrap.className = 'ps-pdf-page';
+      wrap.style.cssText = `width:${viewport.width}px;height:${viewport.height}px;`;
+
+      // Canvas
+      const canvas = document.createElement('canvas');
+      canvas.width  = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+      // Text layer (makes text selectable)
+      const textDiv = document.createElement('div');
+      textDiv.className = 'ps-text-layer';
+      const textContent = await page.getTextContent();
+      const textItems = textContent.items;
+      textItems.forEach(item => {
+        if (!item.str) return;
+        const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+        const span = document.createElement('span');
+        span.textContent = item.str;
+        const angle = Math.atan2(tx[1], tx[0]);
+        const scaleX = Math.sqrt(tx[0]*tx[0] + tx[1]*tx[1]);
+        const scaleY = Math.sqrt(tx[2]*tx[2] + tx[3]*tx[3]);
+        span.style.cssText = [
+          `left:${tx[4]}px`,
+          `top:${tx[5] - item.height * scaleY}px`,
+          `font-size:${item.height * scaleY}px`,
+          `transform:scaleX(${item.width > 0 ? (item.width * scaleX) / (item.str.length * item.height * scaleY * 0.56) : 1})`,
+          angle !== 0 ? `rotate(${-angle}rad)` : '',
+        ].filter(Boolean).join(';');
+        textDiv.appendChild(span);
+      });
+
+      wrap.appendChild(canvas);
+      wrap.appendChild(textDiv);
+      pagesEl.appendChild(wrap);
+    }
+
+    // Capture text selection in the PDF panel
+    const pdfPanel = document.getElementById('ps-pdf-panel');
+    pdfPanel.addEventListener('mouseup', () => {
+      if (!_psActiveRow) return;
+      const sel = window.getSelection()?.toString().trim();
+      if (!sel) return;
+
+      const fieldId = _psActiveRow.dataset.field;
+      const input   = document.getElementById(fieldId);
+      if (!input) return;
+
+      if (input.type === 'number') {
+        const n = _psParseNum(sel);
+        if (n !== null) {
+          input.value = n;
+          // Flash green to confirm
+          input.style.borderColor = 'var(--up)';
+          setTimeout(() => { input.style.borderColor = ''; }, 800);
+        }
+      } else {
+        input.value = sel;
+        input.style.borderColor = 'var(--up)';
+        setTimeout(() => { input.style.borderColor = ''; }, 800);
+      }
+      window.getSelection()?.removeAllRanges();
+    });
+
+  } catch(e) {
+    if (loadEl) loadEl.textContent = 'Could not render PDF preview: ' + e.message;
+  }
+}
+
 function showPayslipModal(data) {
   return new Promise(resolve => {
     const modal = document.getElementById('payslip-modal');
-    const MONTH_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-
-    // Parse period
-    const [pYear, pMonth] = (data?.period || '').split('-').map(Number);
-    const monthNum = pMonth || (new Date().getMonth() + 1);
-    const year     = pYear  || new Date().getFullYear();
 
     // Pre-fill fields
-    document.getElementById('ps-month').value    = monthNum;
-    document.getElementById('ps-year').value     = year;
-    document.getElementById('ps-gross').value    = data?.grossSalary    || '';
-    document.getElementById('ps-net').value      = data?.netSalary      || '';
-    document.getElementById('ps-base').value     = data?.baseSalary     || '';
-    document.getElementById('ps-meal').value     = data?.mealAllowance  || '';
-    document.getElementById('ps-tax').value      = data?.irsDeduction   || '';
-    document.getElementById('ps-ss').value       = data?.ssDeduction    || '';
-    document.getElementById('ps-holiday').value  = data?.holidaySubsidy || '';
-    document.getElementById('ps-xmas').value     = data?.christmasSubsidy || '';
-    document.getElementById('ps-employer').value = data?.employer       || '';
-    document.getElementById('ps-function').value = data?.functionTitle  || '';
-    const rawEl = document.getElementById('ps-raw-text');
-    if (rawEl) rawEl.textContent = data?._rawText || '(no raw text available)';
+    const [pYear, pMonth] = (data?.period || '').split('-').map(Number);
+    document.getElementById('ps-month').value    = pMonth || (new Date().getMonth() + 1);
+    document.getElementById('ps-year').value     = pYear  || new Date().getFullYear();
+    document.getElementById('ps-gross').value    = data?.grossSalary       || '';
+    document.getElementById('ps-net').value      = data?.netSalary         || '';
+    document.getElementById('ps-base').value     = data?.baseSalary        || '';
+    document.getElementById('ps-meal').value     = data?.mealAllowance     || '';
+    document.getElementById('ps-tax').value      = data?.irsDeduction      || '';
+    document.getElementById('ps-ss').value       = data?.ssDeduction       || '';
+    document.getElementById('ps-holiday').value  = data?.holidaySubsidy    || '';
+    document.getElementById('ps-xmas').value     = data?.christmasSubsidy  || '';
+    document.getElementById('ps-employer').value = data?.employer          || '';
+    document.getElementById('ps-function').value = data?.functionTitle     || '';
 
-    const num = id => parseFloat(document.getElementById(id).value) || 0;
+    // Reset active field state
+    _psSetActive(null);
 
-    const cleanup = () => { modal.style.display = 'none'; };
+    // Field row click → activate it
+    document.querySelectorAll('.ps-field-row').forEach(row => {
+      row.onclick = () => _psSetActive(_psActiveRow === row ? null : row);
+    });
+
+    // Render PDF preview
+    document.getElementById('ps-pdf-loading').style.display = 'block';
+    document.getElementById('ps-pdf-loading').textContent = 'Loading PDF…';
+    document.getElementById('ps-pdf-pages').innerHTML = '';
+    _psRenderPDF(data?._filePath);
+
+    const num     = id => parseFloat(document.getElementById(id).value) || 0;
+    const cleanup = () => { modal.style.display = 'none'; _psSetActive(null); };
 
     document.getElementById('ps-cancel-btn').onclick = () => { cleanup(); resolve(null); };
     document.getElementById('ps-confirm-btn').onclick = () => {
-      const m  = parseInt(document.getElementById('ps-month').value);
-      const y  = parseInt(document.getElementById('ps-year').value);
-      const period      = `${y}-${String(m).padStart(2,'0')}`;
-      const periodLabel = `${MONTH_EN[m-1]} ${y}`;
+      const m = parseInt(document.getElementById('ps-month').value);
+      const y = parseInt(document.getElementById('ps-year').value);
       cleanup();
       resolve({
         ...data,
-        period, periodLabel,
+        period:       `${y}-${String(m).padStart(2,'0')}`,
+        periodLabel:  `${MONTH_EN_PS[m-1]} ${y}`,
         grossSalary:      num('ps-gross'),
         netSalary:        num('ps-net'),
         baseSalary:       num('ps-base') || null,

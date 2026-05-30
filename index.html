@@ -6,6 +6,7 @@
 <title>Marduk — Personal Finance</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Karla:wght@300;400;500;600&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root {
     --gold: #c9a84c;
@@ -623,6 +624,24 @@
     text-align:left;transition:opacity .15s;
   }
   .holding-logo-name-btn:hover { opacity:.75; }
+  /* ── PDF text layer (payslip viewer) ── */
+  .ps-pdf-page { position:relative; margin-bottom:10px; box-shadow:0 2px 12px rgba(0,0,0,0.4); }
+  .ps-pdf-page canvas { display:block; }
+  .ps-text-layer {
+    position:absolute; inset:0; overflow:hidden; line-height:1; pointer-events:auto;
+  }
+  .ps-text-layer span {
+    color:transparent; position:absolute; white-space:pre; cursor:text;
+    transform-origin:0% 0%;
+  }
+  .ps-text-layer ::selection { background:rgba(201,168,76,0.45); color:transparent; }
+  /* Active field highlight */
+  .ps-field-row { border-radius:8px; padding:2px 4px; transition:background .15s; cursor:pointer; }
+  .ps-field-row:hover { background:rgba(201,168,76,0.05); }
+  .ps-field-row.ps-active { background:rgba(201,168,76,0.1); }
+  .ps-field-row.ps-active label { color:var(--gold) !important; }
+  .ps-field-row.ps-active input,
+  .ps-field-row.ps-active select { border-color:var(--gold) !important; box-shadow:0 0 0 2px rgba(201,168,76,0.2); }
 </style>
 </head>
 <body data-theme="dark">
@@ -646,62 +665,83 @@
 </div>
 
 <!-- ── Payslip Confirmation Modal ── -->
-<div id="payslip-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:10001;align-items:center;justify-content:center;">
-  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px 32px;width:560px;max-height:88vh;overflow-y:auto;box-shadow:0 8px 48px rgba(0,0,0,0.5);">
-    <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:4px;">IMPORT PAYSLIP</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:20px;">Review and correct the detected values before saving. Empty fields were not found in the PDF.</div>
+<div id="payslip-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:92vw;max-width:1200px;height:88vh;display:flex;flex-direction:column;box-shadow:0 8px 48px rgba(0,0,0,0.6);overflow:hidden;">
 
-    <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;font-family:'Cinzel',serif;">Period</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
-      <div class="field"><label>Month</label>
-        <select id="ps-month" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;">
-          <option value="1">January</option><option value="2">February</option><option value="3">March</option>
-          <option value="4">April</option><option value="5">May</option><option value="6">June</option>
-          <option value="7">July</option><option value="8">August</option><option value="9">September</option>
-          <option value="10">October</option><option value="11">November</option><option value="12">December</option>
-        </select>
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div>
+        <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);">IMPORT PAYSLIP</div>
+        <div id="ps-hint" style="font-size:11px;color:var(--text2);margin-top:2px;">Click a field on the left, then select the correct value in the PDF on the right.</div>
       </div>
-      <div class="field"><label>Year</label><input id="ps-year" type="number" min="2000" max="2100" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;width:100%;"></div>
+      <div style="display:flex;gap:10px;">
+        <button id="ps-cancel-btn" class="btn-ghost" style="font-size:13px;">Cancel</button>
+        <button id="ps-confirm-btn" class="btn" style="font-size:13px;padding:9px 24px;">Save Payslip</button>
+      </div>
     </div>
 
-    <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;font-family:'Cinzel',serif;">Income</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-      <div class="field"><label>Gross Salary (€)</label><input id="ps-gross" type="number" step="0.01" min="0" placeholder="0.00" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;width:100%;"></div>
-      <div class="field"><label>Net Salary (€)</label><input id="ps-net" type="number" step="0.01" min="0" placeholder="0.00" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;width:100%;"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
-      <div class="field"><label>Base Salary (€)</label><input id="ps-base" type="number" step="0.01" min="0" placeholder="0.00" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;width:100%;"></div>
-      <div class="field"><label>Meal Allowance (€)</label><input id="ps-meal" type="number" step="0.01" min="0" placeholder="0.00" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;width:100%;"></div>
+    <!-- Body: split panel -->
+    <div style="display:flex;flex:1;min-height:0;">
+
+      <!-- LEFT: form fields -->
+      <div style="width:420px;flex-shrink:0;overflow-y:auto;padding:20px 20px 20px 24px;border-right:1px solid var(--border);">
+
+        <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;font-family:'Cinzel',serif;">Period</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div class="ps-field-row field" data-field="ps-month"><label style="font-size:12px;">Month</label>
+            <select id="ps-month" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;width:100%;">
+              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+            </select>
+          </div>
+          <div class="ps-field-row field" data-field="ps-year"><label style="font-size:12px;">Year</label>
+            <input id="ps-year" type="number" min="2000" max="2100" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;width:100%;">
+          </div>
+        </div>
+
+        <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;font-family:'Cinzel',serif;">Income</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div class="ps-field-row field" data-field="ps-gross"><label style="font-size:12px;">Gross Salary (€)</label><input id="ps-gross" type="number" step="0.01" min="0" placeholder="0.00" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;width:100%;"></div>
+          <div class="ps-field-row field" data-field="ps-net"><label style="font-size:12px;">Net Salary (€)</label><input id="ps-net" type="number" step="0.01" min="0" placeholder="0.00" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;width:100%;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div class="ps-field-row field" data-field="ps-base"><label style="font-size:12px;">Base Salary (€)</label><input id="ps-base" type="number" step="0.01" min="0" placeholder="0.00" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;width:100%;"></div>
+          <div class="ps-field-row field" data-field="ps-meal"><label style="font-size:12px;">Meal Allowance (€)</label><input id="ps-meal" type="number" step="0.01" min="0" placeholder="0.00" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;width:100%;"></div>
+        </div>
+
+        <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;font-family:'Cinzel',serif;">Deductions</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div class="ps-field-row field" data-field="ps-tax"><label style="font-size:12px;">Income Tax / IRS (€)</label><input id="ps-tax" type="number" step="0.01" min="0" placeholder="0.00" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;width:100%;"></div>
+          <div class="ps-field-row field" data-field="ps-ss"><label style="font-size:12px;">Social Security (€)</label><input id="ps-ss" type="number" step="0.01" min="0" placeholder="0.00" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;width:100%;"></div>
+        </div>
+
+        <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;font-family:'Cinzel',serif;">Subsidies</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div class="ps-field-row field" data-field="ps-holiday"><label style="font-size:12px;">Holiday Subsidy (€)</label><input id="ps-holiday" type="number" step="0.01" min="0" placeholder="0.00" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;width:100%;"></div>
+          <div class="ps-field-row field" data-field="ps-xmas"><label style="font-size:12px;">Christmas Subsidy (€)</label><input id="ps-xmas" type="number" step="0.01" min="0" placeholder="0.00" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;width:100%;"></div>
+        </div>
+
+        <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;font-family:'Cinzel',serif;">Details</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
+          <div class="ps-field-row field" data-field="ps-employer"><label style="font-size:12px;">Employer</label><input id="ps-employer" type="text" placeholder="Company name" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;width:100%;"></div>
+          <div class="ps-field-row field" data-field="ps-function"><label style="font-size:12px;">Function / Title</label><input id="ps-function" type="text" placeholder="Job title" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;width:100%;"></div>
+        </div>
+
+        <!-- Active field indicator -->
+        <div id="ps-active-hint" style="display:none;margin-top:12px;padding:8px 12px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:8px;font-size:11px;color:var(--gold);text-align:center;">
+          ✦ Now select the correct value in the PDF →
+        </div>
+      </div>
+
+      <!-- RIGHT: PDF preview -->
+      <div id="ps-pdf-panel" style="flex:1;overflow-y:auto;background:var(--bg);padding:16px;display:flex;flex-direction:column;align-items:center;">
+        <div id="ps-pdf-loading" style="color:var(--text2);font-size:13px;margin-top:40px;">Loading PDF…</div>
+        <div id="ps-pdf-pages"></div>
+      </div>
     </div>
 
-    <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;font-family:'Cinzel',serif;">Deductions</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
-      <div class="field"><label>Income Tax / IRS (€)</label><input id="ps-tax" type="number" step="0.01" min="0" placeholder="0.00" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;width:100%;"></div>
-      <div class="field"><label>Social Security (€)</label><input id="ps-ss" type="number" step="0.01" min="0" placeholder="0.00" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;width:100%;"></div>
-    </div>
-
-    <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;font-family:'Cinzel',serif;">Subsidies</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
-      <div class="field"><label>Holiday Subsidy (€)</label><input id="ps-holiday" type="number" step="0.01" min="0" placeholder="0.00" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;width:100%;"></div>
-      <div class="field"><label>Christmas Subsidy (€)</label><input id="ps-xmas" type="number" step="0.01" min="0" placeholder="0.00" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;width:100%;"></div>
-    </div>
-
-    <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;font-family:'Cinzel',serif;">Details</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;">
-      <div class="field"><label>Employer</label><input id="ps-employer" type="text" placeholder="Company name" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;width:100%;"></div>
-      <div class="field"><label>Function / Title</label><input id="ps-function" type="text" placeholder="Job title" style="padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:14px;width:100%;"></div>
-    </div>
-
-    <!-- Raw text toggle for debugging -->
-    <details style="margin-bottom:16px;">
-      <summary style="font-size:11px;color:var(--text3);cursor:pointer;user-select:none;letter-spacing:1px;">🔍 Show extracted PDF text (for debugging)</summary>
-      <pre id="ps-raw-text" style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--text2);white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto;font-family:monospace;"></pre>
-    </details>
-
-    <div style="display:flex;justify-content:flex-end;gap:10px;">
-      <button id="ps-cancel-btn" class="btn-ghost" style="font-size:13px;">Cancel</button>
-      <button id="ps-confirm-btn" class="btn" style="font-size:13px;padding:9px 24px;">Save Payslip</button>
-    </div>
   </div>
 </div>
 

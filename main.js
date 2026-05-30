@@ -1135,7 +1135,9 @@ function parsePdfAtPath(filePath) {
   if (result.stderr?.includes('No module named')) throw new Error('Missing Python library.\nRun this in your terminal:\n  pip install pdfplumber');
   if (result.status !== 0) throw new Error('PDF text extraction failed:\n' + (result.stderr || 'unknown error'));
 
-  return parsePayslipText(result.stdout);
+  const parsed = parsePayslipText(result.stdout);
+  parsed._filePath = filePath;  // so the modal can render the PDF visually
+  return parsed;
 }
 
 // Dialog-based import (button click)
