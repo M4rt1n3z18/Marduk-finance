@@ -170,6 +170,7 @@ function findGoogleDriveFolder() {
 const GDRIVE_FOLDER = findGoogleDriveFolder();
 const DATA_FILE = path.join(GDRIVE_FOLDER, 'marduk-data.json');
 const PW_FILE   = path.join(app.getPath('userData'), 'marduk-pw.bin'); // password stays local
+const AI_KEY_FILE = path.join(app.getPath('userData'), 'marduk-ai-key.bin'); // API key stays local too
 
 // ── Window ────────────────────────────────────────────────────────────────────
 let win;
@@ -276,6 +277,37 @@ ipcMain.handle('clear-pw', () => {
 
 // Data file location (so user knows where it is)
 ipcMain.handle('get-data-path', () => DATA_FILE);
+
+// ── AI key (Anthropic API — optional, enables AI payslip parsing) ─────────────
+// Stored locally in userData like the password — never synced to Google Drive.
+function getAiKey() {
+  try {
+    if (fs.existsSync(AI_KEY_FILE)) {
+      const k = fs.readFileSync(AI_KEY_FILE, 'utf8').trim();
+      if (k.startsWith('sk-ant-')) return k;
+    }
+  } catch (e) {}
+  return null;
+}
+
+ipcMain.handle('get-ai-key-status', () => {
+  const k = getAiKey();
+  return k ? `sk-ant-…${k.slice(-4)}` : null; // masked — full key never leaves main process
+});
+
+ipcMain.handle('set-ai-key', (event, key) => {
+  key = String(key || '').trim();
+  if (!key.startsWith('sk-ant-') || key.length < 20) {
+    return { ok: false, error: 'That does not look like an Anthropic API key — it should start with "sk-ant-".' };
+  }
+  try { fs.writeFileSync(AI_KEY_FILE, key, 'utf8'); return { ok: true }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle('clear-ai-key', () => {
+  try { if (fs.existsSync(AI_KEY_FILE)) fs.unlinkSync(AI_KEY_FILE); return true; }
+  catch (e) { return false; }
+});
 
 // ── Yahoo Finance shared infrastructure ───────────────────────────────────────
 // Yahoo's v10/quoteSummary endpoint now requires a crumb token obtained via their
@@ -1136,6 +1168,114 @@ function parsePdfAtPath(filePath) {
   return parsed;
 }
 
+// ══════════════ AI PAYSLIP PARSER (optional) ══════════════
+// Sends the PDF directly to Claude (vision) — works for any language, layout,
+// or company, and does not need Python. Used only when an API key is set;
+// otherwise (or on any failure) Marduk falls back to the regex parser above.
+
+const PAYSLIP_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['period','grossSalary','netSalary','baseSalary','mealAllowance',
+             'irsDeduction','ssDeduction','holidaySubsidy','christmasSubsidy',
+             'employer','functionTitle'],
+  properties: {
+    period:           { type: 'string', description: 'The month the payslip refers to, formatted YYYY-MM' },
+    grossSalary:      { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    netSalary:        { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    baseSalary:       { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    mealAllowance:    { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    irsDeduction:     { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    ssDeduction:      { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    holidaySubsidy:   { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    christmasSubsidy: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    employer:         { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    functionTitle:    { anyOf: [{ type: 'string' }, { type: 'null' }] },
+  },
+};
+
+const PAYSLIP_PROMPT = [
+  'Extract the salary fields from this payslip PDF:',
+  '- period: the month the payslip refers to, as "YYYY-MM".',
+  '- grossSalary: total gross pay for the month (all earnings before deductions).',
+  '- netSalary: the net amount actually paid to the employee.',
+  '- baseSalary: the contractual base salary line (before extras and subsidies).',
+  '- mealAllowance: meal allowance / meal card amount for the month.',
+  '- irsDeduction: income tax withheld this month (IRS, IRPF, PAYE, Lohnsteuer, IRPEF...). Sum multiple income-tax lines if present.',
+  '- ssDeduction: the EMPLOYEE social security contribution (never the employer part).',
+  '- holidaySubsidy: holiday/vacation subsidy paid this month, including monthly twelfths (duodecimos).',
+  '- christmasSubsidy: Christmas / 13th-month subsidy paid this month, including monthly twelfths.',
+  '- employer: the company name.',
+  "- functionTitle: the employee's job title / professional category.",
+  'Use null for any field not present on the payslip. Amounts are plain numbers (e.g. 1234.56).',
+].join('\n');
+
+async function parsePayslipAI(filePath, apiKey) {
+  const Anthropic = require('@anthropic-ai/sdk');
+  const client = new Anthropic({ apiKey, maxRetries: 1 });
+  const pdfData = fs.readFileSync(filePath).toString('base64');
+
+  const response = await client.messages.create({
+    model: 'claude-opus-4-8',
+    max_tokens: 2048,
+    thinking: { type: 'adaptive' },
+    output_config: { format: { type: 'json_schema', schema: PAYSLIP_SCHEMA } },
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfData } },
+        { type: 'text', text: PAYSLIP_PROMPT },
+      ],
+    }],
+  });
+
+  if (response.stop_reason === 'refusal') throw new Error('AI declined to process this document');
+  const textBlock = response.content.find(b => b.type === 'text');
+  if (!textBlock) throw new Error('AI returned no result');
+  const r = JSON.parse(textBlock.text);
+
+  // Normalise into the shape the payslip modal expects
+  const now = new Date();
+  const period = /^\d{4}-\d{2}$/.test(r.period || '')
+    ? r.period
+    : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [y, m] = period.split('-').map(Number);
+  const MONTH_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  return {
+    period,
+    periodLabel:      `${MONTH_EN[m - 1]} ${y}`,
+    grossSalary:      r.grossSalary,
+    netSalary:        r.netSalary,
+    baseSalary:       r.baseSalary,
+    mealAllowance:    r.mealAllowance    || 0,
+    irsDeduction:     r.irsDeduction     || 0,
+    ssDeduction:      r.ssDeduction      || 0,
+    holidaySubsidy:   r.holidaySubsidy   || 0,
+    christmasSubsidy: r.christmasSubsidy || 0,
+    employer:         r.employer         || null,
+    functionTitle:    r.functionTitle    || null,
+    baseComp:         r.baseSalary || r.grossSalary || 0,
+    hoursExemption:   0,
+    _aiParsed:        true,
+  };
+}
+
+// Hybrid entry point: AI first (if key configured), regex parser as fallback.
+async function parsePayslipHybrid(filePath) {
+  const key = getAiKey();
+  if (key) {
+    try {
+      const parsed = await parsePayslipAI(filePath, key);
+      parsed._filePath = filePath; // so the modal can render the PDF visually
+      return parsed;
+    } catch (e) {
+      console.error('[AI] Payslip parse failed — falling back to pattern parser:', e.status || '', e.message);
+    }
+  }
+  return parsePdfAtPath(filePath); // sets _filePath itself
+}
+
 // Dialog-based import (button click)
 ipcMain.handle('parse-payslip', async () => {
   const { filePaths, canceled } = await dialog.showOpenDialog({
@@ -1144,13 +1284,13 @@ ipcMain.handle('parse-payslip', async () => {
     properties: ['openFile']
   });
   if (canceled || !filePaths.length) return null;
-  return parsePdfAtPath(filePaths[0]);
+  return parsePayslipHybrid(filePaths[0]);
 });
 
 // Path-based import (drag-and-drop)
 ipcMain.handle('parse-payslip-from-path', async (event, filePath) => {
   if (!filePath) return null;
-  return parsePdfAtPath(filePath);
+  return parsePayslipHybrid(filePath);
 });
 
 // ══════════════ XTB EXCEL IMPORT ══════════════

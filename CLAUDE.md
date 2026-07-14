@@ -126,6 +126,15 @@ All calls happen in `main.js` (Node process) to avoid CORS. Three layers:
 
 ## Payslip Parser
 
+**Hybrid strategy** (`main.js` → `parsePayslipHybrid`): if an Anthropic API key is configured, the PDF is parsed by Claude AI (`parsePayslipAI`); on any failure — or with no key — it falls back to the regex parser (`parsePdfAtPath`).
+
+### AI parsing (`main.js` → `parsePayslipAI`)
+- Uses `@anthropic-ai/sdk`, model `claude-opus-4-8`, base64 PDF document block + structured outputs (`output_config.format` with `PAYSLIP_SCHEMA`)
+- Does **not** require Python — reads the PDF directly (vision)
+- API key stored in `userData/marduk-ai-key.bin` (local only, like the password). IPC: `get-ai-key-status` (masked), `set-ai-key`, `clear-ai-key`
+- UI: "✨ AI Settings" button in salary tab → `#ai-settings-modal`; `#ps-ai-badge` shows "Parsed with AI" in the payslip modal (`_aiParsed` flag)
+- Sets `baseComp = baseSalary || grossSalary` and `hoursExemption = 0` for chart compatibility
+
 ### Text extraction (`main.js` → `parsePdfAtPath`)
 Uses Python + `pdfplumber` via `spawnSync`. Tries 10 Python binary locations (Homebrew, system, PATH). Throws helpful error if Python or `pdfplumber` is missing.
 

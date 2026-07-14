@@ -1,6 +1,6 @@
 {
   "name": "marduk",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "MARDUK — Wealth of Babylon. Personal finance dashboard.",
   "main": "main.js",
   "author": "Pedro",
@@ -15,6 +15,7 @@
     "release": "electron-builder --mac --win --linux --publish always && rm -rf dist/mac dist/mac-arm64 dist/win-unpacked dist/linux-arm64-unpacked"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
     "electron-updater": "^6.8.3",
     "pdf-parse": "^2.4.5",
     "xlsx": "^0.18.5"

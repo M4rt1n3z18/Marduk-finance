@@ -11,6 +11,46 @@ async function importPayslip() {
   }
 }
 
+// ── AI parsing settings modal ────────────────────────────────────────────────
+async function openAiSettings() {
+  const modal     = document.getElementById('ai-settings-modal');
+  const statusEl  = document.getElementById('ai-key-status');
+  const removeBtn = document.getElementById('ai-key-remove');
+  document.getElementById('ai-key-input').value = '';
+  const masked = await window.electronAPI?.getAiKeyStatus?.();
+  if (masked) {
+    statusEl.innerHTML = `Status: <strong style="color:var(--up);">Active</strong> · key ${masked}`;
+    removeBtn.style.display = '';
+  } else {
+    statusEl.innerHTML = 'Status: <strong style="color:var(--text3);">Not configured</strong> — using the built-in pattern parser';
+    removeBtn.style.display = 'none';
+  }
+  modal.style.display = 'flex';
+}
+
+function closeAiSettings() {
+  document.getElementById('ai-settings-modal').style.display = 'none';
+}
+
+async function saveAiKey() {
+  const key = document.getElementById('ai-key-input').value.trim();
+  if (!key) { closeAiSettings(); return; }
+  const res = await window.electronAPI.setAiKey(key);
+  if (res?.ok) {
+    showToast('✓ AI key saved — payslips will now be parsed with Claude');
+    closeAiSettings();
+  } else {
+    alert(res?.error || 'Could not save the key.');
+  }
+}
+
+async function removeAiKey() {
+  if (!confirm('Remove the AI key? Payslip parsing will fall back to the built-in pattern parser.')) return;
+  await window.electronAPI.clearAiKey();
+  showToast('AI key removed');
+  closeAiSettings();
+}
+
 // ── Payslip modal with PDF viewer ────────────────────────────────────────────
 const MONTH_EN_PS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -149,6 +189,10 @@ async function _psRenderPDF(filePath) {
 function showPayslipModal(data) {
   return new Promise(resolve => {
     const modal = document.getElementById('payslip-modal');
+
+    // AI badge — shown when the fields were extracted by Claude
+    const aiBadge = document.getElementById('ps-ai-badge');
+    if (aiBadge) aiBadge.style.display = data?._aiParsed ? '' : 'none';
 
     // Pre-fill fields
     const [pYear, pMonth] = (data?.period || '').split('-').map(Number);

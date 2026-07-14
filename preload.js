@@ -30,6 +30,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   parsePayslip:         ()         => ipcRenderer.invoke('parse-payslip'),
   parsePayslipFromPath: (filePath) => ipcRenderer.invoke('parse-payslip-from-path', filePath),
 
+  // AI payslip parsing (optional — Anthropic API key, stored locally only)
+  getAiKeyStatus: ()    => ipcRenderer.invoke('get-ai-key-status'),
+  setAiKey:       (key) => ipcRenderer.invoke('set-ai-key', key),
+  clearAiKey:     ()    => ipcRenderer.invoke('clear-ai-key'),
+
   // XTB Excel import
   importXtbExcel: () => ipcRenderer.invoke('import-xtb-excel'),
 

@@ -670,7 +670,9 @@
     <!-- Header -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;">
       <div>
-        <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);">IMPORT PAYSLIP</div>
+        <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);">IMPORT PAYSLIP
+          <span id="ps-ai-badge" style="display:none;font-size:10px;font-family:Karla,sans-serif;letter-spacing:0.5px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);color:var(--gold);border-radius:20px;padding:2px 10px;margin-left:8px;vertical-align:2px;">✨ Parsed with AI</span>
+        </div>
         <div id="ps-hint" style="font-size:11px;color:var(--text2);margin-top:2px;">Click a field on the left, then select the correct value in the PDF on the right.</div>
       </div>
       <div style="display:flex;gap:10px;">
@@ -753,6 +755,29 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ── AI Parsing Settings Modal ── -->
+<div id="ai-settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:460px;max-width:92vw;padding:24px;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
+    <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:8px;">✨ AI PAYSLIP PARSING</div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px;">
+      With an Anthropic API key, payslips are read by Claude AI — any language, any format, any company.
+      Without a key, Marduk uses the built-in pattern parser. Costs a few cents per payslip.
+      Get a key at <strong style="color:var(--text);">console.anthropic.com</strong>.
+    </div>
+    <div id="ai-key-status" style="font-size:12px;margin-bottom:10px;color:var(--text2);"></div>
+    <input id="ai-key-input" type="password" placeholder="sk-ant-…" autocomplete="off"
+           style="width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;margin-bottom:6px;">
+    <div style="font-size:11px;color:var(--text3);margin-bottom:18px;">🔒 The key is stored only on this computer — never synced to Google Drive.</div>
+    <div style="display:flex;align-items:center;">
+      <button id="ai-key-remove" class="btn-ghost" style="font-size:12px;color:var(--down);display:none;" onclick="removeAiKey()">Remove key</button>
+      <div style="display:flex;gap:10px;margin-left:auto;">
+        <button class="btn-ghost" style="font-size:12px;" onclick="closeAiSettings()">Close</button>
+        <button class="btn" style="font-size:12px;padding:8px 22px;" onclick="saveAiKey()">Save Key</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1542,7 +1567,10 @@
       <div class="sec-title">Salary</div>
       <div class="sec-sub">Track income evolution · compare periods · see your progression</div>
     </div>
-    <button class="btn" onclick="importPayslip()">↑ Import Payslip (PDF)</button>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button class="btn-ghost" style="font-size:12px;" onclick="openAiSettings()">✨ AI Settings</button>
+      <button class="btn" onclick="importPayslip()">↑ Import Payslip (PDF)</button>
+    </div>
   </div>
 
   <!-- Drag-and-drop zone -->
