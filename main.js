@@ -240,11 +240,54 @@ ipcMain.handle('load-data', () => {
   return null;
 });
 
+// ── Automatic rotating backups ────────────────────────────────────────────────
+// Before the first save of each day, a copy of the previous data file is kept
+// in userData/backups (local disk — independent of Google Drive sync issues).
+// Keeps the last 10 daily backups.
+const BACKUP_DIR = path.join(app.getPath('userData'), 'backups');
+
+function rotateBackup() {
+  try {
+    if (!fs.existsSync(DATA_FILE)) return;
+    if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const today = new Date().toISOString().slice(0, 10);
+    const dest = path.join(BACKUP_DIR, `marduk-data-${today}.json`);
+    if (fs.existsSync(dest)) return; // one backup per day
+    fs.copyFileSync(DATA_FILE, dest);
+    const files = fs.readdirSync(BACKUP_DIR).filter(f => /^marduk-data-\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
+    while (files.length > 10) fs.unlinkSync(path.join(BACKUP_DIR, files.shift()));
+  } catch (e) { console.error('Backup rotation error (non-fatal):', e.message); }
+}
+
+ipcMain.handle('list-backups', () => {
+  try {
+    if (!fs.existsSync(BACKUP_DIR)) return [];
+    return fs.readdirSync(BACKUP_DIR)
+      .filter(f => /^marduk-data-\d{4}-\d{2}-\d{2}\.json$/.test(f))
+      .sort().reverse()
+      .map(f => {
+        const st = fs.statSync(path.join(BACKUP_DIR, f));
+        return { name: f, date: f.slice(12, 22), sizeKb: Math.round(st.size / 1024) };
+      });
+  } catch (e) { return []; }
+});
+
+ipcMain.handle('read-backup', (event, name) => {
+  try {
+    // Only allow reading files that match the backup naming pattern (no path tricks)
+    if (!/^marduk-data-\d{4}-\d{2}-\d{2}\.json$/.test(name)) return null;
+    const p = path.join(BACKUP_DIR, name);
+    if (!fs.existsSync(p)) return null;
+    return fs.readFileSync(p, 'utf8');
+  } catch (e) { return null; }
+});
+
 ipcMain.handle('save-data', (event, json) => {
   try {
     // Ensure folder exists
     const dir = path.dirname(DATA_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    rotateBackup(); // keep a daily copy of the previous state before overwriting
     fs.writeFileSync(DATA_FILE, json, 'utf8');
     return true;
   } catch (e) {
@@ -1275,6 +1318,67 @@ async function parsePayslipHybrid(filePath) {
   }
   return parsePdfAtPath(filePath); // sets _filePath itself
 }
+
+// ── AI expense categorization ─────────────────────────────────────────────────
+// Given an expense description + the user's category list, returns the best
+// matching category name (or null). Only called when an AI key is configured.
+ipcMain.handle('ai-categorize', async (event, { desc, categories }) => {
+  const key = getAiKey();
+  if (!key || !desc || !Array.isArray(categories) || !categories.length) return null;
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: key, maxRetries: 0 });
+    const response = await client.messages.create({
+      model: 'claude-opus-4-8',
+      max_tokens: 512,
+      output_config: { format: { type: 'json_schema', schema: {
+        type: 'object', additionalProperties: false, required: ['category'],
+        properties: { category: { type: 'string', enum: categories } },
+      } } },
+      messages: [{
+        role: 'user',
+        content: `Which spending category fits this expense best?\nExpense: "${desc}"\nPick exactly one of: ${categories.join(', ')}.\nNote: merchant names may be Portuguese (e.g. Continente/Pingo Doce = groceries, Galp/BP = fuel, Farmácia = pharmacy).`,
+      }],
+    });
+    const textBlock = response.content.find(b => b.type === 'text');
+    return textBlock ? JSON.parse(textBlock.text).category : null;
+  } catch (e) {
+    console.error('[AI] categorize failed (non-fatal):', e.status || '', e.message);
+    return null;
+  }
+});
+
+// ── AI monthly summary ────────────────────────────────────────────────────────
+// Receives a compact JSON of pre-aggregated stats (no raw transactions) and
+// returns a short written summary of the user's financial month.
+ipcMain.handle('ai-monthly-summary', async (event, payload) => {
+  const key = getAiKey();
+  if (!key || !payload) return null;
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: key, maxRetries: 1 });
+    const response = await client.messages.create({
+      model: 'claude-opus-4-8',
+      max_tokens: 2048,
+      thinking: { type: 'adaptive' },
+      messages: [{
+        role: 'user',
+        content:
+          'You are the assistant inside MARDUK, a personal finance app. ' +
+          'Write a short monthly financial summary for the user (4-6 sentences, plain text, no headers or bullet points). ' +
+          'Be direct and specific with the numbers (euros). Mention: how spending compares to income and to last month, ' +
+          'the biggest spending category, portfolio performance if present, and one encouraging or cautionary note at the end. ' +
+          'Do not invent data not present below. Aggregated data:\n' + JSON.stringify(payload),
+      }],
+    });
+    if (response.stop_reason === 'refusal') return null;
+    const textBlock = response.content.find(b => b.type === 'text');
+    return textBlock ? textBlock.text.trim() : null;
+  } catch (e) {
+    console.error('[AI] monthly summary failed (non-fatal):', e.status || '', e.message);
+    return null;
+  }
+});
 
 // Dialog-based import (button click)
 ipcMain.handle('parse-payslip', async () => {

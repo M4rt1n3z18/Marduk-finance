@@ -758,6 +758,21 @@
   </div>
 </div>
 
+<!-- ── Backups Modal ── -->
+<div id="backups-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:480px;max-width:92vw;padding:24px;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
+    <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:8px;">⛃ AUTOMATIC BACKUPS</div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px;">
+      Marduk keeps a daily copy of your data on this computer (last 10 days).
+      If anything ever goes wrong with your data file, restore from here.
+    </div>
+    <div id="backups-list" style="max-height:300px;overflow-y:auto;margin-bottom:16px;"></div>
+    <div style="display:flex;justify-content:flex-end;">
+      <button class="btn-ghost" style="font-size:12px;" onclick="closeBackupsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── AI Parsing Settings Modal ── -->
 <div id="ai-settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;align-items:center;justify-content:center;">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:460px;max-width:92vw;padding:24px;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
@@ -813,6 +828,7 @@
     <span id="app-version" style="font-size:11px;color:var(--text3);letter-spacing:1px;font-family:'Karla',sans-serif;"></span>
     <button class="btn-ghost" onclick="exportData()">↓ Export</button>
     <button class="btn-ghost" onclick="importData()">↑ Import</button>
+    <button class="btn-ghost" onclick="openBackupsModal()" title="Automatic daily backups">⛃ Backups</button>
     <button class="btn-ghost" onclick="lockApp()" title="Lock">🔒 Lock</button>
     <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></div>
   </div>
@@ -858,6 +874,16 @@
       <div class="stat-val" id="ov-spent">€0</div>
       <div class="stat-sub" id="ov-spent-sub">0 transactions</div>
     </div>
+  </div>
+
+  <!-- AI Monthly Summary (shown only when an AI key is configured) -->
+  <div class="card" id="ai-summary-card" style="display:none;margin-bottom:24px;background:linear-gradient(135deg,rgba(201,168,76,0.06),transparent);border-color:rgba(201,168,76,0.25);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <div class="card-title" style="margin-bottom:0;">✨ Your Month in Review</div>
+      <button class="btn-ghost" id="ai-summary-refresh" onclick="generateMonthlySummary(true)" style="font-size:11px;padding:4px 12px;">↻ Regenerate</button>
+    </div>
+    <div id="ai-summary-text" style="font-size:13.5px;line-height:1.65;color:var(--text);"></div>
+    <div id="ai-summary-meta" style="font-size:11px;color:var(--text3);margin-top:8px;"></div>
   </div>
 
   <div class="chart-grid-3">
@@ -964,6 +990,30 @@
       <div class="stat-label">Open Positions</div>
       <div class="stat-val" id="p-count">0</div>
       <div class="stat-sub">active holdings</div>
+    </div>
+  </div>
+
+  <!-- Investment Allocation status (shown when this portfolio has allocations) -->
+  <div class="stats-grid" id="alloc-stats-row" style="display:none;margin-top:-8px;">
+    <div class="stat-card" style="border-color:rgba(201,168,76,0.3);">
+      <div class="stat-label">Allocated</div>
+      <div class="stat-val" id="p-allocated">€0</div>
+      <div class="stat-sub">reserved for investing</div>
+    </div>
+    <div class="stat-card" style="border-color:rgba(201,168,76,0.3);">
+      <div class="stat-label">Invested</div>
+      <div class="stat-val" id="p-alloc-invested">€0</div>
+      <div class="stat-sub">consumed from allocations</div>
+    </div>
+    <div class="stat-card" style="border-color:rgba(201,168,76,0.3);">
+      <div class="stat-label">Remaining Allocation</div>
+      <div class="stat-val gold-text" id="p-alloc-remaining">€0</div>
+      <div class="stat-sub">still available to invest</div>
+    </div>
+    <div class="stat-card" style="border-color:rgba(201,168,76,0.3);">
+      <div class="stat-label">Unallocated Investment</div>
+      <div class="stat-val" id="p-alloc-excess">€0</div>
+      <div class="stat-sub" id="p-alloc-excess-sub">invested beyond allocations</div>
     </div>
   </div>
 
@@ -1144,6 +1194,21 @@
     </div>
   </div>
 
+  <!-- Dividend Calendar -->
+  <div class="card" id="div-calendar-card" style="margin-top:16px;display:none;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div class="card-title" style="margin-bottom:2px;">📅 Dividend Calendar</div>
+        <div style="font-size:12px;color:var(--text2);">Upcoming payments · projected from the last 12 months of dividends</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:var(--text3);">Projected annual income</div>
+        <div id="div-cal-total" style="font-size:18px;font-weight:700;color:var(--up);">€0</div>
+      </div>
+    </div>
+    <div id="div-calendar-body"></div>
+  </div>
+
   <!-- Transaction History -->
   <div class="card" style="margin-top:16px;">
     <div class="card-title" style="margin-bottom:14px;">Transaction History</div>
@@ -1234,6 +1299,30 @@
       </div>
       <button class="btn" onclick="addExpense()">Add</button>
     </div>
+  </div>
+
+  <!-- Investment Allocation -->
+  <div class="card" style="margin-bottom:16px;border-color:rgba(201,168,76,0.25);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div class="card-title" style="margin-bottom:2px;">📈 Investment Allocation</div>
+        <div style="font-size:12px;color:var(--text2);">Reserve money for investing — reduces your remaining budget without counting as an expense</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:var(--text3);">Allocated this month</div>
+        <div id="al-month-total" style="font-size:16px;font-weight:700;color:var(--gold);">€0</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Amount (€)</label><input id="al-amount" type="number" min="0" step="0.01" placeholder="0.00" style="width:110px;"></div>
+      <div class="field"><label>Portfolio</label>
+        <select id="al-port" style="width:170px;"></select>
+      </div>
+      <div class="field"><label>Date</label><input id="al-date" type="text" class="date-field" readonly placeholder="Select date…" style="width:140px;"></div>
+      <div class="field" style="flex:1;min-width:140px;"><label>Note (optional)</label><input id="al-note" placeholder="e.g. monthly DCA"></div>
+      <button class="btn" onclick="addAllocation()">Allocate</button>
+    </div>
+    <div id="allocation-history" style="margin-top:14px;"></div>
   </div>
 
   <!-- Recurring suggestions banner -->

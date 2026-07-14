@@ -173,6 +173,19 @@ async function importXtbExcel() {
       added++;
     }
 
+    // ── Consume investment allocations with newly imported buys ────────────
+    // Only buys dated on/after the earliest open allocation count — historical
+    // imports from before the allocation existed must not consume it.
+    {
+      const minDate = earliestOpenAllocationDate(port.id);
+      if (minDate) {
+        const investedEur = positionsToProcess
+          .filter(pos => pos.type === 'Buy' && pos.date >= minDate && pos.ticker && pos.shares > 0)
+          .reduce((s, pos) => s + pos.shares * (pos.price / getFxRate(pos.currency || 'USD', pos.date)), 0);
+        consumeAllocations(port.id, parseFloat(investedEur.toFixed(2)));
+      }
+    }
+
     // ── Recalculate avg cost for every affected holding from ALL buy lots ──
     // This keeps the weighted-average correct whether we smart-updated or replaced.
     for (const ticker of affectedTickers) {

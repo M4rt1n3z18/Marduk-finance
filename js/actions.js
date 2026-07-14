@@ -70,6 +70,8 @@ async function addHolding() {
         priceCurrency: buyCurrency !== 'EUR' ? buyCurrency : undefined,
         notes: buyFxRate ? `via Add Holding (${buyCurrency} ${buyPriceRaw} @ ${buyFxRate})` : 'via Add Holding' });
     }
+    // New money invested — consume open investment allocations (FIFO)
+    consumeAllocations(port.id, parseFloat((shares * buyPrice).toFixed(2)));
   }
 
   document.getElementById('h-ticker').value = '';
@@ -534,6 +536,220 @@ async function autoFetchPortfolioMetadata(force = false) {
   } catch(e) {}
 
   _metaFetchRunning = false;
+}
+
+// ══════════════ INVESTMENT ALLOCATIONS ══════════════
+// InvestmentAllocation entity: { id, portfolioId, amountAllocated, amountInvested,
+//   allocationDate, status: 'open'|'used', notes, createdAt, updatedAt }
+// remainingAmount is always derived: amountAllocated - amountInvested.
+// Allocations reserve money for investing (reduce monthly remaining budget) and
+// are consumed FIFO whenever new Buy transactions are recorded on the portfolio.
+
+const _round2 = n => Math.round(n * 100) / 100;
+
+function allocationsFor(portfolioId) {
+  return (state.allocations || []).filter(a => a.portfolioId === portfolioId);
+}
+
+function allocationTotals(portfolioId) {
+  const list = allocationsFor(portfolioId);
+  const allocated = _round2(list.reduce((s, a) => s + a.amountAllocated, 0));
+  const invested  = _round2(list.reduce((s, a) => s + a.amountInvested, 0));
+  return {
+    allocated,
+    invested,
+    remaining: _round2(Math.max(0, allocated - invested)),
+    excess: _round2((state.unallocatedInvestment || {})[portfolioId] || 0),
+  };
+}
+
+// Total allocated in a budget month (respects paycheckDay, like expenses)
+function allocationTotalForMonth(monthKey) {
+  return _round2((state.allocations || [])
+    .filter(a => expenseBelongsToMonth({ date: a.allocationDate }, monthKey))
+    .reduce((s, a) => s + a.amountAllocated, 0));
+}
+
+// Consume open allocations FIFO with newly invested EUR.
+// Remaining allocation never goes negative — any excess is tracked separately
+// as "Unallocated Investment" for that portfolio.
+function consumeAllocations(portfolioId, amountEur) {
+  if (!amountEur || amountEur <= 0) return;
+  if (!state.allocations) state.allocations = [];
+  let rem = _round2(amountEur);
+  const open = state.allocations
+    .filter(a => a.portfolioId === portfolioId && a.status === 'open')
+    .sort((a, b) => (a.allocationDate || '').localeCompare(b.allocationDate || ''));
+  const nowIso = new Date().toISOString();
+  for (const a of open) {
+    if (rem <= 0) break;
+    const available = _round2(a.amountAllocated - a.amountInvested);
+    if (available <= 0) { a.status = 'used'; continue; }
+    const used = Math.min(available, rem);
+    a.amountInvested = _round2(a.amountInvested + used);
+    a.updatedAt = nowIso;
+    if (a.amountAllocated - a.amountInvested < 0.005) {
+      a.amountInvested = a.amountAllocated;
+      a.status = 'used';
+    }
+    rem = _round2(rem - used);
+  }
+  if (rem > 0.005) {
+    if (!state.unallocatedInvestment) state.unallocatedInvestment = {};
+    state.unallocatedInvestment[portfolioId] = _round2((state.unallocatedInvestment[portfolioId] || 0) + rem);
+  }
+}
+
+// Earliest open-allocation date for a portfolio (used to ignore historical
+// buys in bulk imports — money invested before any allocation existed should
+// not consume allocations or count as unallocated excess).
+function earliestOpenAllocationDate(portfolioId) {
+  const open = (state.allocations || []).filter(a => a.portfolioId === portfolioId && a.status === 'open');
+  if (!open.length) return null;
+  return open.map(a => a.allocationDate).sort()[0];
+}
+
+function addAllocation() {
+  const amount = parseFloat(document.getElementById('al-amount').value);
+  const portfolioId = document.getElementById('al-port').value;
+  const date = getDateRaw('al-date') || now.toISOString().slice(0, 10);
+  const notes = document.getElementById('al-note').value.trim() || null;
+
+  if (isNaN(amount) || amount <= 0) { alert('Enter a valid amount to allocate.'); return; }
+  if (!portfolioId || !(state.portfolios || []).find(p => p.id === portfolioId)) {
+    alert('Select a target portfolio.'); return;
+  }
+
+  if (!state.allocations) state.allocations = [];
+  const nowIso = new Date().toISOString();
+  state.allocations.push({
+    id: uid(), portfolioId,
+    amountAllocated: _round2(amount),
+    amountInvested: 0,
+    allocationDate: date,
+    status: 'open',
+    notes,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  });
+
+  document.getElementById('al-amount').value = '';
+  document.getElementById('al-note').value = '';
+  save(); renderExpenses(); renderBudget(); renderPortfolio();
+  const pname = (state.portfolios.find(p => p.id === portfolioId) || {}).name || 'portfolio';
+  showToast(`✓ ${eur(amount)} allocated to ${pname}`);
+}
+
+function delAllocation(id) {
+  const a = (state.allocations || []).find(x => x.id === id);
+  if (!a) return;
+  const msg = a.amountInvested > 0
+    ? `Delete this allocation? ${eur(a.amountInvested)} of it was already marked as invested — that history will be lost.`
+    : 'Delete this allocation?';
+  if (!confirm(msg)) return;
+  state.allocations = state.allocations.filter(x => x.id !== id);
+  save(); renderExpenses(); renderBudget(); renderPortfolio();
+}
+
+// ══════════════ BACKUPS UI ══════════════
+async function openBackupsModal() {
+  const modal = document.getElementById('backups-modal');
+  const list = document.getElementById('backups-list');
+  list.innerHTML = '<div class="muted" style="font-size:12px;padding:10px 0;">Loading…</div>';
+  modal.style.display = 'flex';
+  const backups = (await window.electronAPI?.listBackups?.()) || [];
+  if (!backups.length) {
+    list.innerHTML = '<div class="empty" style="padding:20px 0;">No backups yet — one is created automatically each day you use Marduk.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  backups.forEach(b => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid var(--border);';
+    row.innerHTML = `<span style="flex:1;font-size:13px;font-weight:600;">${b.date}</span>
+      <span class="muted" style="font-size:12px;">${b.sizeKb} KB</span>`;
+    const btn = document.createElement('button');
+    btn.className = 'btn-ghost';
+    btn.style.cssText = 'font-size:11px;padding:4px 12px;';
+    btn.textContent = 'Restore';
+    btn.addEventListener('click', () => restoreBackup(b.name, b.date));
+    row.appendChild(btn);
+    list.appendChild(row);
+  });
+}
+
+function closeBackupsModal() {
+  document.getElementById('backups-modal').style.display = 'none';
+}
+
+async function restoreBackup(name, date) {
+  if (!confirm(`Restore the backup from ${date}?\n\nYour current data will be replaced with that day's snapshot.`)) return;
+  const content = await window.electronAPI?.readBackup?.(name);
+  if (!content) { alert('Could not read that backup file.'); return; }
+  try {
+    const parsed = JSON.parse(content);
+    if (!Array.isArray(parsed.expenses) && !Array.isArray(parsed.portfolios)) {
+      alert('That backup file does not look like Marduk data.'); return;
+    }
+    state = parsed;
+    save();
+    syncCats();
+    renderAll();
+    checkRecurring();
+    closeBackupsModal();
+    showToast(`✓ Backup from ${date} restored`);
+  } catch (e) {
+    alert('Backup file is corrupted and could not be restored.');
+  }
+}
+
+// ══════════════ AI EXPENSE CATEGORIZATION ══════════════
+// When the user finishes typing a description: first try to match a past
+// expense with the same description (free, instant); if none and an AI key is
+// configured, ask Claude to pick the category.
+let _aiCatBusy = false;
+
+function _localCategoryMatch(desc) {
+  const d = desc.toLowerCase().trim();
+  if (d.length < 3) return null;
+  // Most recent expense whose description matches (either direction)
+  const past = [...state.expenses]
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .find(e => {
+      const ed = (e.desc || '').toLowerCase().trim();
+      return ed === d || ed.includes(d) || d.includes(ed);
+    });
+  return past ? past.cat : null;
+}
+
+function _applyCategorySuggestion(cat) {
+  const sel = document.getElementById('e-cat');
+  if (!sel || !cat || !CATS.includes(cat) || sel.value === cat) return;
+  sel.value = cat;
+  sel.style.borderColor = 'var(--gold)';
+  setTimeout(() => { sel.style.borderColor = ''; }, 900);
+}
+
+function initAiCategorize() {
+  const descInput = document.getElementById('e-desc');
+  if (!descInput || descInput.dataset.aiWired) return;
+  descInput.dataset.aiWired = '1';
+  descInput.addEventListener('change', async () => {
+    const desc = descInput.value.trim();
+    if (!desc) return;
+    // 1. Local history match — free and instant
+    const local = _localCategoryMatch(desc);
+    if (local) { _applyCategorySuggestion(local); return; }
+    // 2. AI suggestion (only if a key is configured)
+    if (_aiCatBusy || !window.electronAPI?.aiCategorize) return;
+    _aiCatBusy = true;
+    try {
+      const cat = await window.electronAPI.aiCategorize({ desc, categories: CATS });
+      // Only apply if the user hasn't cleared/changed the description meanwhile
+      if (cat && descInput.value.trim() === desc) _applyCategorySuggestion(cat);
+    } catch (e) {}
+    _aiCatBusy = false;
+  });
 }
 
 // ══════════════ EXPORT / IMPORT ══════════════

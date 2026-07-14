@@ -30,10 +30,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   parsePayslip:         ()         => ipcRenderer.invoke('parse-payslip'),
   parsePayslipFromPath: (filePath) => ipcRenderer.invoke('parse-payslip-from-path', filePath),
 
-  // AI payslip parsing (optional — Anthropic API key, stored locally only)
-  getAiKeyStatus: ()    => ipcRenderer.invoke('get-ai-key-status'),
-  setAiKey:       (key) => ipcRenderer.invoke('set-ai-key', key),
-  clearAiKey:     ()    => ipcRenderer.invoke('clear-ai-key'),
+  // AI features (optional — Anthropic API key, stored locally only)
+  getAiKeyStatus:   ()        => ipcRenderer.invoke('get-ai-key-status'),
+  setAiKey:         (key)     => ipcRenderer.invoke('set-ai-key', key),
+  clearAiKey:       ()        => ipcRenderer.invoke('clear-ai-key'),
+  aiCategorize:     (params)  => ipcRenderer.invoke('ai-categorize', params),
+  aiMonthlySummary: (payload) => ipcRenderer.invoke('ai-monthly-summary', payload),
+
+  // Automatic backups
+  listBackups: ()     => ipcRenderer.invoke('list-backups'),
+  readBackup:  (name) => ipcRenderer.invoke('read-backup', name),
 
   // XTB Excel import
   importXtbExcel: () => ipcRenderer.invoke('import-xtb-excel'),

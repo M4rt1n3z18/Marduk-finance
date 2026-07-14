@@ -173,6 +173,29 @@ Handles `.xlsx`, `.xls`, and `.csv` exports from XTB broker. Multilingual column
 
 ---
 
+## Investment Allocations
+
+Reserve money for investing without counting it as an expense. Entity in `state.allocations`:
+`{ id, portfolioId, amountAllocated, amountInvested, allocationDate, status: 'open'|'used', notes, createdAt, updatedAt }` (remaining is derived).
+
+- **Create**: "Investment Allocation" card in Expenses tab (`addAllocation()` in `actions.js`). Reduces the month's Remaining budget in Expenses + Budget tabs (via `allocationTotalForMonth`), counts as savings in the savings rate.
+- **Consume**: `consumeAllocations(portfolioId, amountEur)` — FIFO on open allocations, called from `addHolding()` (manual buys) and the XTB importer. Never goes negative; excess accumulates in `state.unallocatedInvestment[portfolioId]` ("Unallocated Investment").
+- **XTB guard**: only imported buys dated on/after `earliestOpenAllocationDate(portfolioId)` consume allocations — historical bulk imports don't.
+- **UI**: allocation history table in Expenses; stat card row `#alloc-stats-row` (Allocated / Invested / Remaining / Unallocated) at top of Portfolio tab (`renderAllocationStats()` in `render.js`).
+
+## Other AI features (all optional — need the AI key)
+
+- **Expense auto-categorization**: `initAiCategorize()` in `actions.js` — on `#e-desc` change, tries local history match first (free), then IPC `ai-categorize` (Claude picks from CATS via structured-output enum).
+- **Monthly AI summary**: `generateMonthlySummary()` in `app.js` — once per month, sends aggregated stats (never raw transactions) via IPC `ai-monthly-summary`, caches text in `state.aiSummaries["YYYY-MM"]` (last 12 kept). Card `#ai-summary-card` on Overview with Regenerate button. Auto-runs 2.5s after unlock.
+
+## Backups
+
+`rotateBackup()` in `main.js` — before the first save of each day, copies the previous `marduk-data.json` to `userData/backups/marduk-data-YYYY-MM-DD.json` (last 10 kept, local disk only). IPC: `list-backups`, `read-backup` (name-pattern validated). UI: "⛃ Backups" header button → `#backups-modal` → `restoreBackup()` in `actions.js` (replaces state, follows the `importData()` pattern).
+
+## Dividend Calendar
+
+`renderDividendCalendar()` in `render.js` — card `#div-calendar-card` in Portfolio tab. Lists holdings with `dividendPerShare > 0`, sorted by `nextPayDate` (soonest first, "in Nd" badge within 14 days), shows projected annual income (`dps × shares`). Hidden when no dividend payers.
+
 ## Tabs and State
 
 Tabs: `overview`, `portfolio`, `expenses`, `budget`, `networth`, `goals`, `salary`
@@ -188,6 +211,9 @@ Tabs: `overview`, `portfolio`, `expenses`, `budget`, `networth`, `goals`, `salar
 - `goals` — savings goals
 - `salaryHistory` — payslip records
 - `dismissedRecurring` — dismissed recurring expense suggestions (keyed by `"YYYY-MM"`)
+- `allocations` — InvestmentAllocation entities (see Investment Allocations section)
+- `unallocatedInvestment` — `{ portfolioId: eur }` invested beyond allocations
+- `aiSummaries` — `{ "YYYY-MM": { text, generatedAt } }` cached monthly AI summaries
 
 ---
 

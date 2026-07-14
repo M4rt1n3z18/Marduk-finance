@@ -231,6 +231,9 @@ async function initApp() {
   if (!state.budgets) state.budgets = DEFAULT_CATS.map(c => ({ cat: c, limit: 0 }));
   if (state.paycheckDay === undefined) state.paycheckDay = null;
   if (!state.payslips) state.payslips = [];
+  if (!state.allocations) state.allocations = [];
+  if (!state.unallocatedInvestment) state.unallocatedInvestment = {};
+  if (!state.aiSummaries) state.aiSummaries = {};
 
   // Migrate old flat holdings/transactions/portHistory → portfolios array
   if (!state.portfolios || !state.portfolios.length) {
@@ -280,9 +283,14 @@ async function initApp() {
 
   syncCats();
   snapshotNetWorth();
+  setDateField('al-date', now.toISOString().slice(0,10));
+  initAiCategorize(); // AI/history-based category suggestions on the expense form
   renderAll();
   checkRecurring();
   startAutoRefresh(); // begin live 5-minute price polling
+
+  // Auto-generate this month's AI summary once (no-op without an AI key)
+  setTimeout(() => generateMonthlySummary(false), 2500);
 }
 
 // ══════════════ INIT ══════════════
@@ -813,6 +821,107 @@ async function buildPortHistoryChart() {
   // Pass pre-fetched data — sub-charts skip their own network round-trip
   buildPortDynamicsChart(_preFetchedDynData);
   buildHoldingsPerfChart(_preFetchedHperfData);
+}
+
+// ══════════════ AI MONTHLY SUMMARY ══════════════
+// Builds a compact aggregate payload (no raw transactions), sends it to Claude
+// once per month, caches the text in state.aiSummaries. Card lives on Overview.
+
+function _aiSummaryPayload() {
+  const key = getExpenseMonthKey(now.getFullYear(), now.getMonth());
+  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevKey = getExpenseMonthKey(prevDate.getFullYear(), prevDate.getMonth());
+
+  const monthLabel = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const monthExp = state.expenses.filter(e => expenseBelongsToMonth(e, key));
+  const prevExp = state.expenses.filter(e => expenseBelongsToMonth(e, prevKey));
+
+  const byCat = {};
+  monthExp.forEach(e => { byCat[e.cat] = (byCat[e.cat] || 0) + Number(e.amount); });
+  const topCats = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([cat, amt]) => ({ cat, eur: Math.round(amt) }));
+
+  const salary = (state.salaries || []).find(s => s.month === key);
+  const extra = (state.extraIncomes || []).filter(x => x.month === key).reduce((s, x) => s + Number(x.amount), 0);
+  const income = (salary ? salary.amount : 0) + extra;
+
+  const ps = totalPortfolioStats();
+  const nwHist = state.nwHistory || [];
+  const nwNow = nwHist.find(h => h.month === key)?.value ?? null;
+  const nwPrev = nwHist.find(h => h.month === prevKey)?.value ?? null;
+
+  return {
+    month: monthLabel,
+    incomeEur: Math.round(income),
+    spentEur: Math.round(monthExp.reduce((s, e) => s + Number(e.amount), 0)),
+    spentLastMonthEur: Math.round(prevExp.reduce((s, e) => s + Number(e.amount), 0)),
+    topSpendingCategories: topCats,
+    allocatedToInvestEur: Math.round(allocationTotalForMonth(key)),
+    portfolio: ps.count > 0 ? { valueEur: Math.round(ps.val), allTimeGainPct: +ps.gainPct.toFixed(1) } : null,
+    netWorthEur: nwNow,
+    netWorthLastMonthEur: nwPrev,
+    goals: (state.goals || []).slice(0, 3).map(g => ({
+      name: g.name, pct: g.target > 0 ? +(g.current / g.target * 100).toFixed(0) : 0,
+    })),
+  };
+}
+
+async function generateMonthlySummary(force = false) {
+  if (!window.electronAPI?.aiMonthlySummary) return;
+  const key = getExpenseMonthKey(now.getFullYear(), now.getMonth());
+  if (!state.aiSummaries) state.aiSummaries = {};
+
+  // Already generated this month and not forcing → just render
+  if (!force && state.aiSummaries[key]?.text) { renderAiSummaryCard(); return; }
+
+  // No AI key configured → nothing to do
+  const masked = await window.electronAPI.getAiKeyStatus?.();
+  if (!masked) { renderAiSummaryCard(); return; }
+
+  const card = document.getElementById('ai-summary-card');
+  const textEl = document.getElementById('ai-summary-text');
+  const btn = document.getElementById('ai-summary-refresh');
+  if (card) card.style.display = '';
+  if (textEl) textEl.innerHTML = '<span style="color:var(--text3);">✨ Writing your monthly summary…</span>';
+  if (btn) btn.disabled = true;
+
+  try {
+    const text = await window.electronAPI.aiMonthlySummary(_aiSummaryPayload());
+    if (text) {
+      state.aiSummaries[key] = { text, generatedAt: new Date().toISOString() };
+      // Keep only the last 12 summaries
+      const keys = Object.keys(state.aiSummaries).sort();
+      while (keys.length > 12) delete state.aiSummaries[keys.shift()];
+      save();
+    }
+  } catch (e) { console.error('AI summary error:', e); }
+  if (btn) btn.disabled = false;
+  renderAiSummaryCard();
+}
+
+async function renderAiSummaryCard() {
+  const card = document.getElementById('ai-summary-card');
+  if (!card) return;
+  const key = getExpenseMonthKey(now.getFullYear(), now.getMonth());
+  const entry = (state.aiSummaries || {})[key];
+
+  if (entry?.text) {
+    card.style.display = '';
+    document.getElementById('ai-summary-text').textContent = entry.text;
+    const genDate = new Date(entry.generatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    document.getElementById('ai-summary-meta').textContent = `Generated ${genDate} · based on your aggregated monthly stats`;
+    return;
+  }
+  // No summary yet — only show the card (with a generate hint) if a key exists
+  const masked = window.electronAPI?.getAiKeyStatus ? await window.electronAPI.getAiKeyStatus() : null;
+  if (masked) {
+    card.style.display = '';
+    document.getElementById('ai-summary-text').innerHTML =
+      '<span style="color:var(--text3);">No summary for this month yet — click Regenerate to create one.</span>';
+    document.getElementById('ai-summary-meta').textContent = '';
+  } else {
+    card.style.display = 'none';
+  }
 }
 
 // ── App version display ───────────────────────────────────────────────────────

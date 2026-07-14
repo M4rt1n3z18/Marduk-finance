@@ -331,6 +331,8 @@ function renderOverview() {
     `<tr><td><span class="badge buy">Expense</span></td><td>${e.desc}</td><td class="muted">${e.date}</td><td class="down-text" style="font-weight:600;">${eur(e.amount)}</td></tr>`
   ).join('') || '<tr><td colspan="4" class="empty">No transactions yet.</td></tr>';
 
+  renderAiSummaryCard();
+
   buildSpendingChart();
   buildAllocChart();
   buildCatSpendChart();
@@ -367,6 +369,8 @@ function renderPortfolio() {
   document.getElementById('p-count').textContent = (ap().holdings||[]).length;
 
   renderHoldingsTable();
+  renderAllocationStats();
+  renderDividendCalendar();
 
   buildPortDonut();
   buildPnlBar();

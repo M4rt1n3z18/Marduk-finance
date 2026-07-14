@@ -621,9 +621,10 @@ function renderExpenses() {
   const salDay = secondToLastBusinessDay(year, month);
   const salDayStr = salDay.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-  // Stats
+  // Stats — investment allocations reduce the remaining budget (but are NOT expenses)
   const totalSpent = monthExpenses.reduce((s, e) => s + Number(e.amount), 0);
-  const remaining = totalIncome - totalSpent;
+  const allocMonth = typeof allocationTotalForMonth === 'function' ? allocationTotalForMonth(selectedExpenseMonth) : 0;
+  const remaining = totalIncome - totalSpent - allocMonth;
   const monthLabel = new Date(year, month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 
   document.getElementById('e-period-sub').textContent = monthLabel;
@@ -637,7 +638,9 @@ function renderExpenses() {
   document.getElementById('e-stat-count').textContent = monthExpenses.length + ' transaction' + (monthExpenses.length === 1 ? '' : 's');
   document.getElementById('e-stat-remaining').textContent = eur(remaining);
   document.getElementById('e-stat-remaining').className = 'stat-val ' + (remaining >= 0 ? 'up-text' : 'down-text');
-  document.getElementById('e-stat-remaining-sub').textContent = totalIncome > 0 ? (remaining >= 0 ? 'looking good!' : 'over budget!') : 'log income in Budget tab';
+  document.getElementById('e-stat-remaining-sub').textContent = allocMonth > 0
+    ? `after expenses + ${eur(allocMonth)} allocated`
+    : (totalIncome > 0 ? (remaining >= 0 ? 'looking good!' : 'over budget!') : 'log income in Budget tab');
   document.getElementById('e-stat-salday').textContent = salDayStr;
   const pdInput = document.getElementById('paycheck-day-input');
   if (pdInput) {
@@ -714,9 +717,127 @@ function renderExpenses() {
     existing.appendChild(btn);
   });
 
+  // Investment allocation card
+  renderAllocations();
+
   // Charts
   buildExpCatChart(monthExpenses);
   buildExpDailyChart(monthExpenses, year, month);
+}
+
+// ══════════════ INVESTMENT ALLOCATIONS — UI ══════════════
+function renderAllocations() {
+  const portSel = document.getElementById('al-port');
+  if (!portSel) return;
+
+  // Portfolio dropdown (keep selection across re-renders)
+  const cur = portSel.value;
+  portSel.innerHTML = (state.portfolios || []).map(p =>
+    `<option value="${p.id}" ${p.id === cur ? 'selected' : ''}>${p.name}</option>`
+  ).join('');
+
+  // Default date = today (only if not already picked)
+  const dateInput = document.getElementById('al-date');
+  if (dateInput && !dateInput.dataset.raw) setDateField('al-date', now.toISOString().slice(0, 10));
+
+  // Allocated this month
+  const monthTotal = allocationTotalForMonth(selectedExpenseMonth || getExpenseMonthKey(now.getFullYear(), now.getMonth()));
+  const totalEl = document.getElementById('al-month-total');
+  if (totalEl) totalEl.textContent = eur(monthTotal);
+
+  // History table
+  const histEl = document.getElementById('allocation-history');
+  if (!histEl) return;
+  const list = [...(state.allocations || [])].sort((a, b) => (b.allocationDate || '').localeCompare(a.allocationDate || ''));
+  if (!list.length) { histEl.innerHTML = ''; return; }
+
+  const portName = id => ((state.portfolios || []).find(p => p.id === id) || {}).name || '(deleted portfolio)';
+  histEl.innerHTML = `
+    <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:6px;font-family:'Cinzel',serif;">Allocation History</div>
+    <table class="data-table">
+      <thead><tr><th>Date</th><th>Portfolio</th><th>Allocated</th><th>Invested</th><th>Remaining</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        ${list.map(a => {
+          const rem = Math.max(0, a.amountAllocated - a.amountInvested);
+          const open = a.status === 'open';
+          return `<tr>
+            <td class="muted">${a.allocationDate}${a.notes ? `<br><span style="font-size:11px;color:var(--text3);">${a.notes}</span>` : ''}</td>
+            <td>${portName(a.portfolioId)}</td>
+            <td style="font-weight:600;">${eur(a.amountAllocated)}</td>
+            <td>${eur(a.amountInvested)}</td>
+            <td style="font-weight:600;color:${open ? 'var(--gold)' : 'var(--text3)'};">${eur(rem)}</td>
+            <td><span class="badge ${open ? 'buy' : 'etf'}" style="font-size:10px;">${open ? 'Open' : 'Fully Used'}</span></td>
+            <td><button class="del-btn" onclick="delAllocation('${a.id}')">✕</button></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+// Allocation stat cards at the top of the Portfolio tab (active portfolio)
+function renderAllocationStats() {
+  const row = document.getElementById('alloc-stats-row');
+  if (!row) return;
+  const port = ap();
+  const t = allocationTotals(port.id);
+  const hasAny = allocationsFor(port.id).length > 0 || t.excess > 0;
+  row.style.display = hasAny ? '' : 'none';
+  if (!hasAny) return;
+  document.getElementById('p-allocated').textContent = eur(t.allocated);
+  document.getElementById('p-alloc-invested').textContent = eur(t.invested);
+  document.getElementById('p-alloc-remaining').textContent = eur(t.remaining);
+  const excessEl = document.getElementById('p-alloc-excess');
+  excessEl.textContent = eur(t.excess);
+  excessEl.style.color = t.excess > 0 ? 'var(--down)' : '';
+  document.getElementById('p-alloc-excess-sub').textContent = t.excess > 0
+    ? 'invested beyond allocations' : 'all investments were allocated';
+}
+
+// ══════════════ DIVIDEND CALENDAR ══════════════
+function renderDividendCalendar() {
+  const card = document.getElementById('div-calendar-card');
+  const body = document.getElementById('div-calendar-body');
+  if (!card || !body) return;
+
+  const holdings = (ap().holdings || []).filter(h => (h.dividendPerShare || 0) > 0);
+  if (!holdings.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  const fmtDate = d => d
+    ? new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '—';
+  const daysUntil = d => d ? Math.ceil((new Date(d + 'T12:00:00Z') - new Date()) / 86400000) : null;
+
+  // Sort: upcoming pay dates first (soonest on top), then no-date holdings by income
+  const sorted = [...holdings].sort((a, b) => {
+    const da = a.nextPayDate || '9999-12-31';
+    const db = b.nextPayDate || '9999-12-31';
+    if (da !== db) return da.localeCompare(db);
+    return (b.dividendPerShare * b.shares) - (a.dividendPerShare * a.shares);
+  });
+
+  const totalAnnual = holdings.reduce((s, h) => s + h.dividendPerShare * h.shares, 0);
+  document.getElementById('div-cal-total').textContent = eur(totalAnnual);
+
+  body.innerHTML = `<table class="data-table">
+    <thead><tr><th>Holding</th><th>Ex-Dividend</th><th>Next Payment</th><th>Yield</th><th>Est. Annual Income</th></tr></thead>
+    <tbody>
+      ${sorted.map(h => {
+        const days = daysUntil(h.nextPayDate);
+        const soonBadge = days !== null && days >= 0 && days <= 14
+          ? ` <span style="font-size:10px;background:rgba(76,175,130,0.15);border:1px solid rgba(76,175,130,0.4);color:var(--up);border-radius:20px;padding:1px 8px;">in ${days}d</span>` : '';
+        const yieldPct = h.forwardYield != null ? (h.forwardYield * 100).toFixed(2) + '%'
+          : (h.currentPrice ? (h.dividendPerShare / h.currentPrice * 100).toFixed(2) + '%' : '—');
+        return `<tr>
+          <td style="font-weight:600;color:var(--gold);">${h.ticker}<span class="muted" style="font-weight:400;font-size:11px;"> · ${fmtShares(h.shares)} sh</span></td>
+          <td class="muted">${fmtDate(h.exDivDate)}</td>
+          <td>${fmtDate(h.nextPayDate)}${soonBadge}</td>
+          <td class="muted">${yieldPct}</td>
+          <td style="font-weight:600;color:var(--up);">${eur(h.dividendPerShare * h.shares)}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
 }
 
 function renderNetWorth() {
@@ -860,11 +981,12 @@ function renderBudget() {
     </div>`
   ).join('') : '';
 
-  // Budget stats for selected month
+  // Budget stats for selected month — allocations reduce remaining (but count as savings)
   const thisMonth = state.expenses.filter(e => expenseBelongsToMonth(e, selectedBudgetMonth));
   const totalSpent = thisMonth.reduce((s,e)=>s+Number(e.amount),0);
-  const remaining = totalIncome - totalSpent;
-  const savingsRate = totalIncome ? Math.max(0, remaining/totalIncome*100) : 0;
+  const allocMonth = typeof allocationTotalForMonth === 'function' ? allocationTotalForMonth(selectedBudgetMonth) : 0;
+  const remaining = totalIncome - totalSpent - allocMonth;
+  const savingsRate = totalIncome ? Math.max(0, (remaining + allocMonth)/totalIncome*100) : 0;
   const totalLimit = state.budgets.reduce((s,b)=>s+b.limit,0);
   const totalPct = totalLimit ? Math.min(totalSpent/totalLimit*100,100) : 0;
   const over = totalSpent > totalLimit && totalLimit > 0;
@@ -874,7 +996,9 @@ function renderBudget() {
   document.getElementById('bud-spent').textContent = eur(totalSpent);
   document.getElementById('bud-remaining').textContent = eur(remaining);
   document.getElementById('bud-remaining').className = 'stat-val ' + (remaining>=0?'up-text':'down-text');
-  document.getElementById('bud-remaining-sub').textContent = remaining>=0 ? 'looking good!' : 'over your income';
+  document.getElementById('bud-remaining-sub').textContent = allocMonth > 0
+    ? `incl. ${eur(allocMonth)} allocated to invest`
+    : (remaining>=0 ? 'looking good!' : 'over your income');
   document.getElementById('bud-savrate').textContent = savingsRate.toFixed(1) + '%';
   document.getElementById('bud-savrate').className = 'stat-val ' + (savingsRate>=20?'up-text':savingsRate>0?'gold-text':'down-text');
 
