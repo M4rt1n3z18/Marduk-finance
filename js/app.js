@@ -106,9 +106,21 @@ async function _fillSettingsFooter() {
   el.innerHTML = `MARDUK ${version}${path ? `<br>Data: ${path}` : ''}`;
 }
 
-// Close the settings menu on any outside click
+// ── Portfolio actions dropdown ────────────────────────────────────────────────
+function toggleActionsMenu(e) {
+  if (e) e.stopPropagation();
+  document.getElementById('actions-menu').classList.toggle('open');
+}
+
+function closeActionsMenu() {
+  const menu = document.getElementById('actions-menu');
+  if (menu) menu.classList.remove('open');
+}
+
+// Close open dropdowns on any outside click
 document.addEventListener('click', e => {
   if (!e.target.closest('#settings-wrap')) closeSettingsMenu();
+  if (!e.target.closest('#actions-wrap')) closeActionsMenu();
 });
 
 // ══════════════ LOCK SCREEN ══════════════
@@ -387,6 +399,7 @@ document.addEventListener('keydown', e => {
     const overlay = document.getElementById('company-modal-overlay');
     if (overlay && overlay.classList.contains('open')) { overlay.classList.remove('open'); }
     closeSettingsMenu();
+    closeActionsMenu();
   }
 });
 

@@ -206,7 +206,24 @@ Header "Settings" dropdown (`#settings-menu` in `index.html`, logic in `js/app.j
 
 Tabs: `overview`, `portfolio`, `expenses`, `budget`, `networth`, `goals`, `salary`
 
-`showTab(name, el)` in `js/app.js` rebuilds charts for the active tab.
+`showTab(name, el)` in `js/app.js` rebuilds charts for the active tab. Every nav button carries an inline SVG icon (stroke `currentColor`, Babylonian motifs: ziggurat, coin stack, tablet, scales, sun-dial circle, target, barley).
+
+### Portfolio sub-views (Snowball-style)
+
+The Portfolio tab is split into 5 sub-views — only one visible at a time (`.psub` / `.psub.active`, state in `portfolioSubTab`, `showPortfolioSub(name, btn)` in `js/charts.js`):
+
+| Sub-view | Contents |
+|---|---|
+| `psub-overview` | stat cards, allocation cards, donut + P&L charts, value history + benchmark, monthly returns, holdings performance, sector allocation |
+| `psub-holdings` | Add Holding form + holdings table (General/Dividends/Returns sub-tabs) |
+| `psub-dividends` | Dividend Analysis + Dividend Calendar (`refreshDividendsSection()` force-fetches metadata; `#psub-div-empty` empty state) |
+| `psub-cash` | Uninvested Cash card |
+| `psub-transactions` | Transaction History |
+
+- Hovering the **Portfolio nav button** shows a dropdown (`.nav-drop`, CSS `:hover`) linking to each sub-view via `navToPortfolioSub(name)`.
+- The portfolio switcher bar stays global above the sub-views — switching portfolio keeps the current sub-view.
+- Portfolio management actions (Refresh Prices `#refresh-btn`, XTB Import, CSV, Rename, New, Delete `#del-port-btn`) live in an **Actions dropdown** (`#actions-menu`, reuses `.settings-menu` classes) in the portfolio bar. `refreshPrices()` still updates `#refresh-btn`'s label even though it is now a menu item.
+- Chart builders already guard on `el.offsetParent`, so hidden sub-views skip canvas work; `showPortfolioSub` rebuilds only the section that became visible.
 
 **State shape** (top-level keys in `marduk-data.json`):
 - `assets` — portfolio holdings

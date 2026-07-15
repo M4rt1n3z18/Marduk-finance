@@ -110,6 +110,34 @@
   .settings-submenu.open { display: block; }
   .settings-footer { font-size: 10px; color: var(--text3); padding: 8px 12px 6px; line-height: 1.5; word-break: break-all; }
 
+  /* ── Nav icons + Portfolio nav dropdown ── */
+  nav button { display: inline-flex; align-items: center; gap: 7px; }
+  nav button svg, .psub-tab svg, .settings-item svg { flex-shrink: 0; opacity: .9; }
+  .nav-drop { position: relative; display: inline-block; }
+  .nav-drop-menu { display: none; position: absolute; left: 0; top: 100%; padding-top: 8px; z-index: 10000; }
+  .nav-drop:hover .nav-drop-menu, .nav-drop:focus-within .nav-drop-menu { display: block; }
+  .nav-drop-inner {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 10px 36px rgba(0,0,0,0.45); padding: 6px; min-width: 200px;
+  }
+
+  /* ── Portfolio sub-views ── */
+  .psub { display: none; }
+  .psub.active { display: block; }
+  .psub-bar {
+    display: flex; gap: 4px; border-bottom: 1px solid var(--border);
+    margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .psub-tab {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: none; border: none; border-bottom: 2px solid transparent;
+    color: var(--text2); font-family: Karla, sans-serif; font-size: 13px; font-weight: 600;
+    padding: 10px 16px; cursor: pointer; transition: color .15s, border-color .15s;
+    margin-bottom: -1px;
+  }
+  .psub-tab:hover { color: var(--text); }
+  .psub-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
   /* ── Layout ── */
   main { max-width: 1200px; margin: 0 auto; padding: 28px 24px; }
   .tab { display: none; }
@@ -839,13 +867,60 @@
     <div>MARDUK<span>Wealth of Babylon</span></div>
   </div>
   <nav>
-    <button class="active" onclick="showTab('overview',this)">Overview</button>
-    <button onclick="showTab('portfolio',this)">Portfolio</button>
-    <button onclick="showTab('expenses',this)">Expenses</button>
-    <button onclick="showTab('networth',this)">Net Worth</button>
-    <button onclick="showTab('budget',this)">Budget</button>
-    <button onclick="showTab('goals',this)">Goals</button>
-    <button onclick="showTab('salary',this)">Salary</button>
+    <button class="active" onclick="showTab('overview',this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20v-4h12v4M8.5 16v-4h7v4M10.5 12V8h3v4"/></svg>
+      Overview
+    </button>
+    <div class="nav-drop">
+      <button id="nav-portfolio-btn" onclick="showTab('portfolio',this)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="2.6"/><path d="M5 6v12c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6M5 12c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6"/></svg>
+        Portfolio
+      </button>
+      <div class="nav-drop-menu">
+        <div class="nav-drop-inner">
+          <button class="settings-item" onclick="navToPortfolioSub('overview')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M7 15l3.5-4 3 2.5L18 8"/></svg>
+            Overview
+          </button>
+          <button class="settings-item" onclick="navToPortfolioSub('holdings')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="9" rx="1.5"/><path d="M4 10c0-3 2.5-5.5 8-5.5s8 2.5 8 5.5M12 13v3"/></svg>
+            Holdings
+          </button>
+          <button class="settings-item" onclick="navToPortfolioSub('dividends')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="10" r="5.5"/><path d="M13.5 6a5.5 5.5 0 1 1-.5 10.9M9 7.8v4.4M6.8 10h4.4"/></svg>
+            Dividends
+          </button>
+          <button class="settings-item" onclick="navToPortfolioSub('cash')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6.2 12h.01M17.8 12h.01"/></svg>
+            Cash
+          </button>
+          <button class="settings-item" onclick="navToPortfolioSub('transactions')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h12.5M13.5 5.5l3 3-3 3M20 15.5H7.5M10.5 12.5l-3 3 3 3"/></svg>
+            Transactions
+          </button>
+        </div>
+      </div>
+    </div>
+    <button onclick="showTab('expenses',this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3.5" width="12" height="17" rx="1.5"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
+      Expenses
+    </button>
+    <button onclick="showTab('networth',this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5v15M8.5 19.5h7M5 7h14M6.5 7l-2.8 6h5.6L6.5 7M17.5 7l-2.8 6h5.6L17.5 7"/></svg>
+      Net Worth
+    </button>
+    <button onclick="showTab('budget',this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5V12l6 6"/></svg>
+      Budget
+    </button>
+    <button onclick="showTab('goals',this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor"/></svg>
+      Goals
+    </button>
+    <button onclick="showTab('salary',this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V7M12 11l4.5-3.2M12 11 7.5 7.8M12 15l4.5-3.2M12 15l-4.5-3.2M12 7l3.5-3.5M12 7 8.5 3.5"/></svg>
+      Salary
+    </button>
   </nav>
   <div class="header-right">
     <span id="app-version" style="font-size:11px;color:var(--text3);letter-spacing:1px;font-family:'Karla',sans-serif;"></span>
@@ -991,16 +1066,7 @@
   <!-- Portfolio switcher bar -->
   <div class="portfolio-bar">
     <div class="portfolio-tabs" id="portfolio-tabs"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn-ghost" onclick="renamePortfolio()" style="font-size:11px;">✎ Rename</button>
-      <button class="btn-ghost" onclick="addPortfolio()" style="font-size:11px;">+ New Portfolio</button>
-      <button class="btn-ghost" onclick="deletePortfolio()" style="font-size:11px;color:var(--down);border-color:rgba(224,92,92,0.4);" id="del-port-btn">✕ Delete</button>
-    </div>
-  </div>
-
-  <div class="sec-header">
-    <div><div class="sec-title" id="port-sec-title">Portfolio</div><div class="sec-sub">Track your investments with live-refreshable prices</div></div>
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <select id="port-currency-sel" onchange="setPortCurrency(this.value)"
         style="padding:7px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;outline:none;cursor:pointer;"
         title="Display currency for this portfolio">
@@ -1010,15 +1076,59 @@
         <option value="CHF">₣ CHF</option>
         <option value="BRL">R$ BRL</option>
       </select>
-      <button class="btn-ghost" onclick="exportPortfolioCSV()" style="font-size:11px;">↓ CSV</button>
-      <button class="btn-ghost" onclick="importXtbExcel()" style="font-size:11px;" title="Import open positions from XTB Excel export">⬆ XTB Import</button>
-      <button class="btn-ghost" onclick="refreshPrices()" id="refresh-btn">↻ Refresh Prices</button>
-      <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);">
+      <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);" title="Next automatic price refresh">
         <span id="live-dot" style="color:var(--up);font-size:9px;">●</span>
         <span id="live-countdown" style="font-variant-numeric:tabular-nums;min-width:32px;">—</span>
       </span>
+      <!-- Portfolio actions dropdown -->
+      <div class="settings-wrap" id="actions-wrap">
+        <button class="btn-ghost settings-btn" onclick="toggleActionsMenu(event)" title="Portfolio actions">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 6.5h16M4 12h16M4 17.5h16"/></svg>
+          Actions <span style="font-size:9px;opacity:.7;">▾</span>
+        </button>
+        <div class="settings-menu" id="actions-menu">
+          <button class="settings-item" id="refresh-btn" onclick="refreshPrices()">↻&nbsp; Refresh Prices</button>
+          <button class="settings-item" onclick="closeActionsMenu();importXtbExcel()" title="Import open positions from XTB Excel export">⬆&nbsp; XTB Import</button>
+          <button class="settings-item" onclick="closeActionsMenu();exportPortfolioCSV()">↓&nbsp; Export CSV</button>
+          <div class="settings-divider"></div>
+          <button class="settings-item" onclick="closeActionsMenu();renamePortfolio()">✎&nbsp; Rename portfolio</button>
+          <button class="settings-item" onclick="closeActionsMenu();addPortfolio()">＋&nbsp; New portfolio</button>
+          <button class="settings-item" id="del-port-btn" style="color:var(--down);" onclick="closeActionsMenu();deletePortfolio()">✕&nbsp; Delete portfolio</button>
+        </div>
+      </div>
     </div>
   </div>
+
+  <div class="sec-header" style="margin-bottom:10px;">
+    <div><div class="sec-title" id="port-sec-title">Portfolio</div><div class="sec-sub">Track your investments with live-refreshable prices</div></div>
+  </div>
+
+  <!-- Sub-view navigation -->
+  <div class="psub-bar">
+    <button class="psub-tab active" id="psub-tab-overview" onclick="showPortfolioSub('overview',this)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M7 15l3.5-4 3 2.5L18 8"/></svg>
+      Overview
+    </button>
+    <button class="psub-tab" id="psub-tab-holdings" onclick="showPortfolioSub('holdings',this)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="9" rx="1.5"/><path d="M4 10c0-3 2.5-5.5 8-5.5s8 2.5 8 5.5M12 13v3"/></svg>
+      Holdings
+    </button>
+    <button class="psub-tab" id="psub-tab-dividends" onclick="showPortfolioSub('dividends',this)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="10" r="5.5"/><path d="M13.5 6a5.5 5.5 0 1 1-.5 10.9M9 7.8v4.4M6.8 10h4.4"/></svg>
+      Dividends
+    </button>
+    <button class="psub-tab" id="psub-tab-cash" onclick="showPortfolioSub('cash',this)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6.2 12h.01M17.8 12h.01"/></svg>
+      Cash
+    </button>
+    <button class="psub-tab" id="psub-tab-transactions" onclick="showPortfolioSub('transactions',this)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h12.5M13.5 5.5l3 3-3 3M20 15.5H7.5M10.5 12.5l-3 3 3 3"/></svg>
+      Transactions
+    </button>
+  </div>
+
+  <!-- ── SUB-VIEW: OVERVIEW ── -->
+  <div class="psub active" id="psub-overview">
 
   <div class="stats-grid">
     <div class="stat-card">
@@ -1065,33 +1175,6 @@
       <div class="stat-val" id="p-alloc-excess">€0</div>
       <div class="stat-sub" id="p-alloc-excess-sub">invested beyond allocations</div>
     </div>
-  </div>
-
-  <!-- Uninvested Cash (multi-currency) -->
-  <div class="card" style="margin-bottom:20px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-      <div>
-        <div class="card-title" style="margin-bottom:2px;">Uninvested Cash</div>
-        <div style="font-size:12px;color:var(--text2);">Counts toward portfolio value · Rates updated on price refresh</div>
-      </div>
-      <button class="btn-ghost" onclick="showAddCashForm()" style="font-size:11px;">+ Add Cash</button>
-    </div>
-    <div id="cash-table-wrap"><!-- filled by renderCashTable() --></div>
-    <div id="cash-add-form" style="display:none;" class="cash-add-form">
-      <select id="cash-add-currency">
-        <option value="EUR">€ EUR</option>
-        <option value="USD">$ USD</option>
-        <option value="GBP">£ GBP</option>
-        <option value="CHF">₣ CHF</option>
-        <option value="BRL">R$ BRL</option>
-      </select>
-      <input type="number" id="cash-add-amount" placeholder="Amount" min="0" step="0.01"
-        onkeydown="if(event.key==='Enter')saveCashEntry();if(event.key==='Escape')hideAddCashForm();">
-      <button class="btn" onclick="saveCashEntry()" style="padding:7px 16px;font-size:12px;">Add</button>
-      <button class="btn-ghost" onclick="hideAddCashForm()" style="font-size:12px;">Cancel</button>
-    </div>
-    <!-- Legacy hidden input for backward compat -->
-    <input type="hidden" id="p-cash">
   </div>
 
   <div class="chart-grid-2" style="margin-bottom:20px;">
@@ -1169,6 +1252,11 @@
     </div>
   </div>
 
+  </div><!-- /psub-overview -->
+
+  <!-- ── SUB-VIEW: HOLDINGS ── -->
+  <div class="psub" id="psub-holdings">
+
   <div class="card" style="margin-bottom:16px;">
     <div class="card-title" style="margin-bottom:14px;">Add Holding</div>
     <div class="add-holding-grid">
@@ -1225,8 +1313,18 @@
     <div id="holdings-table-wrap"><!-- filled by renderHoldingsTable() --></div>
   </div>
 
+  </div><!-- /psub-holdings -->
+
+  <!-- ── SUB-VIEW: DIVIDENDS ── -->
+  <div class="psub" id="psub-dividends">
+
+  <div id="psub-div-empty" class="card empty" style="display:none;padding:40px;text-align:center;">
+    No dividend payers detected yet.<br>
+    <span style="font-size:12px;color:var(--text3);">Holdings that pay dividends will appear here automatically after a price refresh.</span>
+  </div>
+
   <!-- Dividend Analysis -->
-  <div class="card" id="div-analysis-card" style="margin-top:16px;display:none;">
+  <div class="card" id="div-analysis-card" style="display:none;">
     <div class="card-title" style="margin-bottom:16px;">Dividend Analysis</div>
     <div class="div-stats-grid" id="div-stats-grid"></div>
     <div class="chart-grid-2" style="margin-bottom:0;">
@@ -1259,6 +1357,43 @@
     <div id="div-calendar-body"></div>
   </div>
 
+  </div><!-- /psub-dividends -->
+
+  <!-- ── SUB-VIEW: CASH ── -->
+  <div class="psub" id="psub-cash">
+
+  <!-- Uninvested Cash (multi-currency) -->
+  <div class="card" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div class="card-title" style="margin-bottom:2px;">Uninvested Cash</div>
+        <div style="font-size:12px;color:var(--text2);">Counts toward portfolio value · Rates updated on price refresh</div>
+      </div>
+      <button class="btn-ghost" onclick="showAddCashForm()" style="font-size:11px;">+ Add Cash</button>
+    </div>
+    <div id="cash-table-wrap"><!-- filled by renderCashTable() --></div>
+    <div id="cash-add-form" style="display:none;" class="cash-add-form">
+      <select id="cash-add-currency">
+        <option value="EUR">€ EUR</option>
+        <option value="USD">$ USD</option>
+        <option value="GBP">£ GBP</option>
+        <option value="CHF">₣ CHF</option>
+        <option value="BRL">R$ BRL</option>
+      </select>
+      <input type="number" id="cash-add-amount" placeholder="Amount" min="0" step="0.01"
+        onkeydown="if(event.key==='Enter')saveCashEntry();if(event.key==='Escape')hideAddCashForm();">
+      <button class="btn" onclick="saveCashEntry()" style="padding:7px 16px;font-size:12px;">Add</button>
+      <button class="btn-ghost" onclick="hideAddCashForm()" style="font-size:12px;">Cancel</button>
+    </div>
+    <!-- Legacy hidden input for backward compat -->
+    <input type="hidden" id="p-cash">
+  </div>
+
+  </div><!-- /psub-cash -->
+
+  <!-- ── SUB-VIEW: TRANSACTIONS ── -->
+  <div class="psub" id="psub-transactions">
+
   <!-- Transaction History -->
   <div class="card" style="margin-top:16px;">
     <div class="card-title" style="margin-bottom:14px;">Transaction History</div>
@@ -1274,6 +1409,8 @@
       </div>
     </div>
   </div>
+
+  </div><!-- /psub-transactions -->
 </div>
 
 <!-- ══════════════ EXPENSES ══════════════ -->

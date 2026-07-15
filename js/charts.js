@@ -693,6 +693,53 @@ function setPortRange(range, btn) {
   buildPortHistoryChart();
 }
 
+// ── Portfolio sub-views (Overview | Holdings | Dividends | Cash | Transactions) ──
+let portfolioSubTab = 'overview';
+
+function showPortfolioSub(name, btn) {
+  portfolioSubTab = name;
+  document.querySelectorAll('#tab-portfolio .psub').forEach(d => d.classList.remove('active'));
+  const el = document.getElementById('psub-' + name);
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.psub-tab').forEach(b => b.classList.remove('active'));
+  (btn || document.getElementById('psub-tab-' + name))?.classList.add('active');
+
+  // Build only what just became visible (chart builders skip hidden canvases)
+  if (name === 'overview') {
+    renderAllocationStats();
+    buildPortDonut(); buildPnlBar(); buildPortHistoryChart(); buildSectorChart();
+  } else if (name === 'holdings') {
+    renderHoldingsTable();
+  } else if (name === 'dividends') {
+    refreshDividendsSection();
+  } else if (name === 'cash') {
+    renderCashTable();
+  } else if (name === 'transactions') {
+    renderTransactions();
+  }
+}
+
+// Nav dropdown entry point: open the Portfolio tab directly on a sub-view
+function navToPortfolioSub(name) {
+  showTab('portfolio', document.getElementById('nav-portfolio-btn'));
+  showPortfolioSub(name);
+}
+
+// Dividends sub-view: analysis + calendar, with fresh metadata fetch
+function refreshDividendsSection() {
+  const apply = () => {
+    const hasDivs = (ap().holdings || []).some(h => h.dividendPerShare > 0);
+    const divCard = document.getElementById('div-analysis-card');
+    const emptyEl = document.getElementById('psub-div-empty');
+    if (divCard) { divCard.style.display = hasDivs ? '' : 'none'; if (hasDivs) buildDividendCharts(); }
+    if (emptyEl) emptyEl.style.display = hasDivs ? 'none' : '';
+    renderDividendCalendar();
+  };
+  apply(); // paint immediately with cached data
+  // force=true bypasses the cooldown so this section always gets fresh data
+  autoFetchPortfolioMetadata(true).then(apply);
+}
+
 // ── Holdings sub-tab ────────────────────────────────────────────────────────
 let holdingsSubTab = 'general'; // 'general' | 'dividends' | 'returns'
 
@@ -704,19 +751,7 @@ function setHoldingsSubTab(tab, btn) {
 
   if (tab === 'dividends') {
     // force=true bypasses the cooldown so user always gets fresh data on this tab
-    autoFetchPortfolioMetadata(true).then(() => {
-      const divCard = document.getElementById('div-analysis-card');
-      if (divCard) {
-        const hasDivs = (ap().holdings || []).some(h => h.dividendPerShare > 0);
-        divCard.style.display = hasDivs ? '' : 'none';
-        if (hasDivs) buildDividendCharts();
-      }
-      renderHoldingsTable(); // re-render with fresh dividend data
-    });
-  } else {
-    // Hide dividend analysis card for other tabs
-    const divCard = document.getElementById('div-analysis-card');
-    if (divCard) divCard.style.display = 'none';
+    autoFetchPortfolioMetadata(true).then(() => renderHoldingsTable());
   }
 }
 
