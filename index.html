@@ -87,6 +87,29 @@
   }
   [data-theme="light"] .theme-toggle::after { left: 22px; }
 
+  /* ── Settings dropdown ── */
+  .settings-wrap { position: relative; }
+  .settings-btn { display: inline-flex; align-items: center; gap: 7px; }
+  .settings-btn svg { flex-shrink: 0; }
+  .settings-menu {
+    display: none; position: absolute; right: 0; top: calc(100% + 8px); min-width: 240px;
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 10px 36px rgba(0,0,0,0.45); padding: 6px; z-index: 10000;
+  }
+  .settings-menu.open { display: block; }
+  .settings-item {
+    display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+    background: none; border: none; color: var(--text); font-family: Karla, sans-serif;
+    font-size: 13px; padding: 9px 12px; border-radius: 8px; cursor: pointer; transition: background .12s;
+  }
+  .settings-item:hover { background: var(--bg3); }
+  .settings-item .theme-check { margin-left: auto; color: var(--gold); visibility: hidden; font-weight: 700; }
+  .settings-item.active .theme-check { visibility: visible; }
+  .settings-divider { height: 1px; background: var(--border); margin: 6px 4px; }
+  .settings-submenu { display: none; padding-left: 12px; }
+  .settings-submenu.open { display: block; }
+  .settings-footer { font-size: 10px; color: var(--text3); padding: 8px 12px 6px; line-height: 1.5; word-break: break-all; }
+
   /* ── Layout ── */
   main { max-width: 1200px; margin: 0 auto; padding: 28px 24px; }
   .tab { display: none; }
@@ -826,11 +849,38 @@
   </nav>
   <div class="header-right">
     <span id="app-version" style="font-size:11px;color:var(--text3);letter-spacing:1px;font-family:'Karla',sans-serif;"></span>
-    <button class="btn-ghost" onclick="exportData()">↓ Export</button>
-    <button class="btn-ghost" onclick="importData()">↑ Import</button>
-    <button class="btn-ghost" onclick="openBackupsModal()" title="Automatic daily backups">⛃ Backups</button>
+
+    <!-- Settings dropdown -->
+    <div class="settings-wrap" id="settings-wrap">
+      <button class="btn-ghost settings-btn" onclick="toggleSettingsMenu(event)" title="Settings">
+        <!-- Eight-pointed star of Babylon -->
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <rect x="5.5" y="5.5" width="13" height="13"/>
+          <rect x="5.5" y="5.5" width="13" height="13" transform="rotate(45 12 12)"/>
+        </svg>
+        Settings <span style="font-size:9px;opacity:.7;">▾</span>
+      </button>
+      <div class="settings-menu" id="settings-menu">
+        <button class="settings-item" onclick="closeSettingsMenu();exportData()">↓&nbsp; Export data</button>
+        <button class="settings-item" onclick="closeSettingsMenu();importData()">↑&nbsp; Import data</button>
+        <button class="settings-item" onclick="closeSettingsMenu();openBackupsModal()">⛃&nbsp; Backups</button>
+        <button class="settings-item" onclick="closeSettingsMenu();openAiSettings()">✨&nbsp; AI Settings</button>
+        <div class="settings-divider"></div>
+        <button class="settings-item" onclick="toggleThemeSubmenu(event)">
+          ◐&nbsp; Theme
+          <span id="settings-theme-label" style="margin-left:auto;color:var(--text3);font-size:11px;">Dark ▸</span>
+        </button>
+        <div class="settings-submenu" id="theme-submenu">
+          <button class="settings-item" id="theme-opt-light"  onclick="setThemeMode('light')">☀&nbsp; Light<span class="theme-check">✓</span></button>
+          <button class="settings-item" id="theme-opt-dark"   onclick="setThemeMode('dark')">☾&nbsp; Dark<span class="theme-check">✓</span></button>
+          <button class="settings-item" id="theme-opt-system" onclick="setThemeMode('system')">🖥&nbsp; Device settings<span class="theme-check">✓</span></button>
+        </div>
+        <div class="settings-divider"></div>
+        <div class="settings-footer" id="settings-footer"></div>
+      </div>
+    </div>
+
     <button class="btn-ghost" onclick="lockApp()" title="Lock">🔒 Lock</button>
-    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></div>
   </div>
 </header>
 

@@ -15,18 +15,101 @@ function showTab(name, el) {
   if (name==='salary')  { renderSalary(); buildSalaryCharts(); }
 }
 
-function toggleTheme() {
-  const t = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
-  document.body.dataset.theme = t;
-  // Rebuild charts with new colors
+// ══════════════ THEME ══════════════
+// Three modes, persisted across launches: 'light' | 'dark' | 'system'.
+// 'system' follows the OS appearance and reacts to live changes.
+const THEME_MODE_KEY = 'marduk_theme_mode';
+
+function getThemeMode() {
+  const m = localStorage.getItem(THEME_MODE_KEY);
+  return ['light', 'dark', 'system'].includes(m) ? m : 'dark';
+}
+
+function _resolveTheme(mode) {
+  if (mode === 'system') {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  return mode === 'light' ? 'light' : 'dark';
+}
+
+function applyTheme(rebuildCharts = true) {
+  document.body.dataset.theme = _resolveTheme(getThemeMode());
+  if (!rebuildCharts) return;
+  // Rebuild charts with new colors (CSS vars don't resolve inside canvas)
   setTimeout(() => {
-    buildSpendingChart(); buildAllocChart(); buildCatSpendChart();
-    buildPortDonut(); buildPnlBar(); buildPortHistoryChart();
-    buildNwHistoryChart(); buildSavRateChart(); buildIncomeHistoryChart();
-    buildExpCatChart(state.expenses.filter(e => e.date && e.date.startsWith(selectedExpenseMonth||'')));
-    buildSalaryCharts();
+    try {
+      buildSpendingChart(); buildAllocChart(); buildCatSpendChart();
+      buildPortDonut(); buildPnlBar(); buildPortHistoryChart();
+      buildNwHistoryChart(); buildSavRateChart(); buildIncomeHistoryChart();
+      buildExpCatChart(state.expenses.filter(e => e.date && e.date.startsWith(selectedExpenseMonth||'')));
+      buildSalaryCharts();
+    } catch(e) {}
   }, 50);
 }
+
+function setThemeMode(mode) {
+  localStorage.setItem(THEME_MODE_KEY, mode);
+  applyTheme();
+  _syncThemeMenu();
+}
+
+function _syncThemeMenu() {
+  const mode = getThemeMode();
+  const labels = { light: 'Light', dark: 'Dark', system: 'Device' };
+  const labelEl = document.getElementById('settings-theme-label');
+  if (labelEl) labelEl.textContent = `${labels[mode]} ▸`;
+  ['light', 'dark', 'system'].forEach(m => {
+    const el = document.getElementById('theme-opt-' + m);
+    if (el) el.classList.toggle('active', m === mode);
+  });
+}
+
+// Follow live OS appearance changes when in 'system' mode
+if (window.matchMedia) {
+  try {
+    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+      if (getThemeMode() === 'system') applyTheme();
+    });
+  } catch(e) {}
+}
+
+// Apply the saved theme immediately at load (lock screen included)
+applyTheme(false);
+
+// ══════════════ SETTINGS MENU ══════════════
+function toggleSettingsMenu(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('settings-menu');
+  const opening = !menu.classList.contains('open');
+  menu.classList.toggle('open', opening);
+  if (opening) { _syncThemeMenu(); _fillSettingsFooter(); }
+}
+
+function closeSettingsMenu() {
+  const menu = document.getElementById('settings-menu');
+  if (menu) menu.classList.remove('open');
+  const sub = document.getElementById('theme-submenu');
+  if (sub) sub.classList.remove('open');
+}
+
+function toggleThemeSubmenu(e) {
+  if (e) e.stopPropagation();
+  document.getElementById('theme-submenu').classList.toggle('open');
+}
+
+async function _fillSettingsFooter() {
+  const el = document.getElementById('settings-footer');
+  if (!el) return;
+  let path = '';
+  try { path = window.electronAPI?.getDataPath ? await window.electronAPI.getDataPath() : ''; } catch(e) {}
+  const version = document.getElementById('app-version')?.textContent || '';
+  el.innerHTML = `MARDUK ${version}${path ? `<br>Data: ${path}` : ''}`;
+}
+
+// Close the settings menu on any outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('#settings-wrap')) closeSettingsMenu();
+});
 
 // ══════════════ LOCK SCREEN ══════════════
 const LOCK_KEY = 'marduk_pw';
@@ -303,6 +386,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     const overlay = document.getElementById('company-modal-overlay');
     if (overlay && overlay.classList.contains('open')) { overlay.classList.remove('open'); }
+    closeSettingsMenu();
   }
 });
 
