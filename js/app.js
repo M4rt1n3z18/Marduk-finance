@@ -583,7 +583,10 @@ function renderFire() {
   const subEl   = document.getElementById('fire-years-sub');
 
   if (alreadyFIRED) {
-    if (yrsEl) { yrsEl.textContent = '🔥'; yrsEl.style.fontSize = '44px'; }
+    if (yrsEl) {
+      yrsEl.innerHTML = '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5c2.6 3.3 5.2 5.9 5.2 9.2a5.2 5.2 0 0 1-10.4 0c0-3.3 2.6-5.9 5.2-9.2z"/><path d="M12 11.8c1.1 1.3 2 2.3 2 3.6a2 2 0 0 1-4 0c0-1.3.9-2.3 2-3.6z"/></svg>';
+      yrsEl.style.fontSize = '44px';
+    }
     if (lblEl) lblEl.textContent = 'You have reached FIRE!';
     if (subEl) subEl.textContent = 'Your portfolio can sustain a 4% withdrawal indefinitely.';
   } else if (yearsToFire !== null && yearsToFire >= 0) {

@@ -664,7 +664,7 @@ function renderExpenses() {
     const ci = CATS.indexOf(e.cat);
     const dotColor = ci >= 0 ? CAT_COLORS[ci] : 'var(--text3)';
     return `<tr>
-      <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};margin-right:8px;"></span>${e.desc}${e.recurring ? ` <span style="font-size:10px;color:var(--gold);font-weight:600;">🔄</span>` : ''}</td>
+      <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};margin-right:8px;"></span>${e.desc}${e.recurring ? ` <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;" title="Recurring"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5"/></svg>` : ''}</td>
       <td class="muted">${e.cat}</td>
       <td class="muted">${e.date}</td>
       <td style="font-weight:600;">${eur(e.amount)}</td>
