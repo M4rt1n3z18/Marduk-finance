@@ -102,10 +102,9 @@ function toggleThemeSubmenu(e) {
 async function _fillSettingsFooter() {
   const el = document.getElementById('settings-footer');
   if (!el) return;
-  let path = '';
-  try { path = window.electronAPI?.getDataPath ? await window.electronAPI.getDataPath() : ''; } catch(e) {}
-  const version = document.getElementById('app-version')?.textContent || '';
-  el.innerHTML = `MARDUK ${version}${path ? `<br>Data: ${path}` : ''}`;
+  let version = '';
+  try { version = window.electronAPI?.getVersion ? await window.electronAPI.getVersion() : ''; } catch(e) {}
+  el.textContent = version ? `MARDUK v${version}` : 'MARDUK';
 }
 
 // ── Change password ───────────────────────────────────────────────────────────
@@ -1104,17 +1103,14 @@ async function renderAiSummaryCard() {
   }
 }
 
-// ── App version display ───────────────────────────────────────────────────────
+// ── App version display (lock screen; the Settings footer shows it in-app) ────
 (async function showVersion() {
   const version = window.electronAPI?.getVersion
     ? await window.electronAPI.getVersion()
     : null;
   if (!version) return;
-  const label = `v${version}`;
-  const header = document.getElementById('app-version');
-  const lock   = document.getElementById('lock-version');
-  if (header) header.textContent = label;
-  if (lock)   lock.textContent   = label;
+  const lock = document.getElementById('lock-version');
+  if (lock) lock.textContent = `v${version}`;
 })();
 
 // ── Lock screen init ──────────────────────────────────────────────────────────

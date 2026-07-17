@@ -110,6 +110,24 @@
   .settings-submenu.open { display: block; }
   .settings-footer { font-size: 10px; color: var(--text3); padding: 8px 12px 6px; line-height: 1.5; word-break: break-all; }
 
+  /* ── Info tooltip (hover ⓘ) ── */
+  .info-tip {
+    position: relative; display: inline-flex; align-items: center; justify-content: center;
+    width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--text3);
+    color: var(--text3); font-size: 10px; font-weight: 600; cursor: help;
+    margin-left: 6px; vertical-align: 1px; font-family: Karla, sans-serif;
+    letter-spacing: 0; text-transform: none;
+  }
+  .info-tip:hover { border-color: var(--gold); color: var(--gold); }
+  .info-tip .tip-body {
+    display: none; position: absolute; bottom: calc(100% + 9px); left: 50%; transform: translateX(-50%);
+    width: 250px; background: var(--bg4); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; font-size: 11.5px; font-weight: 400; color: var(--text2); line-height: 1.55;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.4); z-index: 200; text-align: left;
+    font-family: Karla, sans-serif; letter-spacing: 0; text-transform: none; white-space: normal;
+  }
+  .info-tip:hover .tip-body { display: block; }
+
   /* ── Nav icons + Portfolio nav dropdown ── */
   nav button { display: inline-flex; align-items: center; gap: 7px; }
   nav button svg, .psub-tab svg, .settings-item svg { flex-shrink: 0; opacity: .9; }
@@ -945,8 +963,6 @@
     </button>
   </nav>
   <div class="header-right">
-    <span id="app-version" style="font-size:11px;color:var(--text3);letter-spacing:1px;font-family:'Karla',sans-serif;"></span>
-
     <!-- Settings dropdown -->
     <div class="settings-wrap" id="settings-wrap">
       <button class="btn-ghost settings-btn" onclick="toggleSettingsMenu(event)" title="Settings">
@@ -1221,13 +1237,9 @@
   <div class="card" id="returns-card" style="display:none;margin-bottom:20px;border-color:rgba(201,168,76,0.25);">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap;">
       <div style="min-width:230px;">
-        <div class="card-title" style="margin-bottom:10px;">True Return</div>
+        <div class="card-title" style="margin-bottom:10px;">True Return<span class="info-tip">i<span class="tip-body">Money-weighted annual return (XIRR) — accounts for exactly when each euro entered the portfolio, unlike the raw Total Gain.</span></span></div>
         <div class="stat-val up-text" id="ret-xirr" style="font-size:30px;">—</div>
         <div class="stat-sub" id="ret-xirr-sub">annualized (XIRR)</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:8px;max-width:240px;line-height:1.5;">
-          Money-weighted annual return — accounts for exactly when each euro entered the portfolio,
-          unlike the raw Total Gain.
-        </div>
       </div>
       <div style="flex:1;min-width:280px;">
         <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;font-family:'Cinzel',serif;margin-bottom:2px;">Year by Year</div>

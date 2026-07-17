@@ -921,8 +921,14 @@ ipcMain.handle('fetch-prices', async (event, tickers) => {
     const meta = data?.chart?.result?.[0]?.meta;
     if (!meta?.regularMarketPrice) return null;
     let price = meta.regularMarketPrice;
-    const rawChg = meta.regularMarketChangePercent;
-    const dayChangePct = (rawChg != null && rawChg !== 0) ? rawChg : null;
+    // v8/chart meta rarely includes regularMarketChangePercent — when absent,
+    // derive the day change from the previous session's close instead.
+    let dayChangePct = meta.regularMarketChangePercent ?? null;
+    if (dayChangePct == null) {
+      const prev = meta.chartPreviousClose ?? meta.previousClose;
+      if (prev > 0) dayChangePct = (meta.regularMarketPrice - prev) / prev * 100;
+    }
+    if (dayChangePct != null) dayChangePct = Math.round(dayChangePct * 100) / 100;
     if (meta.currency === 'USD') price = price / eurUsd;
     return { price: Math.round(price * 100) / 100, dayChangePct };
   }
