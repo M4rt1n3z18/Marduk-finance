@@ -812,6 +812,25 @@
   </div>
 </div>
 
+<!-- ── Change Password Modal ── -->
+<div id="changepw-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:400px;max-width:92vw;padding:24px;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
+    <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:14px;">CHANGE PASSWORD</div>
+    <input id="cpw-current" type="password" placeholder="Current password" autocomplete="off"
+           style="width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;margin-bottom:8px;">
+    <input id="cpw-new" type="password" placeholder="New password (min. 4 characters)" autocomplete="off"
+           style="width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;margin-bottom:8px;">
+    <input id="cpw-confirm" type="password" placeholder="Confirm new password" autocomplete="off"
+           onkeydown="if(event.key==='Enter')submitChangePw()"
+           style="width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;margin-bottom:6px;">
+    <div id="cpw-hint" style="font-size:11px;color:var(--down);min-height:16px;margin-bottom:12px;"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn-ghost" style="font-size:12px;" onclick="closeChangePwModal()">Cancel</button>
+      <button class="btn" style="font-size:12px;padding:8px 22px;" onclick="submitChangePw()">Change Password</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Backups Modal ── -->
 <div id="backups-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;align-items:center;justify-content:center;">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:480px;max-width:92vw;padding:24px;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
@@ -953,6 +972,21 @@
           <button class="settings-item" id="theme-opt-dark"   onclick="setThemeMode('dark')">☾&nbsp; Dark<span class="theme-check">✓</span></button>
           <button class="settings-item" id="theme-opt-system" onclick="setThemeMode('system')">🖥&nbsp; Device settings<span class="theme-check">✓</span></button>
         </div>
+        <button class="settings-item" onclick="toggleAutolockSubmenu(event)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 2M9.5 3.5h5"/></svg>
+          Auto-lock
+          <span id="settings-autolock-label" style="margin-left:auto;color:var(--text3);font-size:11px;">10 min ▸</span>
+        </button>
+        <div class="settings-submenu" id="autolock-submenu">
+          <button class="settings-item" id="autolock-opt-5"   onclick="setAutolockMode('5')">5 minutes<span class="theme-check">✓</span></button>
+          <button class="settings-item" id="autolock-opt-10"  onclick="setAutolockMode('10')">10 minutes<span class="theme-check">✓</span></button>
+          <button class="settings-item" id="autolock-opt-30"  onclick="setAutolockMode('30')">30 minutes<span class="theme-check">✓</span></button>
+          <button class="settings-item" id="autolock-opt-off" onclick="setAutolockMode('off')">Never<span class="theme-check">✓</span></button>
+        </div>
+        <button class="settings-item" onclick="closeSettingsMenu();openChangePwModal()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="14" r="4.5"/><path d="M11.5 10.5 20 3.5M16.5 6.5l2.5 2.5M14 8.5l2 2"/></svg>
+          Change password
+        </button>
         <div class="settings-divider"></div>
         <div class="settings-footer" id="settings-footer"></div>
       </div>
@@ -1183,6 +1217,25 @@
     </div>
   </div>
 
+  <!-- True Returns: XIRR + year-by-year (deposit-adjusted performance) -->
+  <div class="card" id="returns-card" style="display:none;margin-bottom:20px;border-color:rgba(201,168,76,0.25);">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap;">
+      <div style="min-width:230px;">
+        <div class="card-title" style="margin-bottom:10px;">True Return</div>
+        <div class="stat-val up-text" id="ret-xirr" style="font-size:30px;">—</div>
+        <div class="stat-sub" id="ret-xirr-sub">annualized (XIRR)</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:8px;max-width:240px;line-height:1.5;">
+          Money-weighted annual return — accounts for exactly when each euro entered the portfolio,
+          unlike the raw Total Gain.
+        </div>
+      </div>
+      <div style="flex:1;min-width:280px;">
+        <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;font-family:'Cinzel',serif;margin-bottom:2px;">Year by Year</div>
+        <div id="ret-years"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="chart-grid-2" style="margin-bottom:20px;">
     <div class="card" style="display:flex;flex-direction:column;">
       <div class="card-title">Allocation by Asset Class</div>
@@ -1329,6 +1382,36 @@
     <span style="font-size:12px;color:var(--text3);">Holdings that pay dividends will appear here automatically after a price refresh.</span>
   </div>
 
+  <!-- Received Dividends (auto-detected from market data × your holdings) -->
+  <div class="card" id="div-received-card" style="display:none;margin-bottom:16px;border-color:rgba(76,175,130,0.3);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div class="card-title" style="margin-bottom:2px;">Received Dividends</div>
+        <div style="font-size:12px;color:var(--text2);">Auto-detected — payment dates × shares you held on each date</div>
+      </div>
+    </div>
+    <div class="div-stats-grid">
+      <div class="div-stat-card">
+        <div class="div-stat-label">Total Received</div>
+        <div class="div-stat-val up-text" id="divr-total">€0</div>
+        <div class="div-stat-sub">all-time passive income</div>
+      </div>
+      <div class="div-stat-card">
+        <div class="div-stat-label">This Year</div>
+        <div class="div-stat-val" id="divr-year">€0</div>
+        <div class="div-stat-sub">received so far</div>
+      </div>
+      <div class="div-stat-card">
+        <div class="div-stat-label">Last Payment</div>
+        <div class="div-stat-val" id="divr-last">€0</div>
+        <div class="div-stat-sub" id="divr-last-sub">—</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin:14px 0 8px;font-weight:600;">Cumulative Passive Income</div>
+    <div style="position:relative;height:170px;margin-bottom:14px;"><canvas id="chart-div-received"></canvas></div>
+    <div id="divr-table"></div>
+  </div>
+
   <!-- Dividend Analysis -->
   <div class="card" id="div-analysis-card" style="display:none;">
     <div class="card-title" style="margin-bottom:16px;">Dividend Analysis</div>
@@ -1340,9 +1423,9 @@
       </div>
       <div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:600;">Passive Income Diversification</div>
-        <div style="display:flex;align-items:center;gap:16px;min-height:180px;">
+        <div style="display:flex;align-items:center;justify-content:center;gap:32px;min-height:180px;">
           <canvas id="chart-div-donut" width="150" height="150" style="flex-shrink:0;"></canvas>
-          <div id="div-donut-legend" style="flex:1;min-width:0;font-size:12px;"></div>
+          <div id="div-donut-legend" style="flex:0 1 230px;min-width:150px;font-size:12px;"></div>
         </div>
       </div>
     </div>
@@ -1903,6 +1986,7 @@
 <script src="js/actions.js"></script>
 <script src="js/salary.js"></script>
 <script src="js/app.js"></script>
+<script src="js/returns.js"></script>
 <script src="js/charts2.js"></script>
 <script src="js/xtb.js"></script>
 <script src="js/calendar.js"></script>

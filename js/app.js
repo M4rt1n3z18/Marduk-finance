@@ -82,14 +82,16 @@ function toggleSettingsMenu(e) {
   const menu = document.getElementById('settings-menu');
   const opening = !menu.classList.contains('open');
   menu.classList.toggle('open', opening);
-  if (opening) { _syncThemeMenu(); _fillSettingsFooter(); }
+  if (opening) { _syncThemeMenu(); _syncAutolockMenu(); _fillSettingsFooter(); }
 }
 
 function closeSettingsMenu() {
   const menu = document.getElementById('settings-menu');
   if (menu) menu.classList.remove('open');
-  const sub = document.getElementById('theme-submenu');
-  if (sub) sub.classList.remove('open');
+  ['theme-submenu', 'autolock-submenu'].forEach(id => {
+    const sub = document.getElementById(id);
+    if (sub) sub.classList.remove('open');
+  });
 }
 
 function toggleThemeSubmenu(e) {
@@ -104,6 +106,42 @@ async function _fillSettingsFooter() {
   try { path = window.electronAPI?.getDataPath ? await window.electronAPI.getDataPath() : ''; } catch(e) {}
   const version = document.getElementById('app-version')?.textContent || '';
   el.innerHTML = `MARDUK ${version}${path ? `<br>Data: ${path}` : ''}`;
+}
+
+// ── Change password ───────────────────────────────────────────────────────────
+function openChangePwModal() {
+  ['cpw-current', 'cpw-new', 'cpw-confirm'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('cpw-hint').textContent = '';
+  document.getElementById('changepw-modal').style.display = 'flex';
+  document.getElementById('cpw-current').focus();
+}
+
+function closeChangePwModal() {
+  document.getElementById('changepw-modal').style.display = 'none';
+}
+
+async function submitChangePw() {
+  const hint = document.getElementById('cpw-hint');
+  const current = document.getElementById('cpw-current').value;
+  const next = document.getElementById('cpw-new').value.trim();
+  const confirmVal = document.getElementById('cpw-confirm').value.trim();
+
+  const stored = await getPw();
+  if (!stored) { hint.textContent = 'No password is set yet — lock the app to create one.'; return; }
+
+  // Verify current password (supports the legacy base64 format too)
+  const matches = isHashed(stored)
+    ? (await hashPw(current)) === stored
+    : current === atob(stored);
+  if (!matches) { hint.textContent = 'Current password is incorrect.'; return; }
+
+  if (next.length < 4) { hint.textContent = 'New password must be at least 4 characters.'; return; }
+  if (next !== confirmVal) { hint.textContent = 'New passwords do not match.'; return; }
+  if (next === current) { hint.textContent = 'New password is the same as the current one.'; return; }
+
+  await setPw(await hashPw(next));
+  closeChangePwModal();
+  showToast('✓ Password changed');
 }
 
 // ── Portfolio actions dropdown ────────────────────────────────────────────────
@@ -128,8 +166,19 @@ const LOCK_KEY = 'marduk_pw';
 
 // ══════════════ SECURITY ══════════════
 
-// ── Auto-lock after inactivity ────────────────────────────────────────────────
-const AUTO_LOCK_MS = 10 * 60 * 1000; // 10 minutes
+// ── Auto-lock after inactivity (configurable: 5/10/30 min or off) ─────────────
+const AUTOLOCK_KEY = 'marduk_autolock_min';
+
+function getAutolockMode() {
+  const m = localStorage.getItem(AUTOLOCK_KEY);
+  return ['5', '10', '30', 'off'].includes(m) ? m : '10';
+}
+
+function _autolockMs() {
+  const m = getAutolockMode();
+  return m === 'off' ? Infinity : parseInt(m) * 60 * 1000;
+}
+
 let _autoLockTimer   = null;
 let _lastActivity    = Date.now();
 
@@ -137,16 +186,39 @@ function _onActivity() { _lastActivity = Date.now(); }
 
 function startAutoLock() {
   stopAutoLock();
+  if (getAutolockMode() === 'off') return; // auto-lock disabled
   ['mousemove','keydown','click','scroll','touchstart'].forEach(e =>
     document.addEventListener(e, _onActivity, { passive: true })
   );
   _lastActivity = Date.now();
   _autoLockTimer = setInterval(() => {
-    if (Date.now() - _lastActivity >= AUTO_LOCK_MS) {
+    if (Date.now() - _lastActivity >= _autolockMs()) {
       stopAutoLock();
       lockApp();
     }
   }, 30_000); // check every 30 s
+}
+
+function setAutolockMode(mode) {
+  localStorage.setItem(AUTOLOCK_KEY, mode);
+  startAutoLock(); // restart (or stop) the timer with the new setting
+  _syncAutolockMenu();
+}
+
+function _syncAutolockMenu() {
+  const mode = getAutolockMode();
+  const labels = { '5': '5 min', '10': '10 min', '30': '30 min', 'off': 'Never' };
+  const labelEl = document.getElementById('settings-autolock-label');
+  if (labelEl) labelEl.textContent = `${labels[mode]} ▸`;
+  ['5', '10', '30', 'off'].forEach(m => {
+    const el = document.getElementById('autolock-opt-' + m);
+    if (el) el.classList.toggle('active', m === mode);
+  });
+}
+
+function toggleAutolockSubmenu(e) {
+  if (e) e.stopPropagation();
+  document.getElementById('autolock-submenu').classList.toggle('open');
 }
 
 function stopAutoLock() {
@@ -329,6 +401,7 @@ async function initApp() {
   if (!state.allocations) state.allocations = [];
   if (!state.unallocatedInvestment) state.unallocatedInvestment = {};
   if (!state.aiSummaries) state.aiSummaries = {};
+  if (!state.dividendLog) state.dividendLog = [];
 
   // Migrate old flat holdings/transactions/portHistory → portfolios array
   if (!state.portfolios || !state.portfolios.length) {
@@ -386,6 +459,13 @@ async function initApp() {
 
   // Auto-generate this month's AI summary once (no-op without an AI key)
   setTimeout(() => generateMonthlySummary(false), 2500);
+
+  // Background: detect newly received dividends (6h cooldown inside)
+  setTimeout(() => {
+    syncDividendLog(false).then(changed => {
+      if (changed) { renderReceivedDividends(); renderPortfolio(); }
+    });
+  }, 6000);
 }
 
 // ══════════════ INIT ══════════════

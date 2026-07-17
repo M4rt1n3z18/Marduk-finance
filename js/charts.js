@@ -371,6 +371,8 @@ function renderPortfolio() {
   renderHoldingsTable();
   renderAllocationStats();
   renderDividendCalendar();
+  renderReceivedDividends();
+  buildReturnsCard();
 
   buildPortDonut();
   buildPnlBar();
@@ -708,6 +710,7 @@ function showPortfolioSub(name, btn) {
   if (name === 'overview') {
     renderAllocationStats();
     buildPortDonut(); buildPnlBar(); buildPortHistoryChart(); buildSectorChart();
+    buildReturnsCard();
   } else if (name === 'holdings') {
     renderHoldingsTable();
   } else if (name === 'dividends') {
@@ -725,19 +728,22 @@ function navToPortfolioSub(name) {
   showPortfolioSub(name);
 }
 
-// Dividends sub-view: analysis + calendar, with fresh metadata fetch
+// Dividends sub-view: analysis + calendar + received log, with fresh data fetch
 function refreshDividendsSection() {
   const apply = () => {
     const hasDivs = (ap().holdings || []).some(h => h.dividendPerShare > 0);
+    const hasLog = (state.dividendLog || []).some(d => d.portfolioId === ap().id);
     const divCard = document.getElementById('div-analysis-card');
     const emptyEl = document.getElementById('psub-div-empty');
     if (divCard) { divCard.style.display = hasDivs ? '' : 'none'; if (hasDivs) buildDividendCharts(); }
-    if (emptyEl) emptyEl.style.display = hasDivs ? 'none' : '';
+    if (emptyEl) emptyEl.style.display = (hasDivs || hasLog) ? 'none' : '';
     renderDividendCalendar();
+    renderReceivedDividends();
   };
   apply(); // paint immediately with cached data
-  // force=true bypasses the cooldown so this section always gets fresh data
+  // force=true bypasses cooldowns so this section always gets fresh data
   autoFetchPortfolioMetadata(true).then(apply);
+  syncDividendLog(true).then(changed => { if (changed) apply(); });
 }
 
 // ── Holdings sub-tab ────────────────────────────────────────────────────────

@@ -198,6 +198,20 @@ Header "Settings" dropdown (`#settings-menu` in `index.html`, logic in `js/app.j
 
 `rotateBackup()` in `main.js` — before the first save of each day, copies the previous `marduk-data.json` to `userData/backups/marduk-data-YYYY-MM-DD.json` (last 10 kept, local disk only). IPC: `list-backups`, `read-backup` (name-pattern validated). UI: "⛃ Backups" header button → `#backups-modal` → `restoreBackup()` in `actions.js` (replaces state, follows the `importData()` pattern).
 
+## True Returns & Automatic Dividend Log (`js/returns.js`)
+
+**Automatic received-dividends log** — `syncDividendLog()` (6h cooldown, forced from the Dividends sub-view): IPC `fetch-dividend-history` pulls 10y of actual per-share payment events from Yahoo (`events=dividends`), crossed with `sharesHeldAt(port, ticker, date)` reconstructed from transactions. New entries land in `state.dividendLog` (`{id, portfolioId, ticker, date, perShare, shares, amountEur, currency, detectedAt}`), and `holding.dividends` is kept in sync (feeds Total Gain). No manual entry; cash is deliberately NOT auto-credited (would double-count with manual cash management). UI: `#div-received-card` in the Dividends sub-view (stats, cumulative chart `chart-div-received`, last-12 table) via `renderReceivedDividends()`.
+
+**True Return card** — `buildReturnsCard()` renders `#returns-card` in the Portfolio Overview sub-view (hidden until ≥1 buy and ≥90 days of history):
+- **XIRR** (`_xirr`, bisection solver): cashflows = buys (−), sells (+), received dividends (+), current holdings value (+, today). Cash excluded by design.
+- **Year-by-year returns** (`_yearlyReturns`): Modified Dietz per calendar year, valuations reconstructed from Yahoo monthly closes (`fetchHistory` interval 1mo range max, 15-min main-process cache) × shares held at each date; current year marked YTD, non-annualized.
+
+## QoL settings
+
+- **Auto-lock** configurable in Settings (5/10/30 min/Never), `localStorage['marduk_autolock_min']`, `getAutolockMode()` in `js/app.js`.
+- **Change password** modal (`#changepw-modal`, `submitChangePw()`) — verifies current (incl. legacy base64), min 4 chars.
+- **Update re-check**: `main.js` re-runs the update check every 4h, not just at launch.
+
 ## Dividend Calendar
 
 `renderDividendCalendar()` in `render.js` — card `#div-calendar-card` in Portfolio tab. Lists holdings with `dividendPerShare > 0`, sorted by `nextPayDate` (soonest first, "in Nd" badge within 14 days), shows projected annual income (`dps × shares`). Hidden when no dividend payers.

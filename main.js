@@ -211,11 +211,14 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
 
-  // Check for updates a few seconds after launch (gives the window time to load)
-  setTimeout(() => {
+  // Check for updates a few seconds after launch (gives the window time to load),
+  // then re-check every 4 hours so long-running sessions still see new versions.
+  const runUpdateCheck = () => {
     if (process.platform === 'darwin') checkForUpdatesMac();
     else autoUpdater.checkForUpdates().catch(() => {});
-  }, 5000);
+  };
+  setTimeout(runUpdateCheck, 5000);
+  setInterval(runUpdateCheck, 4 * 60 * 60 * 1000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -535,6 +538,31 @@ async function fetchDividendEvents(ticker) {
     return dps > 0 ? { dps, dividendYield, exDivDate } : null;
   } catch(e) { return null; }
 }
+
+// ── Historical dividend events (for the automatic received-dividends log) ────
+// Returns per ticker the actual per-share payments Yahoo recorded:
+//   { TICKER: { currency, events: [{ date: 'YYYY-MM-DD', amount }] } }
+ipcMain.handle('fetch-dividend-history', async (event, tickers) => {
+  const results = {};
+  await Promise.all((tickers || []).map(async ticker => {
+    try {
+      const sym = getResolvedTicker(ticker);
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?events=dividends&interval=1mo&range=10y`;
+      const res = await fetch(url, { headers: { 'User-Agent': YAHOO_UA } });
+      if (!res.ok) return;
+      const json = await res.json();
+      const result = json?.chart?.result?.[0];
+      const divObj = result?.events?.dividends;
+      if (!divObj || !Object.keys(divObj).length) return;
+      const events = Object.values(divObj)
+        .filter(d => d && d.date && d.amount > 0)
+        .map(d => ({ date: new Date(d.date * 1000).toISOString().slice(0, 10), amount: d.amount }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      if (events.length) results[ticker] = { currency: result.meta?.currency || 'USD', events };
+    } catch (e) {}
+  }));
+  return results;
+});
 
 // ── Sector data via Yahoo Finance quoteSummary ───────────────────────────────
 ipcMain.handle('fetch-sectors', async (event, tickers) => {

@@ -14,7 +14,8 @@ let state = {
   paycheckDay: null,  // null = calendar month; 1–31 = expenses shift after this day
   allocations: [],            // InvestmentAllocation entities (see actions.js)
   unallocatedInvestment: {},  // portfolioId → EUR invested beyond allocated funds
-  aiSummaries: {}             // "YYYY-MM" → { text, generatedAt }
+  aiSummaries: {},            // "YYYY-MM" → { text, generatedAt }
+  dividendLog: []             // auto-detected received dividends (see returns.js)
 };
 
 // ── Active portfolio helper ──────────────────────────────────────────────────
