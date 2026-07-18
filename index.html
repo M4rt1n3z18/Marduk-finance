@@ -37,7 +37,8 @@
     --shadow: 0 4px 24px rgba(0,0,0,0.1);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'Karla', sans-serif; font-size: 14px; min-height: 100vh; transition: background .3s, color .3s; }
+  /* tabular-nums: every digit same width — numbers align in columns like a ledger */
+  body { background: var(--bg); color: var(--text); font-family: 'Karla', sans-serif; font-size: 14px; min-height: 100vh; transition: background .3s, color .3s; font-variant-numeric: tabular-nums; }
 
   /* ── Scrollbar ── */
   ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -743,7 +744,7 @@
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;">
       <div>
         <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);">IMPORT PAYSLIP
-          <span id="ps-ai-badge" style="display:none;font-size:10px;font-family:Karla,sans-serif;letter-spacing:0.5px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);color:var(--gold);border-radius:20px;padding:2px 10px;margin-left:8px;vertical-align:2px;">✨ Parsed with AI</span>
+          <span id="ps-ai-badge" style="display:none;font-size:10px;font-family:Karla,sans-serif;letter-spacing:0.5px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);color:var(--gold);border-radius:20px;padding:2px 10px;margin-left:8px;vertical-align:2px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M12 4.5 13.8 10 19.5 12l-5.7 2L12 19.5 10.2 14 4.5 12l5.7-2z"/><path d="M18.5 3.5v3M17 5h3"/></svg> Parsed with AI</span>
         </div>
         <div id="ps-hint" style="font-size:11px;color:var(--text2);margin-top:2px;">Click a field on the left, then select the correct value in the PDF on the right.</div>
       </div>
@@ -817,7 +818,7 @@
           <span id="ps-zoom-pct" style="font-size:12px;color:var(--text2);min-width:38px;text-align:center;font-weight:600;">100%</span>
           <button id="ps-zoom-in"  class="btn-ghost" style="padding:1px 9px;font-size:17px;line-height:1.2;">+</button>
           <button id="ps-zoom-fit" class="btn-ghost" style="font-size:11px;padding:3px 10px;">Fit</button>
-          <span style="margin-left:10px;font-size:11px;color:var(--text3);">👆 Click a field on the left → click a value here</span>
+          <span style="margin-left:10px;font-size:11px;color:var(--text3);">Click a field on the left → click a value here</span>
         </div>
         <!-- Scrollable PDF content -->
         <div id="ps-pdf-scroll" style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;">
@@ -852,7 +853,7 @@
 <!-- ── Backups Modal ── -->
 <div id="backups-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;align-items:center;justify-content:center;">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:480px;max-width:92vw;padding:24px;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
-    <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:8px;">⛃ AUTOMATIC BACKUPS</div>
+    <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/></svg> AUTOMATIC BACKUPS</div>
     <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px;">
       Marduk keeps a daily copy of your data on this computer (last 10 days).
       If anything ever goes wrong with your data file, restore from here.
@@ -867,7 +868,7 @@
 <!-- ── AI Parsing Settings Modal ── -->
 <div id="ai-settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;align-items:center;justify-content:center;">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:460px;max-width:92vw;padding:24px;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
-    <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:8px;">✨ AI PAYSLIP PARSING</div>
+    <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M12 4.5 13.8 10 19.5 12l-5.7 2L12 19.5 10.2 14 4.5 12l5.7-2z"/><path d="M18.5 3.5v3M17 5h3"/></svg> AI PAYSLIP PARSING</div>
     <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px;">
       With an Anthropic API key, payslips are read by Claude AI — any language, any format, any company.
       Without a key, Marduk uses the built-in pattern parser. Costs a few cents per payslip.
@@ -876,7 +877,7 @@
     <div id="ai-key-status" style="font-size:12px;margin-bottom:10px;color:var(--text2);"></div>
     <input id="ai-key-input" type="password" placeholder="sk-ant-…" autocomplete="off"
            style="width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;margin-bottom:6px;">
-    <div style="font-size:11px;color:var(--text3);margin-bottom:18px;">🔒 The key is stored only on this computer — never synced to Google Drive.</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:18px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> The key is stored only on this computer — never synced to Google Drive.</div>
     <div style="display:flex;align-items:center;">
       <button id="ai-key-remove" class="btn-ghost" style="font-size:12px;color:var(--down);display:none;" onclick="removeAiKey()">Remove key</button>
       <div style="display:flex;gap:10px;margin-left:auto;">
@@ -976,17 +977,33 @@
       <div class="settings-menu" id="settings-menu">
         <button class="settings-item" onclick="closeSettingsMenu();exportData()">↓&nbsp; Export data</button>
         <button class="settings-item" onclick="closeSettingsMenu();importData()">↑&nbsp; Import data</button>
-        <button class="settings-item" onclick="closeSettingsMenu();openBackupsModal()">⛃&nbsp; Backups</button>
-        <button class="settings-item" onclick="closeSettingsMenu();openAiSettings()">✨&nbsp; AI Settings</button>
+        <button class="settings-item" onclick="closeSettingsMenu();openBackupsModal()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/></svg>
+          Backups
+        </button>
+        <button class="settings-item" onclick="closeSettingsMenu();openAiSettings()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5 13.8 10 19.5 12l-5.7 2L12 19.5 10.2 14 4.5 12l5.7-2z"/><path d="M18.5 3.5v3M17 5h3"/></svg>
+          AI Settings
+        </button>
         <div class="settings-divider"></div>
         <button class="settings-item" onclick="toggleThemeSubmenu(event)">
-          ◐&nbsp; Theme
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/></svg>
+          Theme
           <span id="settings-theme-label" style="margin-left:auto;color:var(--text3);font-size:11px;">Dark ▸</span>
         </button>
         <div class="settings-submenu" id="theme-submenu">
-          <button class="settings-item" id="theme-opt-light"  onclick="setThemeMode('light')">☀&nbsp; Light<span class="theme-check">✓</span></button>
-          <button class="settings-item" id="theme-opt-dark"   onclick="setThemeMode('dark')">☾&nbsp; Dark<span class="theme-check">✓</span></button>
-          <button class="settings-item" id="theme-opt-system" onclick="setThemeMode('system')">🖥&nbsp; Device settings<span class="theme-check">✓</span></button>
+          <button class="settings-item" id="theme-opt-light" onclick="setThemeMode('light')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg>
+            Light<span class="theme-check">✓</span>
+          </button>
+          <button class="settings-item" id="theme-opt-dark" onclick="setThemeMode('dark')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.5A8 8 0 1 1 10.5 4a6.5 6.5 0 0 0 9.5 9.5z"/></svg>
+            Dark<span class="theme-check">✓</span>
+          </button>
+          <button class="settings-item" id="theme-opt-system" onclick="setThemeMode('system')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M9 20h6M12 16v4"/></svg>
+            Device settings<span class="theme-check">✓</span>
+          </button>
         </div>
         <button class="settings-item" onclick="toggleAutolockSubmenu(event)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 2M9.5 3.5h5"/></svg>
@@ -1019,7 +1036,7 @@
 <div id="update-banner" style="display:none;flex-direction:column;padding:8px 32px 10px;background:rgba(201,168,76,0.08);border-bottom:1px solid rgba(201,168,76,0.2);">
   <div style="display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:center;gap:10px;">
-      <span style="font-size:15px;">⬆️</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="8.5"/><path d="M12 16V8M8.5 11.5 12 8l3.5 3.5"/></svg>
       <span id="update-msg" style="font-size:13px;color:var(--text);">A new version is available. Downloading…</span>
       <span id="update-pct" style="font-size:12px;color:var(--gold);font-weight:600;"></span>
     </div>
@@ -1060,7 +1077,7 @@
   <!-- AI Monthly Summary (shown only when an AI key is configured) -->
   <div class="card" id="ai-summary-card" style="display:none;margin-bottom:24px;background:linear-gradient(135deg,rgba(201,168,76,0.06),transparent);border-color:rgba(201,168,76,0.25);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-      <div class="card-title" style="margin-bottom:0;">✨ Your Month in Review</div>
+      <div class="card-title" style="margin-bottom:0;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M12 4.5 13.8 10 19.5 12l-5.7 2L12 19.5 10.2 14 4.5 12l5.7-2z"/><path d="M18.5 3.5v3M17 5h3"/></svg> Your Month in Review</div>
       <button class="btn-ghost" id="ai-summary-refresh" onclick="generateMonthlySummary(true)" style="font-size:11px;padding:4px 12px;">↻ Regenerate</button>
     </div>
     <div id="ai-summary-text" style="font-size:13.5px;line-height:1.65;color:var(--text);"></div>
@@ -1447,7 +1464,7 @@
   <div class="card" id="div-calendar-card" style="margin-top:16px;display:none;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
       <div>
-        <div class="card-title" style="margin-bottom:2px;">📅 Dividend Calendar</div>
+        <div class="card-title" style="margin-bottom:2px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M8 3v4M16 3v4M3.5 10.5h17"/></svg> Dividend Calendar</div>
         <div style="font-size:12px;color:var(--text2);">Upcoming payments · projected from the last 12 months of dividends</div>
       </div>
       <div style="text-align:right;">
@@ -1946,7 +1963,7 @@
       <div class="sec-sub">Track income evolution · compare periods · see your progression</div>
     </div>
     <div style="display:flex;gap:10px;align-items:center;">
-      <button class="btn-ghost" style="font-size:12px;" onclick="openAiSettings()">✨ AI Settings</button>
+      <button class="btn-ghost settings-btn" style="font-size:12px;" onclick="openAiSettings()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5 13.8 10 19.5 12l-5.7 2L12 19.5 10.2 14 4.5 12l5.7-2z"/><path d="M18.5 3.5v3M17 5h3"/></svg> AI Settings</button>
       <button class="btn" onclick="importPayslip()">↑ Import Payslip (PDF)</button>
     </div>
   </div>

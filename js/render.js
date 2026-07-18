@@ -121,17 +121,18 @@ async function openCompanyModal(ticker) {
       ${dayChgHtml}
     </div>` : '';
 
-  // Market data grid
-  const statsGrid = [
-    { label: 'Market Cap',     val: info.marketCapFmt || fmtBig(info.marketCap), sub: '' },
-    { label: 'P/E (trailing)', val: fmtN(info.trailingPE), sub: info.forwardPE ? `Fwd: ${fmtN(info.forwardPE)}` : '' },
-    { label: 'EPS (trailing)', val: fmtN(info.eps), sub: info.forwardEps != null ? `Fwd: ${fmtN(info.forwardEps)}` : '' },
-    { label: 'Beta',           val: fmtN(info.beta),   sub: '' },
-    { label: '52-Week High',   val: fmtN(info.fiftyTwoWeekHigh), sub: '' },
-    { label: '52-Week Low',    val: fmtN(info.fiftyTwoWeekLow),  sub: '' },
-    { label: '50-Day Avg',     val: fmtN(info.fiftyDayAvg),      sub: '' },
-    { label: '200-Day Avg',    val: fmtN(info.twoHundredDayAvg), sub: info.bookValue != null ? `P/B: ${fmtN(info.priceToBook)}` : '' },
-  ].map(s => `
+  // Market data grid — only stats that actually have data (no "—" boxes)
+  const statDefs = [
+    { label: 'Market Cap',     val: info.marketCapFmt || (info.marketCap != null ? fmtBig(info.marketCap) : null), sub: '' },
+    { label: 'P/E (trailing)', val: info.trailingPE != null ? fmtN(info.trailingPE) : null, sub: info.forwardPE ? `Fwd: ${fmtN(info.forwardPE)}` : '' },
+    { label: 'EPS (trailing)', val: info.eps != null ? fmtN(info.eps) : null, sub: info.forwardEps != null ? `Fwd: ${fmtN(info.forwardEps)}` : '' },
+    { label: 'Beta',           val: info.beta != null ? fmtN(info.beta) : null, sub: '' },
+    { label: '52-Week High',   val: info.fiftyTwoWeekHigh != null ? fmtN(info.fiftyTwoWeekHigh) : null, sub: '' },
+    { label: '52-Week Low',    val: info.fiftyTwoWeekLow != null ? fmtN(info.fiftyTwoWeekLow) : null, sub: '' },
+    { label: '50-Day Avg',     val: info.fiftyDayAvg != null ? fmtN(info.fiftyDayAvg) : null, sub: '' },
+    { label: '200-Day Avg',    val: info.twoHundredDayAvg != null ? fmtN(info.twoHundredDayAvg) : null, sub: info.bookValue != null ? `P/B: ${fmtN(info.priceToBook)}` : '' },
+  ].filter(s => s.val != null);
+  const statsGrid = statDefs.map(s => `
     <div class="cmod-stat">
       <div class="cmod-stat-label">${s.label}</div>
       <div class="cmod-stat-val">${s.val}</div>
@@ -151,30 +152,34 @@ async function openCompanyModal(ticker) {
     <span class="cmod-field-label">${l}</span><span class="cmod-field-val">${v}</span>
   </div>`).join('');
 
-  // Earnings
-  let earningsHtml;
-  if (info.nextEarningsDate) {
-    const endPart = info.earningsDateEnd ? ` – ${fmtDate(info.earningsDateEnd)}` : '';
-    earningsHtml = `<div class="cmod-earnings-date">
+  // Earnings + Analyst — sections only render when they actually have data
+  const hasEarnings = !!info.nextEarningsDate;
+  const hasAnalyst  = info.targetPrice != null;
+
+  const earningsHtml = hasEarnings ? `<div class="cmod-earnings-date">
       <div class="cmod-earnings-dot"></div>
       <div>
         <div style="font-size:13px;font-weight:600;color:var(--text);">Next Earnings</div>
-        <div style="font-size:12px;color:var(--text2);">${fmtDate(info.nextEarningsDate)}${endPart}</div>
+        <div style="font-size:12px;color:var(--text2);">${fmtDate(info.nextEarningsDate)}${info.earningsDateEnd ? ` – ${fmtDate(info.earningsDateEnd)}` : ''}</div>
       </div>
-    </div>`;
-  } else {
-    earningsHtml = `<div style="font-size:12px;color:var(--text3);padding:8px 0;">No upcoming earnings date available.</div>`;
-  }
+    </div>` : '';
 
-  // Analyst
-  const analystHtml = info.targetPrice != null ? `
+  const analystHtml = hasAnalyst ? `
     <div class="cmod-field"><span class="cmod-field-label">Analyst Target</span>
       <span class="cmod-field-val">${fmtN(info.targetPrice)} <span style="color:var(--text3);font-size:11px;">(${fmtN(info.targetLow)}–${fmtN(info.targetHigh)})</span></span></div>
     <div class="cmod-field"><span class="cmod-field-label">Recommendation</span>
       <span class="cmod-field-val">${fmtRec(info.recommendation)}</span></div>
     <div class="cmod-field"><span class="cmod-field-label">Coverage</span>
-      <span class="cmod-field-val">${info.numberOfAnalysts != null ? info.numberOfAnalysts + ' analysts' : '—'}</span></div>`
-    : `<div style="font-size:12px;color:var(--text3);padding:8px 0;">No analyst data available.</div>`;
+      <span class="cmod-field-val">${info.numberOfAnalysts != null ? info.numberOfAnalysts + ' analysts' : '—'}</span></div>` : '';
+
+  const rightPanelHtml = (hasEarnings || hasAnalyst) ? `
+        <div class="cmod-panel">
+          ${hasEarnings ? `<div class="cmod-section-title">Earnings Calendar</div>${earningsHtml}` : ''}
+          ${hasAnalyst ? `<div style="${hasEarnings ? 'margin-top:12px;' : ''}">
+            <div class="cmod-section-title" style="margin-bottom:8px;">Analyst Consensus</div>
+            ${analystHtml}
+          </div>` : ''}
+        </div>` : '';
 
   // Position
   const myShares  = holding.shares || 0;
@@ -222,10 +227,14 @@ async function openCompanyModal(ticker) {
     <div class="cmod-body">
       ${priceHeaderHtml}
 
-      <!-- Price history chart placeholder -->
+      <!-- Price history chart with range selector -->
       <div class="cmod-panel" style="padding:12px 16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div class="cmod-section-title" style="margin:0;">Price History (1Y)</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+          <div class="cmod-section-title" style="margin:0;">Price History</div>
+          <div class="range-bar" id="cmod-ranges">
+            ${['1D','1W','1M','6M','YTD','1Y','5Y'].map(r =>
+              `<button class="range-btn${r === '1Y' ? ' active' : ''}" onclick="cmodSetRange('${r}',this)">${r}</button>`).join('')}
+          </div>
         </div>
         <div style="position:relative;height:140px;">
           <canvas id="cmod-price-chart"></canvas>
@@ -233,100 +242,129 @@ async function openCompanyModal(ticker) {
         </div>
       </div>
 
+      ${statDefs.length ? `
       <div class="cmod-section-title">Market Data</div>
-      <div class="cmod-stats-grid">${statsGrid}</div>
+      <div class="cmod-stats-grid">${statsGrid}</div>` : ''}
 
-      <div class="cmod-two-col">
+      <div class="cmod-two-col"${rightPanelHtml ? '' : ' style="grid-template-columns:1fr;"'}>
         <div class="cmod-panel">
           <div class="cmod-section-title">Dividends</div>
           ${divFields}
         </div>
-        <div class="cmod-panel">
-          <div class="cmod-section-title">Earnings Calendar</div>
-          ${earningsHtml}
-          <div style="margin-top:12px;">
-            <div class="cmod-section-title" style="margin-bottom:8px;">Analyst Consensus</div>
-            ${analystHtml}
-          </div>
-        </div>
+        ${rightPanelHtml}
       </div>
 
       ${posHtml}
       ${descHtml}
     </div>`;
 
-  // ── Draw price chart once history resolves ─────────────────────────────────
+  // ── Draw price chart once history resolves (range buttons re-fetch) ────────
+  _cmodTicker = ticker;
   historyPromise.then(histData => {
-    const loader = document.getElementById('cmod-chart-loader');
-    const canvas = document.getElementById('cmod-price-chart');
-    if (!canvas) return; // modal was closed before history arrived
-
-    const series = histData?.[ticker];
-    if (!series?.timestamps?.length) {
-      if (loader) loader.textContent = 'No price history available.';
-      return;
-    }
-    if (loader) loader.style.display = 'none';
-
-    const labels = series.timestamps.map(ts =>
-      new Date(ts * 1000).toLocaleDateString('en-GB', { month:'short', year:'2-digit' })
-    );
-    const prices = series.closes;
-    const isUp   = prices[prices.length - 1] >= prices[0];
-    const color  = isUp ? '#4caf82' : '#e05c5c';
-
-    if (_modalPriceChart) { try { _modalPriceChart.destroy(); } catch(e) {} }
-    _modalPriceChart = new Chart(canvas, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          data: prices,
-          borderColor: color,
-          borderWidth: 1.5,
-          pointRadius: 0,
-          tension: 0.3,
-          fill: true,
-          backgroundColor: ctx => {
-            const g = ctx.chart.ctx.createLinearGradient(0,0,0,140);
-            g.addColorStop(0, color + '33');
-            g.addColorStop(1, color + '00');
-            return g;
-          },
-        }],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        animation: { duration: 300 },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            mode: 'index', intersect: false,
-            callbacks: {
-              label: ctx => ` ${series.currency || ''} ${ctx.parsed.y.toFixed(2)}`,
-              title: ctx => ctx[0].label,
-            },
-          },
-        },
-        scales: {
-          x: {
-            ticks: {
-              color: textColor(), font: { size: 10 },
-              maxTicksLimit: 8, maxRotation: 0,
-            },
-            grid: { display: false },
-          },
-          y: {
-            position: 'right',
-            ticks: { color: textColor(), font: { size: 10 } },
-            grid: { color: gridColor() },
-          },
-        },
-      },
-    });
+    _cmodDrawPriceChart(histData?.[ticker], '1Y');
   }).catch(() => {
     const loader = document.getElementById('cmod-chart-loader');
     if (loader) loader.textContent = 'Chart unavailable.';
+  });
+}
+
+// ── Company modal price chart: range selector ────────────────────────────────
+let _cmodTicker = null;
+
+const _CMOD_RANGE_CFG = {
+  '1D':  { interval: '5m',  range: '1d'  },
+  '1W':  { interval: '60m', range: '5d'  },
+  '1M':  { interval: '1d',  range: '1mo' },
+  '6M':  { interval: '1d',  range: '6mo' },
+  'YTD': { interval: '1d',  range: 'ytd' },
+  '1Y':  { interval: '1wk', range: '1y'  },
+  '5Y':  { interval: '1mo', range: '5y'  },
+};
+
+async function cmodSetRange(range, btn) {
+  document.querySelectorAll('#cmod-ranges .range-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const loader = document.getElementById('cmod-chart-loader');
+  if (loader) { loader.style.display = 'flex'; loader.textContent = 'Loading chart…'; }
+  try {
+    const cfg = _CMOD_RANGE_CFG[range] || _CMOD_RANGE_CFG['1Y'];
+    const histData = await window.electronAPI.fetchHistory({ tickers: [_cmodTicker], ...cfg });
+    _cmodDrawPriceChart(histData?.[_cmodTicker], range);
+  } catch (e) {
+    if (loader) loader.textContent = 'Chart unavailable.';
+  }
+}
+
+function _cmodDrawPriceChart(series, range) {
+  const loader = document.getElementById('cmod-chart-loader');
+  const canvas = document.getElementById('cmod-price-chart');
+  if (!canvas) return; // modal was closed before data arrived
+  if (!series?.timestamps?.length) {
+    if (loader) { loader.style.display = 'flex'; loader.textContent = 'No price history available.'; }
+    return;
+  }
+  if (loader) loader.style.display = 'none';
+
+  const pts = series.timestamps.map((ts, i) => ({ ts, c: series.closes[i] })).filter(p => p.c != null);
+  const labels = pts.map(p => {
+    const d = new Date(p.ts * 1000);
+    if (range === '1D') return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    if (range === '1W') return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' });
+    if (range === '1Y' || range === '5Y') return d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  });
+  const prices = pts.map(p => p.c);
+  const isUp   = prices[prices.length - 1] >= prices[0];
+  const color  = isUp ? '#4caf82' : '#e05c5c';
+
+  if (_modalPriceChart) { try { _modalPriceChart.destroy(); } catch(e) {} }
+  _modalPriceChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: prices,
+        borderColor: color,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.3,
+        fill: true,
+        backgroundColor: ctx => {
+          const g = ctx.chart.ctx.createLinearGradient(0,0,0,140);
+          g.addColorStop(0, color + '33');
+          g.addColorStop(1, color + '00');
+          return g;
+        },
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: 'index', intersect: false,
+          callbacks: {
+            label: ctx => ` ${series.currency || ''} ${ctx.parsed.y.toFixed(2)}`,
+            title: ctx => ctx[0].label,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: textColor(), font: { size: 10 },
+            maxTicksLimit: 8, maxRotation: 0,
+          },
+          grid: { display: false },
+        },
+        y: {
+          position: 'right',
+          ticks: { color: textColor(), font: { size: 10 } },
+          grid: { color: gridColor() },
+        },
+      },
+    },
   });
 }
 

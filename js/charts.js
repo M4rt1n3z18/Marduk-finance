@@ -451,8 +451,10 @@ function renderHoldingsGeneral() {
         <td style="text-align:right;">
           ${h.currentPrice ? `<div style="font-weight:600;">${eurPort(val)}</div><div style="font-size:11px;color:var(--text3);">${eurPort(h.currentPrice)}/sh</div>` : '<span class="muted">—</span>'}
         </td>
-        <td class="${h.dayChangePct != null && h.currentPrice ? (h.dayChangePct >= 0 ? 'up-text' : 'down-text') : ''}" style="font-size:12px;font-weight:600;text-align:right;">
-          ${h.dayChangePct != null && h.currentPrice ? pct(h.dayChangePct) : '<span class="muted">—</span>'}
+        <td class="${h.dayChangePct != null && h.currentPrice ? (h.dayChangePct >= 0 ? 'up-text' : 'down-text') : ''}" style="font-weight:600;text-align:right;">
+          ${h.dayChangePct != null && h.currentPrice
+            ? `<div>${eurPort(val - val / (1 + h.dayChangePct / 100))}</div><div style="font-size:11px;">(${pct(h.dayChangePct)})</div>`
+            : '<span class="muted">—</span>'}
         </td>
         <td class="${gain>=0?'up-text':'down-text'}" style="font-weight:600;text-align:right;">
           <div>${eurPort(gain)}</div>
@@ -799,8 +801,11 @@ function holdingLogoErr(img) {
     img.dataset.srcIdx = idx;
     img.src = srcs[idx]; // will trigger onerror again if this one also fails
   } else {
+    // All sources failed — show the colored-initial fallback circle.
+    // nextElementSibling (not nextSibling): whitespace between the tags is a
+    // text node, which silently swallowed the style change.
     img.style.display = 'none';
-    if (img.nextSibling) img.nextSibling.style.display = 'flex';
+    if (img.nextElementSibling) img.nextElementSibling.style.display = 'flex';
   }
 }
 

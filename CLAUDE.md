@@ -220,7 +220,11 @@ Header "Settings" dropdown (`#settings-menu` in `index.html`, logic in `js/app.j
 
 Tabs: `overview`, `portfolio`, `expenses`, `budget`, `networth`, `goals`, `salary`
 
-`showTab(name, el)` in `js/app.js` rebuilds charts for the active tab. Every nav button carries an inline SVG icon (stroke `currentColor`, Babylonian motifs: ziggurat, coin stack, tablet, scales, sun-dial circle, target, barley).
+`showTab(name, el)` in `js/app.js` rebuilds charts for the active tab. Auto-refresh polls prices every **5 minutes** (`AUTO_REFRESH_MS` in `actions.js`) — faster polling triggers Yahoo HTTP 429 rate limits that break the richer endpoints (company info, earnings, analyst data).
+
+**Company modal** (`openCompanyModal` in `render.js`): price chart has a range selector (1D/1W/1M/6M/YTD/1Y/5Y — `cmodSetRange`/`_cmodDrawPriceChart`, `_CMOD_RANGE_CFG`); Market Data boxes and the Earnings/Analyst panels render only when data exists (no "—" placeholders). Holdings logo fallback uses `nextElementSibling` (a `nextSibling` text-node bug once hid the colored-initial circles).
+
+**Visual conventions**: `font-variant-numeric: tabular-nums` is set on `body` (aligned number columns). No raw emojis in UI — every icon is an inline gold SVG (`stroke="currentColor"`, viewBox 24). Reusable `.info-tip` hover tooltip component for card-title explanations. Every nav button carries an inline SVG icon (stroke `currentColor`, Babylonian motifs: ziggurat, coin stack, tablet, scales, sun-dial circle, target, barley).
 
 ### Portfolio sub-views (Snowball-style)
 

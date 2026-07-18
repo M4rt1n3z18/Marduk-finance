@@ -85,7 +85,7 @@ async function importXtbExcel() {
     // the purchase date using historical ECB/Yahoo FX rates.
     const positionsToProcess = importMode === 'smart' ? newPositions : validPositions;
 
-    showToast('⏳ Fetching historical FX rates for cost basis…');
+    showToast('Fetching historical FX rates for cost basis…');
 
     // Collect all (currency, date) pairs we need
     const needRates = {}; // currency → Set<date>

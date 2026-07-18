@@ -689,7 +689,7 @@ function renderGoals() {
   if (!el) return;
   if (!goals.length) {
     el.innerHTML = `<div class="card" style="grid-column:1/-1;text-align:center;padding:40px;">
-      <div style="font-size:32px;margin-bottom:12px;">🎯</div>
+      <div style="margin-bottom:12px;"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="var(--gold)"/></svg></div>
       <div style="font-size:15px;font-weight:600;color:var(--text2);">No goals yet</div>
       <div style="font-size:13px;color:var(--text3);margin-top:6px;">Add a financial goal above to start tracking your progress.</div>
     </div>`;
@@ -725,7 +725,7 @@ function renderGoals() {
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <span style="font-size:24px;font-weight:700;color:${barColor};">${pctStr}%</span>
-        <span style="font-size:12px;color:var(--text2);">${done ? '🎉 Goal reached!' : eur(remaining) + ' to go'}</span>
+        <span style="font-size:12px;color:var(--text2);">${done ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 5H5.5a2.6 2.6 0 0 0 3 3.5M16 5h2.5a2.6 2.6 0 0 1-3 3.5M12 13v4M9 20h6M10 17h4"/></svg> Goal reached!' : eur(remaining) + ' to go'}</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
         <span style="font-size:11px;color:var(--text2);white-space:nowrap;">Update saved (€)</span>
@@ -1061,7 +1061,7 @@ async function generateMonthlySummary(force = false) {
   const textEl = document.getElementById('ai-summary-text');
   const btn = document.getElementById('ai-summary-refresh');
   if (card) card.style.display = '';
-  if (textEl) textEl.innerHTML = '<span style="color:var(--text3);">✨ Writing your monthly summary…</span>';
+  if (textEl) textEl.innerHTML = '<span style="color:var(--text3);">Writing your monthly summary…</span>';
   if (btn) btn.disabled = true;
 
   try {

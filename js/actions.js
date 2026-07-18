@@ -431,7 +431,9 @@ async function refreshPrices(silent = false) {
 }
 
 // ══════════════ AUTO-REFRESH ══════════════
-const AUTO_REFRESH_MS = 60 * 1000; // 1 minute
+// 5 minutes — polling faster burns Yahoo's rate limits (HTTP 429), which then
+// breaks the richer endpoints (company info, earnings, analyst data).
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
 let _arInterval   = null; // price-fetch interval
 let _arTick       = null; // 1-second countdown tick
 let _arNextAt     = 0;    // timestamp of next scheduled refresh

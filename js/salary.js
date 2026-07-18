@@ -384,7 +384,7 @@ function renderSalary() {
   if (!latest) {
     summaryEl.innerHTML = `
       <div class="card" style="text-align:center;padding:52px 24px;margin-bottom:20px;">
-        <div style="font-size:42px;margin-bottom:16px;opacity:.5;">📄</div>
+        <div style="margin-bottom:16px;opacity:.55;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h6.5L18 8v12.5H7z"/><path d="M13.5 3.5V8H18M10 12.5h5M10 16h5"/></svg></div>
         <div class="card-title" style="font-size:13px;margin-bottom:8px;">No payslips yet</div>
         <div style="color:var(--text2);font-size:13px;max-width:380px;margin:0 auto;">
           Click <strong style="color:var(--text);">↑ Import Payslip</strong> above to upload a PDF payslip
