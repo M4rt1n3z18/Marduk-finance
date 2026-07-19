@@ -286,12 +286,14 @@
   .lots-table tr:hover td { background: var(--bg2); }
 
   /* ── Detected class badge in form ── */
-  .class-detect { display: flex; flex-direction: column; gap: 4px; justify-content: flex-end; }
+  /* Matches .field metrics (gap 5px, input padding 9px/13px font) so the badge
+     lines up with the inputs beside it in the add-holding grid */
+  .class-detect { display: flex; flex-direction: column; gap: 5px; justify-content: flex-end; }
   .class-detect .badge {
     display: block; width: 100%; box-sizing: border-box;
-    padding: 7px 10px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    padding: 9px 10px; border-radius: 8px; font-size: 13px; font-weight: 600;
     text-align: center; border: 1px solid var(--border);
-    background: var(--bg3); letter-spacing: .5px;
+    background: var(--bg3); letter-spacing: .5px; line-height: normal;
   }
   .btn {
     padding: 9px 20px; background: var(--gold); color: #0d0d0f;
@@ -1571,16 +1573,30 @@
       <div class="stat-sub" id="e-stat-remaining-sub">after expenses</div>
     </div>
   </div>
-  <!-- Salary day info + paycheck day setting -->
+  <!-- Salary day info + budget month boundary settings -->
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--text2);margin:-12px 0 20px 4px;">
-    <div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;color:var(--gold);"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M9 8V6.5A2.5 2.5 0 0 1 11.5 4h1A2.5 2.5 0 0 1 15 6.5V8M4 13h16"/></svg> Salary day this month: <span id="e-stat-salday" style="color:var(--gold);font-weight:600;">—</span> &nbsp;·&nbsp; 2nd to last business day</div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span style="font-size:11px;color:var(--text3);">Paycheck day of month:</span>
-      <input id="paycheck-day-input" type="number" min="1" max="31" placeholder="off"
-        style="width:58px;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;outline:none;text-align:center;"
+    <div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;color:var(--gold);"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M9 8V6.5A2.5 2.5 0 0 1 11.5 4h1A2.5 2.5 0 0 1 15 6.5V8M4 13h16"/></svg> Salary day this month: <span id="e-stat-salday" style="color:var(--gold);font-weight:600;">—</span> &nbsp;·&nbsp; <span id="e-salday-note">2nd to last business day</span></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:var(--text3);">Budget month boundary:</span>
+      <select id="paycheck-mode" onchange="setPaycheckMode(this.value)"
+        style="padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Karla,sans-serif;font-size:11px;outline:none;cursor:pointer;"
+        title="How budget months are cut: plain calendar months, automatically on your salary day, or a fixed day of the month">
+        <option value="off">Calendar month</option>
+        <option value="auto">Auto — salary day</option>
+        <option value="fixed">Fixed day</option>
+      </select>
+      <input id="paycheck-day-input" type="number" min="1" max="31" placeholder="26"
+        style="display:none;width:54px;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;outline:none;text-align:center;"
         onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"
-        onchange="setPaycheckDay(this.value)" title="Expenses on/after this day count for the next budget month">
-      <span id="paycheck-day-badge" style="font-size:11px;color:var(--text3);"></span>
+        onchange="setPaycheckDay(this.value)" title="Default day of month — can be overridden per month">
+      <span id="paycheck-month-wrap" style="display:none;align-items:center;gap:6px;">
+        <span style="font-size:11px;color:var(--text3);" id="paycheck-month-label">starts:</span>
+        <input id="paycheck-month-input" type="number" min="1" max="31"
+          style="width:54px;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;outline:none;text-align:center;"
+          onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"
+          onchange="setPaycheckMonthOverride(this.value)" title="Override the start day for THIS budget month only (day of the previous calendar month). Clear to use the default.">
+      </span>
+      <span id="paycheck-day-badge" style="font-size:11px;color:var(--gold);"></span>
     </div>
   </div>
 

@@ -482,24 +482,73 @@ function getExpenseMonthKey(year, month) {
   return `${year}-${String(month + 1).padStart(2, '0')}`;
 }
 
-// Returns true if expense belongs to the given budget month, respecting paycheckDay.
-// When paycheckDay is set (e.g. 26): the budget month covers from day 26 of prev calendar
-// month through day 25 of this calendar month. Expenses on/after paycheckDay in the
-// previous calendar month count for this budget month; expenses on/after paycheckDay in
-// this calendar month count for the NEXT budget month.
+// ══════════════ BUDGET MONTH BOUNDARIES ══════════════
+// state.paycheckDay (global mode): null = calendar months · 'auto' = follow the
+// salary day (2nd-to-last business day) · number = fixed day for every month.
+// state.paycheckDays = { "YYYY-MM": day } — per-budget-month overrides: the day
+// (in the PREVIOUS calendar month) when that budget month starts.
+
+function _nextMonthKey(monthKey) {
+  const [y, m] = monthKey.split('-').map(Number);
+  return getExpenseMonthKey(m === 12 ? y + 1 : y, m % 12); // getExpenseMonthKey is 0-based
+}
+
+// Day in the previous calendar month when budget month `monthKey` starts.
+// Priority: per-month override → global mode. null = plain calendar month.
+function boundaryDayFor(monthKey) {
+  const ov = (state.paycheckDays || {})[monthKey];
+  if (ov >= 1 && ov <= 31) return ov;
+  const g = state.paycheckDay;
+  if (g === 'auto') {
+    const [y, m] = monthKey.split('-').map(Number);
+    const prev = new Date(y, m - 2, 1); // previous calendar month
+    return secondToLastBusinessDay(prev.getFullYear(), prev.getMonth()).getDate();
+  }
+  return (typeof g === 'number' && g >= 1 && g <= 31) ? g : null;
+}
+
+// The date the salary lands in calendar month (year, monthIdx 0-based).
+// That salary funds the NEXT budget month, so its configured boundary wins;
+// with no configuration it falls back to the 2nd-to-last business day.
+function salaryDayFor(year, monthIdx) {
+  const nextKey = getExpenseMonthKey(monthIdx === 11 ? year + 1 : year, (monthIdx + 1) % 12);
+  const ov = (state.paycheckDays || {})[nextKey];
+  const g = state.paycheckDay;
+  const day = (ov >= 1 && ov <= 31) ? ov : (typeof g === 'number' ? g : null);
+  if (day) {
+    const dim = new Date(year, monthIdx + 1, 0).getDate();
+    return new Date(year, monthIdx, Math.min(day, dim));
+  }
+  return secondToLastBusinessDay(year, monthIdx);
+}
+
+// Returns true if expense belongs to the given budget month.
+// Budget month M runs from its own boundary day (in calendar month M-1) up to
+// the day before the NEXT month's boundary day (in calendar month M) — so each
+// month can have a different start day and no expense is counted twice.
 function expenseBelongsToMonth(expense, budgetMonthKey) {
   if (!expense.date) return false;
-  const pd = state.paycheckDay;
-  if (!pd) return expense.date.startsWith(budgetMonthKey);
+  const pdThis = boundaryDayFor(budgetMonthKey);
+  const pdNext = boundaryDayFor(_nextMonthKey(budgetMonthKey));
+
+  if (!pdThis) {
+    // Calendar month — but if the NEXT month has a boundary, its early days belong there
+    if (!expense.date.startsWith(budgetMonthKey)) return false;
+    if (!pdNext) return true;
+    return new Date(expense.date + 'T00:00:00').getDate() < pdNext;
+  }
+
   const [by, bm] = budgetMonthKey.split('-').map(Number);
   const ed = new Date(expense.date + 'T00:00:00');
   const ey = ed.getFullYear(), em = ed.getMonth() + 1, eday = ed.getDate();
   const prevM = bm === 1 ? 12 : bm - 1;
   const prevY = bm === 1 ? by - 1 : by;
-  // Expense in previous calendar month, on/after paycheckDay → this budget month
-  if (ey === prevY && em === prevM && eday >= pd) return true;
-  // Expense in this calendar month, before paycheckDay → this budget month
-  if (ey === by && em === bm && eday < pd) return true;
+  // Expense in previous calendar month, on/after this month's boundary → this budget month
+  if (ey === prevY && em === prevM && eday >= pdThis) return true;
+  // Expense in this calendar month, before the NEXT month's boundary → this budget month
+  // (no next boundary = next month is a plain calendar month, so the rest of
+  //  this calendar month stays here: use 32 = "all remaining days")
+  if (ey === by && em === bm && eday < (pdNext || 32)) return true;
   return false;
 }
 
@@ -539,11 +588,31 @@ function goToCurrentMonth() {
   renderExpenses();
 }
 
+function _paycheckRerender() {
+  save(); renderExpenses(); renderBudget();
+  buildSavRateChart(); buildIncomeHistoryChart();
+}
+
+function setPaycheckMode(mode) {
+  if (mode === 'off') state.paycheckDay = null;
+  else if (mode === 'auto') state.paycheckDay = 'auto';
+  else if (typeof state.paycheckDay !== 'number') state.paycheckDay = 26; // sensible default for 'fixed'
+  _paycheckRerender();
+}
+
 function setPaycheckDay(val) {
   const n = parseInt(val);
   state.paycheckDay = (!val || isNaN(n) || n < 1 || n > 31) ? null : n;
-  save(); renderExpenses(); renderBudget();
-  buildSavRateChart(); buildIncomeHistoryChart();
+  _paycheckRerender();
+}
+
+// Per-budget-month override (empty input clears it back to the default)
+function setPaycheckMonthOverride(val) {
+  if (!state.paycheckDays) state.paycheckDays = {};
+  const n = parseInt(val);
+  if (!val || isNaN(n) || n < 1 || n > 31) delete state.paycheckDays[selectedExpenseMonth];
+  else state.paycheckDays[selectedExpenseMonth] = n;
+  _paycheckRerender();
 }
 
 let selectedBudgetMonth = null;
@@ -655,8 +724,8 @@ function renderExpenses() {
   const extraAmt = extraEntries.reduce((s, x) => s + Number(x.amount), 0);
   const totalIncome = salaryAmt + extraAmt;
 
-  // Salary day calculation
-  const salDay = secondToLastBusinessDay(year, month);
+  // Salary day calculation — follows the configured boundary when one exists
+  const salDay = salaryDayFor(year, month);
   const salDayStr = salDay.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
   // Stats — investment allocations reduce the remaining budget (but are NOT expenses)
@@ -680,11 +749,52 @@ function renderExpenses() {
     ? `after expenses + ${eur(allocMonth)} allocated`
     : (totalIncome > 0 ? (remaining >= 0 ? 'looking good!' : 'over budget!') : 'log income in Budget tab');
   document.getElementById('e-stat-salday').textContent = salDayStr;
-  const pdInput = document.getElementById('paycheck-day-input');
-  if (pdInput) {
-    pdInput.value = state.paycheckDay || '';
-    const badge = document.getElementById('paycheck-day-badge');
-    if (badge) badge.textContent = state.paycheckDay ? `active — day ${state.paycheckDay}` : 'off';
+  // ── Budget boundary controls ──────────────────────────────────────────────
+  {
+    const g = state.paycheckDay;
+    const mode = g === 'auto' ? 'auto' : (typeof g === 'number' ? 'fixed' : 'off');
+    const modeSel = document.getElementById('paycheck-mode');
+    if (modeSel) modeSel.value = mode;
+
+    const pdInput = document.getElementById('paycheck-day-input');
+    if (pdInput) {
+      pdInput.style.display = mode === 'fixed' ? '' : 'none';
+      pdInput.value = mode === 'fixed' ? g : '';
+    }
+
+    const mWrap  = document.getElementById('paycheck-month-wrap');
+    const mInput = document.getElementById('paycheck-month-input');
+    const mLabel = document.getElementById('paycheck-month-label');
+    const badge  = document.getElementById('paycheck-day-badge');
+    if (mWrap) mWrap.style.display = mode === 'off' ? 'none' : 'inline-flex';
+
+    if (mode !== 'off' && mInput) {
+      const ov = (state.paycheckDays || {})[selectedExpenseMonth];
+      const resolved = boundaryDayFor(selectedExpenseMonth);
+      mInput.value = ov || '';
+      mInput.placeholder = resolved || '';
+      const [sy, sm] = selectedExpenseMonth.split('-').map(Number);
+      const monthName = new Date(sy, sm - 1, 1).toLocaleDateString('en-GB', { month: 'short' });
+      const prevName  = new Date(sy, sm - 2, 1).toLocaleDateString('en-GB', { month: 'short' });
+      if (mLabel) mLabel.textContent = `${monthName} starts (${prevName}):`;
+      if (badge && resolved) {
+        const endB = boundaryDayFor(_nextMonthKey(selectedExpenseMonth));
+        const startDate = new Date(sy, sm - 2, resolved);
+        const endDate = endB
+          ? new Date(sy, sm - 1, Math.max(1, endB - 1))
+          : new Date(sy, sm, 0); // next month is calendar → this one ends at month end
+        const f = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        badge.textContent = `${f(startDate)} → ${f(endDate)}${ov ? ' · custom' : ''}`;
+      } else if (badge) badge.textContent = '';
+    } else if (badge) badge.textContent = '';
+
+    // Salary-day line note — reflects whether the shown date comes from config
+    const noteEl = document.getElementById('e-salday-note');
+    if (noteEl) {
+      const nk = getExpenseMonthKey(month === 11 ? year + 1 : year, (month + 1) % 12);
+      const configured = ((state.paycheckDays || {})[nk] >= 1) || typeof g === 'number';
+      noteEl.textContent = configured ? 'your configured paycheck day' : '2nd to last business day';
+    }
   }
 
   // Category filter + search
@@ -969,12 +1079,11 @@ function renderBudget() {
   const [by, bm] = selectedBudgetMonth.split('-').map(Number);
   const bYear = by, bMonth = bm - 1;
   const monthLabel = new Date(bYear, bMonth, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-  const salDay = secondToLastBusinessDay(bYear, bMonth);
-  const salDayStr = salDay.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-  // Salary for budget month is received on 2nd-to-last business day of PREVIOUS month
+  // Salary for budget month is received in the PREVIOUS calendar month —
+  // salaryDayFor respects the configured boundary (per-month override / fixed / auto)
   const prevMonth = new Date(bYear, bMonth - 1, 1);
-  const receiveSalDay = secondToLastBusinessDay(prevMonth.getFullYear(), prevMonth.getMonth());
+  const receiveSalDay = salaryDayFor(prevMonth.getFullYear(), prevMonth.getMonth());
   const receiveSalDayStr = receiveSalDay.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
   document.getElementById('bud-month-label').textContent = monthLabel;

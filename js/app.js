@@ -396,6 +396,7 @@ async function initApp() {
   if (!state.liabilities) state.liabilities = [];
   if (!state.budgets) state.budgets = DEFAULT_CATS.map(c => ({ cat: c, limit: 0 }));
   if (state.paycheckDay === undefined) state.paycheckDay = null;
+  if (!state.paycheckDays) state.paycheckDays = {};
   if (!state.payslips) state.payslips = [];
   if (!state.allocations) state.allocations = [];
   if (!state.unallocatedInvestment) state.unallocatedInvestment = {};

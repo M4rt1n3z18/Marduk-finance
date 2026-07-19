@@ -206,6 +206,14 @@ Header "Settings" dropdown (`#settings-menu` in `index.html`, logic in `js/app.j
 - **XIRR** (`_xirr`, bisection solver): cashflows = buys (−), sells (+), received dividends (+), current holdings value (+, today). Cash excluded by design.
 - **Year-by-year returns** (`_yearlyReturns`): Modified Dietz per calendar year, valuations reconstructed from Yahoo monthly closes (`fetchHistory` interval 1mo range max, 15-min main-process cache) × shares held at each date; current year marked YTD, non-annualized.
 
+## Budget Month Boundaries (per-month paycheck days)
+
+`state.paycheckDay` (global mode): `null` = calendar months · `'auto'` = follow salary day (2nd-to-last business day) · number = fixed day. `state.paycheckDays = { "YYYY-MM": day }` — per-budget-month overrides (the day in the **previous** calendar month when that budget month starts).
+
+- Engine in `render.js`: `boundaryDayFor(monthKey)` (override → global), `expenseBelongsToMonth(e, M)` (month M = [its boundary in M-1, day before M+1's boundary] — asymmetric boundaries supported, no double counting), `salaryDayFor(year, monthIdx)` (the displayed salary date — configured boundary wins, else 2nd-to-last business day).
+- UI in Expenses tab: `#paycheck-mode` select (Calendar/Auto/Fixed), `#paycheck-day-input` (fixed default), `#paycheck-month-input` (per-month override, placeholder = resolved), `#paycheck-day-badge` shows the resolved range ("29 Apr → 28 May · custom"), `#e-salday-note` says which rule produced the shown salary day.
+- Everything downstream (Budget tab, savings rate, income history, allocations-per-month) flows through `expenseBelongsToMonth`/`salaryDayFor` — no other date logic.
+
 ## QoL settings
 
 - **Auto-lock** configurable in Settings (5/10/30 min/Never), `localStorage['marduk_autolock_min']`, `getAutolockMode()` in `js/app.js`.

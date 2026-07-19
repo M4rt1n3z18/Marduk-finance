@@ -11,7 +11,8 @@ let state = {
   budgets: DEFAULT_CATS.map(c => ({ cat: c, limit: 0 })),
   nwHistory: [], salaries: [], extraIncomes: [], goals: [], categories: [...DEFAULT_CATS], payslips: [],
   portfolios: [], activePortfolioId: null,
-  paycheckDay: null,  // null = calendar month; 1–31 = expenses shift after this day
+  paycheckDay: null,  // null = calendar month; 'auto' = follow salary day; 1–31 = fixed day
+  paycheckDays: {},   // "YYYY-MM" → day: per-budget-month boundary overrides
   allocations: [],            // InvestmentAllocation entities (see actions.js)
   unallocatedInvestment: {},  // portfolioId → EUR invested beyond allocated funds
   aiSummaries: {},            // "YYYY-MM" → { text, generatedAt }
