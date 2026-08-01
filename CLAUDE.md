@@ -246,7 +246,7 @@ The Portfolio tab is split into 5 sub-views — only one visible at a time (`.ps
 | `psub-cash` | Uninvested Cash card |
 | `psub-transactions` | Transaction History |
 
-- Hovering the **Portfolio nav button** shows a dropdown (`.nav-drop`, CSS `:hover`) linking to each sub-view via `navToPortfolioSub(name)`.
+- Hovering the **Portfolio nav button** shows a dropdown (`.nav-drop`, CSS `:hover`) linking to each sub-view via `navToPortfolioSub(name)`. The open rule is `:hover, :has(:focus-visible)` — never `:focus-within`, which leaves the menu pinned open after a mouse click because the clicked button keeps focus.
 - The portfolio switcher bar stays global above the sub-views — switching portfolio keeps the current sub-view.
 - Portfolio management actions (Refresh Prices `#refresh-btn`, XTB Import, CSV, Rename, New, Delete `#del-port-btn`) live in an **Actions dropdown** (`#actions-menu`, reuses `.settings-menu` classes) in the portfolio bar. `refreshPrices()` still updates `#refresh-btn`'s label even though it is now a menu item.
 - Chart builders already guard on `el.offsetParent`, so hidden sub-views skip canvas work; `showPortfolioSub` rebuilds only the section that became visible.

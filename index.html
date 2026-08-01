@@ -134,7 +134,8 @@
   nav button svg, .psub-tab svg, .settings-item svg { flex-shrink: 0; opacity: .9; }
   .nav-drop { position: relative; display: inline-block; }
   .nav-drop-menu { display: none; position: absolute; left: 0; top: 100%; padding-top: 8px; z-index: 10000; }
-  .nav-drop:hover .nav-drop-menu, .nav-drop:focus-within .nav-drop-menu { display: block; }
+  /* :focus-visible (not :focus-within) — a mouse click must not pin the menu open */
+  .nav-drop:hover .nav-drop-menu, .nav-drop:has(:focus-visible) .nav-drop-menu { display: block; }
   .nav-drop-inner {
     background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
     box-shadow: 0 10px 36px rgba(0,0,0,0.45); padding: 6px; min-width: 200px;
