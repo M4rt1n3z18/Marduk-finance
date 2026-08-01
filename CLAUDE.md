@@ -228,7 +228,9 @@ Header "Settings" dropdown (`#settings-menu` in `index.html`, logic in `js/app.j
 
 Tabs: `overview`, `portfolio`, `expenses`, `budget`, `networth`, `goals`, `salary`
 
-`showTab(name, el)` in `js/app.js` rebuilds charts for the active tab. Auto-refresh polls prices every **5 minutes** (`AUTO_REFRESH_MS` in `actions.js`) — faster polling triggers Yahoo HTTP 429 rate limits that break the richer endpoints (company info, earnings, analyst data).
+`showTab(name, el)` in `js/app.js` rebuilds charts for the active tab.
+
+**Auto-refresh is market-hours aware** (`actions.js`): `marketPhase()` resolves `'open' | 'quiet' | 'weekend'` in **Europe/Lisbon** (explicit timezone, so it stays correct for users abroad; `hourCycle:'h23'` avoids the hour-24 midnight bug). Cadence — open (weekday 08:00–21:30, Euronext open → after NYSE close) `REFRESH_OPEN_MS` 5 min · quiet `REFRESH_QUIET_MS` 60 min · weekend paused, re-checking hourly so Monday resumes itself. `_resetAutoRefreshCountdown()` is a **self-rescheduling `setTimeout`**, not `setInterval`, because the delay changes with the phase; it re-arms immediately inside the callback so an early `return` in `refreshPrices()` can't break the chain. Never poll faster — that triggers Yahoo HTTP 429s which break the richer endpoints (company info, earnings, analyst data). One coarse window is intentional: per-exchange holiday calendars aren't worth the maintenance tail. `#live-dot`/`#live-countdown` show the phase (green + countdown / grey + hourly / `closed`).
 
 **Company modal** (`openCompanyModal` in `render.js`): price chart has a range selector (1D/1W/1M/6M/YTD/1Y/5Y — `cmodSetRange`/`_cmodDrawPriceChart`, `_CMOD_RANGE_CFG`); Market Data boxes and the Earnings/Analyst panels render only when data exists (no "—" placeholders). Holdings logo fallback uses `nextElementSibling` (a `nextSibling` text-node bug once hid the colored-initial circles).
 

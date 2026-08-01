@@ -431,20 +431,80 @@ async function refreshPrices(silent = false) {
 }
 
 // ══════════════ AUTO-REFRESH ══════════════
-// 5 minutes — polling faster burns Yahoo's rate limits (HTTP 429), which then
-// breaks the richer endpoints (company info, earnings, analyst data).
-const AUTO_REFRESH_MS = 5 * 60 * 1000;
-let _arInterval   = null; // price-fetch interval
-let _arTick       = null; // 1-second countdown tick
-let _arNextAt     = 0;    // timestamp of next scheduled refresh
+// Cadence follows market hours. Prices don't move when exchanges are shut, so
+// polling then only burns Yahoo's rate limits (HTTP 429), which in turn breaks
+// the richer endpoints (company info, earnings, analyst data).
+//
+// The window is deliberately coarse — one Lisbon-time band spanning Euronext /
+// Xetra open through the US close — instead of per-exchange trading calendars
+// with holidays, which carry a maintenance tail for very little gain. Worst
+// case on a market holiday is a day of polling a closed exchange: harmless.
+const REFRESH_OPEN_MS  =  5 * 60 * 1000;  // exchanges open
+const REFRESH_QUIET_MS = 60 * 60 * 1000;  // weekday, outside trading hours
+const MARKET_TZ        = 'Europe/Lisbon';
+const MARKET_OPEN_MIN  =  8 * 60;         // 08:00 — Euronext Lisbon / Xetra
+const MARKET_CLOSE_MIN = 21 * 60 + 30;    // 21:30 — after the NYSE close
 
+let _arTimer  = null; // next scheduled price fetch (self-rescheduling timeout)
+let _arTick   = null; // 1-second countdown tick
+let _arNextAt = 0;    // timestamp of next refresh (0 = none scheduled)
+
+// Built once — this runs every second from the countdown tick
+const _mktFmt = new Intl.DateTimeFormat('en-GB', {
+  timeZone: MARKET_TZ, weekday: 'short',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+});
+
+// 'open' | 'quiet' | 'weekend', in market-local time — not the machine's timezone,
+// so it stays correct for users running MARDUK outside Portugal.
+function marketPhase(now = new Date()) {
+  const parts = _mktFmt.formatToParts(now);
+  const get = t => parts.find(p => p.type === t)?.value;
+  const day = get('weekday');
+  if (day === 'Sat' || day === 'Sun') return 'weekend';
+  const mins = Number(get('hour')) * 60 + Number(get('minute'));
+  return (mins >= MARKET_OPEN_MIN && mins < MARKET_CLOSE_MIN) ? 'open' : 'quiet';
+}
+
+// null = don't poll at all (weekend)
+function refreshIntervalMs() {
+  const phase = marketPhase();
+  if (phase === 'weekend') return null;
+  return phase === 'open' ? REFRESH_OPEN_MS : REFRESH_QUIET_MS;
+}
+
+// A self-rescheduling timeout rather than setInterval — the delay changes as the
+// market opens and closes, so each hop re-reads the current phase.
 function _resetAutoRefreshCountdown() {
-  _arNextAt = Date.now() + AUTO_REFRESH_MS;
+  if (_arTimer) clearTimeout(_arTimer);
+  const ms = refreshIntervalMs();
+
+  if (ms == null) {                    // weekend — idle, but keep checking back
+    _arNextAt = 0;                     // so Monday morning resumes on its own
+    _arTimer = setTimeout(_resetAutoRefreshCountdown, REFRESH_QUIET_MS);
+    return;
+  }
+
+  _arNextAt = Date.now() + ms;
+  _arTimer = setTimeout(() => {
+    refreshPrices(true);               // async — reschedules again when it finishes
+    _resetAutoRefreshCountdown();      // …but re-arm now, so an early return can't
+  }, ms);                              // break the chain
 }
 
 function _updateLiveIndicator() {
   const el = document.getElementById('live-countdown');
   if (!el) return;
+  const phase = marketPhase();
+
+  const dot = document.getElementById('live-dot');
+  if (dot) dot.style.color = phase === 'open' ? 'var(--up)' : 'var(--text3)';
+  if (el.parentElement) el.parentElement.title =
+    phase === 'open'    ? 'Markets open — next automatic price refresh'
+  : phase === 'quiet'   ? 'Markets closed — refreshing hourly'
+  :                       'Weekend — automatic refresh paused';
+
+  if (phase === 'weekend') { el.textContent = 'closed'; return; }
   const remaining = Math.max(0, Math.round((_arNextAt - Date.now()) / 1000));
   const mins = Math.floor(remaining / 60);
   const secs = String(remaining % 60).padStart(2, '0');
@@ -453,13 +513,10 @@ function _updateLiveIndicator() {
 
 function startAutoRefresh() {
   // Clear any previous timers (safe to call multiple times)
-  if (_arInterval) clearInterval(_arInterval);
-  if (_arTick)     clearInterval(_arTick);
+  if (_arTimer) clearTimeout(_arTimer);
+  if (_arTick)  clearInterval(_arTick);
 
   _resetAutoRefreshCountdown();
-
-  // Fire a price refresh every 5 minutes
-  _arInterval = setInterval(() => refreshPrices(true), AUTO_REFRESH_MS);
 
   // Update the on-screen countdown every second
   _arTick = setInterval(_updateLiveIndicator, 1000);
