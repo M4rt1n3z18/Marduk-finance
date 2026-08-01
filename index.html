@@ -536,9 +536,10 @@
   .hperf-item { display:flex;align-items:center;gap:10px;margin-bottom:9px; }
   .hperf-label { width:62px;font-size:12px;font-weight:600;color:var(--gold);text-align:right;flex-shrink:0; }
   .hperf-bar-wrap { flex:1;background:var(--bg3);border-radius:4px;height:20px;overflow:hidden;position:relative; }
-  .hperf-bar { height:100%;border-radius:4px;transition:width .4s ease; }
+  .hperf-bar { position:absolute;top:0;height:100%;border-radius:4px;transition:width .4s ease,left .4s ease; }
   .hperf-val { width:72px;font-size:12px;font-weight:600;flex-shrink:0; }
   .hperf-bm  { border-left:2px dashed rgba(201,168,76,0.7);position:absolute;top:0;bottom:0; }
+  .hperf-zero{ border-left:1px solid var(--text3);opacity:.45;position:absolute;top:0;bottom:0; }
 
   /* ── Multi-currency cash table ── */
   .cash-multi-table { width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed; }

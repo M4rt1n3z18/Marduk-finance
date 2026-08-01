@@ -399,10 +399,18 @@ async function refreshPrices(silent = false) {
   let fetchedCount = 0;
   try {
     const prices = await window.electronAPI.fetchPrices(tickers);
+    _fxStatus = prices._fx || null; // FX provenance — drives the stale-rate warning
     for (const [ticker, data] of Object.entries(prices)) {
       if (data && data.price) {
         for (const port of allPorts) {
-          port.holdings = (port.holdings||[]).map(h => h.ticker===ticker ? {...h, currentPrice: data.price, dayChangePct: data.dayChangePct ?? null} : h);
+          port.holdings = (port.holdings||[]).map(h => h.ticker===ticker ? {...h,
+            currentPrice: data.price,
+            dayChangePct: data.dayChangePct ?? null,
+            // Which rate produced currentPrice — lets a bad value be diagnosed later
+            currentPriceNative: data.priceNative ?? null,
+            priceCurrency: data.priceCurrency ?? null,
+            fxRateUsed: data.fxRate ?? null
+          } : h);
         }
         fetchedCount++;
       }
@@ -445,6 +453,7 @@ const MARKET_TZ        = 'Europe/Lisbon';
 const MARKET_OPEN_MIN  =  8 * 60;         // 08:00 — Euronext Lisbon / Xetra
 const MARKET_CLOSE_MIN = 21 * 60 + 30;    // 21:30 — after the NYSE close
 
+let _fxStatus = null; // { source, date, stale, ageMs } from the last price fetch
 let _arTimer  = null; // next scheduled price fetch (self-rescheduling timeout)
 let _arTick   = null; // 1-second countdown tick
 let _arNextAt = 0;    // timestamp of next refresh (0 = none scheduled)
@@ -497,14 +506,20 @@ function _updateLiveIndicator() {
   if (!el) return;
   const phase = marketPhase();
 
+  // A stale FX rate outranks the market phase — foreign holdings are being shown
+  // at an old rate, and that's worth more of your attention than the countdown.
+  const fxStale = _fxStatus && _fxStatus.stale;
   const dot = document.getElementById('live-dot');
-  if (dot) dot.style.color = phase === 'open' ? 'var(--up)' : 'var(--text3)';
-  if (el.parentElement) el.parentElement.title =
-    phase === 'open'    ? 'Markets open — next automatic price refresh'
-  : phase === 'quiet'   ? 'Markets closed — refreshing hourly'
-  :                       'Weekend — automatic refresh paused';
+  if (dot) dot.style.color = fxStale ? 'var(--gold)' : (phase === 'open' ? 'var(--up)' : 'var(--text3)');
+  if (el.parentElement) el.parentElement.title = fxStale
+    ? `Exchange rate unavailable — foreign holdings shown at the last known rate`
+      + (_fxStatus.date ? ` (${_fxStatus.source} ${_fxStatus.date})` : '')
+    : phase === 'open'  ? 'Markets open — next automatic price refresh'
+    : phase === 'quiet' ? 'Markets closed — refreshing hourly'
+    :                     'Weekend — automatic refresh paused';
 
-  if (phase === 'weekend') { el.textContent = 'closed'; return; }
+  if (fxStale)             { el.textContent = 'FX stale'; return; }
+  if (phase === 'weekend') { el.textContent = 'closed';   return; }
   const remaining = Math.max(0, Math.round((_arNextAt - Date.now()) / 1000));
   const mins = Math.floor(remaining / 60);
   const secs = String(remaining % 60).padStart(2, '0');

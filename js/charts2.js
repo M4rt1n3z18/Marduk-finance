@@ -220,21 +220,34 @@ async function buildHoldingsPerfChart(preData) {
 
   // Sort: highest return first
   perfs.sort((a, b) => b.ret - a.ret);
-  const maxAbs = Math.max(...perfs.map(p => Math.abs(p.ret)), bmRet ? Math.abs(bmRet) : 0, 1);
 
-  // Render as horizontal bars
-  const bmLinePos = bmRet !== null ? Math.abs(bmRet) / maxAbs * 100 : null;
+  // Diverging scale around a real zero axis. Bar width used to come from
+  // Math.abs(ret), so every bar grew rightward from the left edge and a −22%
+  // loss could reach *past* a +20% benchmark line — reading as if it had beaten
+  // the market. Losses must extend left of zero, gains right of it.
+  const vals    = perfs.map(p => p.ret).concat(bmRet !== null ? [bmRet] : []);
+  const lo      = Math.min(0, ...vals);
+  const hi      = Math.max(0, ...vals);
+  const span    = (hi - lo) || 1;
+  const posOf   = v => (v - lo) / span * 100; // % from the left edge of the track
+  const zeroPos = posOf(0);
+
+  const bmLinePos = bmRet !== null ? posOf(bmRet) : null;
+  // Only worth drawing when zero isn't already the left edge (i.e. some loss exists)
+  const zeroMarker = lo < 0 ? `<div class="hperf-zero" style="left:${zeroPos.toFixed(1)}%;"></div>` : '';
 
   wrap.innerHTML = perfs.map(p => {
-    const pct = Math.abs(p.ret) / maxAbs * 100;
-    const color = p.ret >= 0 ? '#4caf82' : '#e05c5c';
+    const w       = Math.abs(p.ret) / span * 100;
+    const left    = p.ret >= 0 ? zeroPos : zeroPos - w;
+    const color   = p.ret >= 0 ? '#4caf82' : '#e05c5c';
     const textCls = p.ret >= 0 ? 'up-text' : 'down-text';
     const bmMarker = bmLinePos !== null
       ? `<div class="hperf-bm" style="left:${bmLinePos.toFixed(1)}%;"></div>` : '';
     return `<div class="hperf-item">
       <div class="hperf-label">${p.ticker}</div>
       <div class="hperf-bar-wrap">
-        <div class="hperf-bar" style="width:${pct.toFixed(1)}%;background:${color};"></div>
+        <div class="hperf-bar" style="left:${left.toFixed(1)}%;width:${w.toFixed(1)}%;background:${color};"></div>
+        ${zeroMarker}
         ${bmMarker}
       </div>
       <div class="hperf-val ${textCls}">${p.ret >= 0 ? '+' : ''}${p.ret.toFixed(2)}%</div>

@@ -124,6 +124,21 @@ All calls happen in `main.js` (Node process) to avoid CORS. Three layers:
 
 ---
 
+## FX Rates (`main.js`)
+
+Every foreign holding's EUR value depends on this, so it must never guess.
+
+**Source chain** (`getFxRates()`): ECB daily XML → Yahoo `EURUSD=X` → last known good from `userData/marduk-fx.json` → **`null`**. `priceToEur(price, currency, fx)` returns `null` when the rate is unknown, and `fetchYahooQuote` then returns `null` so the holding keeps its previous price. **Never substitute a hardcoded rate** — the original bug was `let eurUsd = 1.08` silently surviving a Yahoo 429, overvaluing every USD position by ~6% with nothing on screen to indicate it.
+
+- ECB is primary: free, no key, no rate limit, all ~30 currencies in one request, and the official rates Portuguese tax reporting uses. Cached 12h (`FX_TTL_MS`; the ECB publishes once daily ~16:00 CET).
+- `priceToEur` handles **`GBp`** (LSE quotes in pence → `/100/GBP`). Before this, only `USD` was converted and anything else passed through as if it were EUR.
+- `fetch-prices` returns a `_fx` key (`{source, date, stale, ageMs}`) alongside the tickers. It has no `.price`, so the renderer's `if (data && data.price)` loop skips it. `actions.js` stores it in `_fxStatus`; a stale rate turns `#live-dot` gold and shows `FX stale`, outranking the market-phase display.
+- Holdings additionally store `currentPriceNative`, `priceCurrency`, `fxRateUsed` — additive audit trail, so a suspect value can be diagnosed instead of guessed at. `currentPrice` remains EUR, so no consumer changed. *(Storing native prices and converting at render time via one helper is the eventual correct design; it touches ~20 call sites.)*
+
+**Gain semantics** — `gain` is **price-only** in both `portfolioStats()` (`charts.js`) and `totalPortfolioStats()` (`state.js`), matching the holdings table's *Total Gain* column; `totalRet`/`totalRetPct` add received dividends. They used to disagree (stat cards added dividends, the table didn't), so the column never summed to the headline. Dividends now appear beside the percentage (`· +€52.12 div`). The Returns sub-tab's *Total Return* column deliberately includes them — different label, different meaning.
+
+**Holdings Performance chart** (`charts2.js`) uses a **diverging scale around a real zero axis** (`lo`/`hi`/`span`/`posOf`). Bar width came from `Math.abs(ret)` with every bar growing from the left edge, so a −22% loss reached past a +20% benchmark line and read as if it had beaten the market. Losses now extend left of zero, gains right; `.hperf-zero` marks the axis when any loss exists.
+
 ## Payslip Parser
 
 **Hybrid strategy** (`main.js` → `parsePayslipHybrid`): if an Anthropic API key is configured, the PDF is parsed by Claude AI (`parsePayslipAI`); on any failure — or with no key — it falls back to the regex parser (`parsePdfAtPath`).

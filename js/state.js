@@ -38,9 +38,11 @@ function totalPortfolioStats() {
   const holdVal = allH.reduce((s,h) => s + (h.currentPrice||h.buyPrice)*h.shares, 0);
   const cost    = allH.reduce((s,h) => s + h.buyPrice*h.shares, 0);
   const divs    = allH.reduce((s,h) => s + Number(h.dividends||0), 0);
-  const gain    = holdVal - cost + divs;
+  const gain    = holdVal - cost;        // price-only, matching the holdings table
+  const totalRet = gain + divs;          // …plus received dividends
   const val     = holdVal + allCash;
-  return { val, holdVal, cost, divs, gain, gainPct: cost ? gain/cost*100 : 0, count: allH.length };
+  return { val, holdVal, cost, divs, gain, gainPct: cost ? gain/cost*100 : 0,
+           totalRet, totalRetPct: cost ? totalRet/cost*100 : 0, count: allH.length };
 }
 
 function save() {

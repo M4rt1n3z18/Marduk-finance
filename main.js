@@ -644,6 +644,75 @@ ipcMain.handle('fetch-fx-rate', async (event, { date, fromCurrency }) => {
   }
 });
 
+// ══════════════ LIVE FX RATE TABLE ══════════════
+// Every foreign holding's EUR value depends on this. It used to be a single
+// Yahoo call for EUR/USD that silently fell back to a hardcoded 1.08 — so a
+// rate-limited request (Yahoo 429s readily) quietly overvalued every USD
+// position by ~6%, with nothing on screen to say so.
+//
+// Source order: ECB → Yahoo → last known good → nothing. A stale *real* rate is
+// a defensible approximation; an invented one is not. If every source fails the
+// price is left un-updated rather than converted at a guess.
+const FX_CACHE_FILE = path.join(app.getPath('userData'), 'marduk-fx.json');
+const FX_TTL_MS     = 12 * 60 * 60 * 1000; // ECB publishes once a day (~16:00 CET)
+const FX_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+let _fxMem = null; // { rates, date, source, fetchedAt, stale }
+
+function _readFxCache() { try { return JSON.parse(fs.readFileSync(FX_CACHE_FILE, 'utf8')); } catch(e) { return null; } }
+function _writeFxCache(o) { try { fs.writeFileSync(FX_CACHE_FILE, JSON.stringify(o)); } catch(e) {} }
+
+// ECB daily reference rates — free, no key, no rate limit, every currency in one
+// request. Also the rates Portuguese tax reporting uses.
+async function _fxFromEcb() {
+  const res = await fetch('https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml', { headers: { 'User-Agent': FX_UA } });
+  if (!res.ok) throw new Error('ECB HTTP ' + res.status);
+  const xml   = await res.text();
+  const rates = { EUR: 1 };
+  for (const m of xml.matchAll(/currency=['"]([A-Z]{3})['"]\s+rate=['"]([\d.]+)['"]/g)) rates[m[1]] = parseFloat(m[2]);
+  if (Object.keys(rates).length < 2) throw new Error('ECB: no rates parsed');
+  return { rates, date: (xml.match(/time=['"]([\d-]+)['"]/) || [])[1] || null, source: 'ECB' };
+}
+
+// Fallback: Yahoo, EUR/USD only (all this app had before)
+async function _fxFromYahoo() {
+  const res = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/EURUSD%3DX?interval=1d&range=1d', { headers: { 'User-Agent': FX_UA } });
+  if (!res.ok) throw new Error('Yahoo FX HTTP ' + res.status);
+  const rate = (await res.json())?.chart?.result?.[0]?.meta?.regularMarketPrice;
+  if (!rate) throw new Error('Yahoo FX: no rate');
+  return { rates: { EUR: 1, USD: rate }, date: new Date().toISOString().slice(0, 10), source: 'Yahoo' };
+}
+
+async function getFxRates() {
+  if (_fxMem && !_fxMem.stale && Date.now() - _fxMem.fetchedAt < FX_TTL_MS) return _fxMem;
+
+  const disk = _readFxCache();
+  if (disk && Date.now() - disk.fetchedAt < FX_TTL_MS) { _fxMem = { ...disk, stale: false }; return _fxMem; }
+
+  for (const src of [_fxFromEcb, _fxFromYahoo]) {
+    try {
+      _fxMem = { ...(await src()), fetchedAt: Date.now(), stale: false };
+      _writeFxCache(_fxMem);
+      return _fxMem;
+    } catch(e) { console.error('FX source failed:', e.message); }
+  }
+
+  const last = disk || _fxMem;                        // last known good, however old
+  if (last) { _fxMem = { ...last, stale: true }; return _fxMem; }
+  return null;                                        // never invent a rate
+}
+
+// Native price → EUR. Returns null when the rate is unknown, so callers can skip
+// the holding instead of showing a wrong number.
+function priceToEur(price, currency, fx) {
+  if (!currency || currency === 'EUR') return price;
+  if (currency === 'GBp') {                            // LSE quotes in pence
+    const gbp = fx?.rates?.GBP;
+    return gbp ? price / 100 / gbp : null;
+  }
+  const rate = fx?.rates?.[currency];
+  return rate ? price / rate : null;
+}
+
 // ── Dividend + earnings data ───────────────────────────────────────────────────
 // Primary source: v7/quote (no auth, handles EU tickers via suffix resolution).
 // Supplement: quoteSummary for calendarEvents (earnings dates, ex-div).
@@ -901,15 +970,8 @@ ipcMain.handle('fetch-history', async (event, { tickers, interval, range }) => {
 ipcMain.handle('fetch-prices', async (event, tickers) => {
   const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-  // 1. Get live EUR/USD rate
-  let eurUsd = 1.08;
-  try {
-    const fxRes = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/EURUSD%3DX?interval=1d&range=1d', { headers: { 'User-Agent': UA } });
-    const fxData = await fxRes.json();
-    eurUsd = fxData?.chart?.result?.[0]?.meta?.regularMarketPrice || 1.08;
-  } catch (e) {
-    console.error('EUR/USD fetch error:', e);
-  }
+  // 1. Live FX table (ECB → Yahoo → last known good → null; never a guess)
+  const fx = await getFxRates();
 
   // Helper: fetch a single Yahoo ticker symbol, return { price, dayChangePct } or null
   async function fetchYahooQuote(symbol) {
@@ -929,8 +991,22 @@ ipcMain.handle('fetch-prices', async (event, tickers) => {
       if (prev > 0) dayChangePct = (meta.regularMarketPrice - prev) / prev * 100;
     }
     if (dayChangePct != null) dayChangePct = Math.round(dayChangePct * 100) / 100;
-    if (meta.currency === 'USD') price = price / eurUsd;
-    return { price: Math.round(price * 100) / 100, dayChangePct };
+
+    // Convert whatever the exchange quotes in — not just USD, which is all this
+    // handled before (a GBP or CHF holding was passed through as if it were EUR).
+    const currency = meta.currency || 'EUR';
+    const eur = priceToEur(price, currency, fx);
+    if (eur == null) return null;   // rate unknown → leave the previous price alone
+
+    return {
+      price: Math.round(eur * 10000) / 10000,
+      dayChangePct,
+      // Audit trail: which rate produced this number, so a wrong value can be
+      // diagnosed after the fact instead of guessed at.
+      priceNative: price,
+      priceCurrency: currency,
+      fxRate: currency === 'EUR' ? 1 : Math.round((price / eur) * 1000000) / 1000000
+    };
   }
 
   // Common European/other exchange suffixes to try when bare ticker fails
@@ -960,6 +1036,11 @@ ipcMain.handle('fetch-prices', async (event, tickers) => {
   for (const [ticker, data] of entries) {
     if (data !== null) result[ticker] = data;
   }
+  // FX provenance for the renderer's staleness indicator. Carries no `.price`,
+  // so the existing `if (data && data.price)` loop skips it harmlessly.
+  result._fx = fx
+    ? { source: fx.source, date: fx.date, stale: !!fx.stale, ageMs: Date.now() - fx.fetchedAt }
+    : { source: null, date: null, stale: true, ageMs: null };
   return result;
 });
 

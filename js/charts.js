@@ -288,9 +288,14 @@ function portfolioStats() {
   const cost    = holdings.reduce((s,h) => s+h.buyPrice*h.shares, 0);
   // h.dividends = actually received dividends (user-tracked), NOT forward estimates
   const divs    = holdings.reduce((s,h) => s+Number(h.dividends||0), 0);
-  const gain    = holdVal - cost + divs; // price gain + received dividends
+  // `gain` is price-only, matching the holdings table's Total Gain column — the
+  // two used to disagree (this added dividends, the table didn't), so the column
+  // never summed to the headline above it. Dividends are surfaced beside it.
+  const gain    = holdVal - cost;
+  const totalRet = gain + divs;          // price gain + received dividends
   const val     = holdVal + cashEur;
-  return { val, holdVal, cost, divs, gain, gainPct: cost ? gain/cost*100 : 0, cash: cashEur };
+  return { val, holdVal, cost, divs, gain, gainPct: cost ? gain/cost*100 : 0,
+           totalRet, totalRetPct: cost ? totalRet/cost*100 : 0, cash: cashEur };
 }
 
 function renderOverview() {
@@ -307,7 +312,8 @@ function renderOverview() {
   document.getElementById('ov-port-sub').textContent = ps.count + ' positions';
   document.getElementById('ov-pnl').textContent = eur(ps.gain);
   document.getElementById('ov-pnl').className = 'stat-val ' + (ps.gain>=0?'up-text':'down-text');
-  document.getElementById('ov-pnl-sub').textContent = pct(ps.gainPct) + ' all-time';
+  document.getElementById('ov-pnl-sub').textContent =
+    pct(ps.gainPct) + (ps.divs > 0 ? ` · +${eur(ps.divs)} div` : ' all-time');
   document.getElementById('ov-pnl-sub').className = 'stat-sub ' + (ps.gain>=0?'up':'down');
   document.getElementById('ov-spent').textContent = eur(spent);
   document.getElementById('ov-spent-sub').textContent = thisMonth.length + ' transactions';
@@ -364,7 +370,10 @@ function renderPortfolio() {
   document.getElementById('p-cost').textContent = eurPort(ps.cost);
   document.getElementById('p-gain').textContent = eurPort(ps.gain);
   document.getElementById('p-gain').className = 'stat-val ' + (ps.gain>=0?'up-text':'down-text');
-  document.getElementById('p-gain-pct').textContent = pct(ps.gainPct);
+  // Dividends shown beside the price gain rather than folded into it, so this
+  // card reconciles with the holdings table's Total Gain column.
+  document.getElementById('p-gain-pct').textContent =
+    pct(ps.gainPct) + (ps.divs > 0 ? ` · +${eurPort(ps.divs)} div` : '');
   document.getElementById('p-gain-pct').className = 'stat-sub ' + (ps.gain>=0?'up':'down');
   document.getElementById('p-count').textContent = (ap().holdings||[]).length;
 
