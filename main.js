@@ -622,6 +622,77 @@ ipcMain.handle('search-tickers', async (event, query) => {
   }
 });
 
+// ══════════════ SYMBOL DIRECTORY ══════════════
+// The renderer's built-in TICKER_DB holds ~314 large caps, so most real
+// portfolios contain symbols it has never heard of — and when Yahoo's live
+// search is rate-limited, autocomplete had nothing to fall back on and looked
+// like "Marduk doesn't know this ticker".
+//
+// NASDAQ Trader publishes the official directory of every US-listed security as
+// plain pipe-delimited text: free, no key, no rate limit, ~13k symbols. Cached
+// on disk and refreshed weekly, so search works offline and instantly.
+const SYMBOLS_FILE = path.join(app.getPath('userData'), 'marduk-symbols.json');
+const SYMBOLS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function _cleanSecurityName(name) {
+  return String(name)
+    // ADR wording varies ("- American Depositary Shares", "American depositary
+    // shares, each representing…"), so cut from the phrase itself, dash or not
+    .replace(/\s*[-,]?\s*American [Dd]epositar(y|ies).*$/i, '')
+    .replace(/\s*-\s*(Common Stock|Class [A-Z] (Common Stock|Ordinary Shares)|Ordinary Shares).*$/i, '')
+    .replace(/\s*(Common Stock|Common Shares)$/i, '')
+    .trim();
+}
+
+// Both files are `header\nrows…\nFile Creation Time: …`
+function _parseSymbolFile(text, symbolCol, nameCol, etfCol, testCol) {
+  const out = [];
+  const lines = text.split('\n').slice(1);
+  for (const line of lines) {
+    if (!line || line.startsWith('File Creation Time')) continue;
+    const f = line.split('|');
+    if (f.length <= Math.max(symbolCol, nameCol, etfCol, testCol)) continue;
+    if (f[testCol] === 'Y') continue;                       // test issues aren't tradable
+    const t = (f[symbolCol] || '').trim();
+    if (!t || /[^A-Z0-9.\-]/.test(t)) continue;
+    out.push({ t, n: _cleanSecurityName(f[nameCol]), c: f[etfCol] === 'Y' ? 'ETF/Fund' : 'Stock' });
+  }
+  return out;
+}
+
+async function buildSymbolDirectory() {
+  const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+  // Plain fetch, not yfetch — this isn't Yahoo, and a failure here must not
+  // trip the Yahoo cooldown.
+  const [nasdaq, other] = await Promise.all([
+    fetch('https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt', { headers: { 'User-Agent': UA } }).then(r => r.text()),
+    fetch('https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt',  { headers: { 'User-Agent': UA } }).then(r => r.text())
+  ]);
+  //                                          symbol name etf test
+  const list = [ ..._parseSymbolFile(nasdaq, 0, 1, 6, 3),
+                 ..._parseSymbolFile(other,  0, 1, 4, 6) ];
+  const seen = new Set();
+  const dedup = list.filter(s => !seen.has(s.t) && seen.add(s.t));
+  if (dedup.length < 1000) throw new Error('symbol directory looks truncated: ' + dedup.length);
+  return dedup;
+}
+
+ipcMain.handle('get-symbol-directory', async () => {
+  try {
+    const cached = JSON.parse(fs.readFileSync(SYMBOLS_FILE, 'utf8'));
+    if (cached && Date.now() - cached.fetchedAt < SYMBOLS_TTL_MS && cached.list?.length) return cached.list;
+  } catch(e) {}
+  try {
+    const list = await buildSymbolDirectory();
+    fs.writeFileSync(SYMBOLS_FILE, JSON.stringify({ fetchedAt: Date.now(), list }));
+    return list;
+  } catch(e) {
+    console.error('symbol directory failed:', e.message);
+    // Stale cache beats nothing
+    try { return JSON.parse(fs.readFileSync(SYMBOLS_FILE, 'utf8')).list || []; } catch(e2) { return []; }
+  }
+});
+
 // ── Historical FX rate for a specific date ────────────────────────────────────
 // Returns how many units of `fromCurrency` = 1 EUR  (e.g. fromCurrency=USD → 1.09)
 ipcMain.handle('fetch-fx-rate', async (event, { date, fromCurrency }) => {

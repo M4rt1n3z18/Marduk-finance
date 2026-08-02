@@ -2,10 +2,21 @@
 let acIndex = -1;
 let acSearchTimer = null;
 
-// Tickers you already own, as autocomplete entries. TICKER_DB holds ~314 large
-// caps, so most real portfolios contain symbols it has never heard of — and when
-// Yahoo's live search is rate-limited the dropdown came up empty, which looked
-// like "Marduk doesn't know this ticker". Whatever you hold is always known.
+// Full directory of US-listed securities (~13k), fetched from NASDAQ Trader by
+// the main process and cached on disk for a week. This is what makes search work
+// for *any* ticker rather than only the ~314 in TICKER_DB or the ones you own —
+// and it works offline, so a Yahoo rate-limit no longer empties the dropdown.
+let SYMBOL_DIR = [];
+
+async function loadSymbolDirectory() {
+  try {
+    const list = await window.electronAPI?.getSymbolDirectory?.();
+    if (Array.isArray(list) && list.length) SYMBOL_DIR = list;
+  } catch(e) { /* built-in DB + owned holdings still cover the common cases */ }
+}
+
+// Tickers you already own, as autocomplete entries — these come first, and they
+// cover non-US listings (Xetra, Euronext) that the US directory doesn't include.
 function ownedTickerEntries() {
   const seen = new Map();
   for (const p of (state.portfolios || [])) {
@@ -41,14 +52,21 @@ function acTicker(input) {
   acIndex = -1;
   if (!q || q.length < 1) { drop.classList.remove('open'); clearTimeout(acSearchTimer); return; }
 
-  // 1. Show local results instantly — your own holdings first, then the built-in DB
-  const pool = [...ownedTickerEntries(), ...TICKER_DB];
+  // 1. Instant local results: your holdings, then the curated DB, then the full
+  //    US directory. Exact-symbol matches rank above name matches so typing
+  //    "NIO" doesn't bury NIO under every company with "nio" in its name.
+  const pool = [...ownedTickerEntries(), ...TICKER_DB, ...SYMBOL_DIR];
   const seen = new Set();
-  const local = pool.filter(x => {
-    if (seen.has(x.t)) return false;
-    if (!(x.t.startsWith(q) || x.n.toUpperCase().includes(q))) return false;
-    seen.add(x.t); return true;
-  }).slice(0, 8);
+  const exact = [], starts = [], byName = [];
+  for (const x of pool) {
+    if (seen.has(x.t)) continue;
+    const T = x.t.toUpperCase();
+    if (T === q)                        { seen.add(x.t); exact.push(x); }
+    else if (T.startsWith(q))           { seen.add(x.t); starts.push(x); }
+    else if (x.n.toUpperCase().includes(q)) { seen.add(x.t); byName.push(x); }
+    if (exact.length + starts.length + byName.length > 60) break;
+  }
+  const local = [...exact, ...starts, ...byName].slice(0, 8);
   renderAcDrop(local, input);
 
   // 2. Debounce live search from Yahoo Finance (fires 400ms after typing stops)

@@ -141,7 +141,14 @@ Every foreign holding's EUR value depends on this, so it must never guess.
 
 **Price staleness** — holdings store `priceUpdatedAt`; `priceAgeBadge()` in `charts.js` marks anything over 24h old in the holdings table.
 
-**Ticker autocomplete** — `TICKER_DB` (~314 large caps in `state.js`) covers only a fraction of a real portfolio, so when live search was rate-limited the dropdown came up empty and looked like "Marduk doesn't know this ticker". `ownedTickerEntries()` in `utils.js` prepends everything you already hold, and a `null` search result renders an explicit *"live search unavailable"* note rather than nothing.
+**Ticker autocomplete** — three local layers before any network call, so search works offline and a Yahoo rate-limit can't empty the dropdown:
+1. `ownedTickerEntries()` (`utils.js`) — everything you hold, incl. non-US listings (`.DE`/`.LS`) the US directory lacks
+2. `TICKER_DB` (~314 curated large caps, `state.js`)
+3. `SYMBOL_DIR` — **~12.7k US-listed symbols** from NASDAQ Trader's public `nasdaqlisted.txt` + `otherlisted.txt` (free, no key, no rate limit). Built by `buildSymbolDirectory()` in `main.js`, cached to `userData/marduk-symbols.json` for 7 days, loaded via IPC `get-symbol-directory`. Test issues filtered; ETF column → asset class; `_cleanSecurityName()` trims "- Common Stock"/ADR boilerplate.
+
+Ranking is exact symbol → prefix → name substring, so typing `NIO` doesn't bury NIO. A `null` from `search-tickers` (rate-limited, vs `[]` for a real miss) renders a *"live search unavailable"* note.
+
+**Polling cadence rationale** — Yahoo's chart endpoint is one request per ticker, so a refresh costs one request *per holding*. 5-minute polling meant ~2,400/day for 15 holdings, which is what got the IP rate-limited. Now 30 min open / 4 h quiet (~85% fewer); commercial trackers update EOD or a few times daily for the same reason. Opening the app always refreshes regardless of phase. The weekend re-check stays hourly — it makes no network call, only re-reads the phase.
 
 **Gain semantics** — `gain` is **price-only** in both `portfolioStats()` (`charts.js`) and `totalPortfolioStats()` (`state.js`), matching the holdings table's *Total Gain* column; `totalRet`/`totalRetPct` add received dividends. They used to disagree (stat cards added dividends, the table didn't), so the column never summed to the headline. Dividends now appear beside the percentage (`· +€52.12 div`). The Returns sub-tab's *Total Return* column deliberately includes them — different label, different meaning.
 

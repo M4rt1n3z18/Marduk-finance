@@ -464,8 +464,17 @@ async function refreshPrices(silent = false) {
 // Xetra open through the US close — instead of per-exchange trading calendars
 // with holidays, which carry a maintenance tail for very little gain. Worst
 // case on a market holiday is a day of polling a closed exchange: harmless.
-const REFRESH_OPEN_MS  =  5 * 60 * 1000;  // exchanges open
-const REFRESH_QUIET_MS = 60 * 60 * 1000;  // weekday, outside trading hours
+// Yahoo's chart endpoint is one request per ticker, so each refresh costs as
+// many requests as you have holdings. At 5-minute polling that was ~2,400/day
+// for 15 holdings — enough to get the IP rate-limited, which then blanked
+// prices, ticker search and company data all at once.
+//
+// Commercial trackers (Snowball and peers) update end-of-day or a few times a
+// day, because for a long-horizon portfolio intraday ticks are noise. 30 min /
+// 4 h cuts this by ~85% and costs nothing you'd notice — and opening the app
+// always refreshes immediately regardless of phase, so what you look at is fresh.
+const REFRESH_OPEN_MS  = 30 * 60 * 1000;  // exchanges open
+const REFRESH_QUIET_MS =  4 * 60 * 60 * 1000;  // weekday, outside trading hours
 const MARKET_TZ        = 'Europe/Lisbon';
 const MARKET_OPEN_MIN  =  8 * 60;         // 08:00 — Euronext Lisbon / Xetra
 const MARKET_CLOSE_MIN = 21 * 60 + 30;    // 21:30 — after the NYSE close
@@ -506,9 +515,9 @@ function _resetAutoRefreshCountdown() {
   const ms = refreshIntervalMs();
 
   if (ms == null) {                    // weekend — idle, but keep checking back
-    _arNextAt = 0;                     // so Monday morning resumes on its own
-    _arTimer = setTimeout(_resetAutoRefreshCountdown, REFRESH_QUIET_MS);
-    return;
+    _arNextAt = 0;                     // so Monday morning resumes promptly.
+    _arTimer = setTimeout(_resetAutoRefreshCountdown, 60 * 60 * 1000); // costs no
+    return;                            // network — it only re-reads the phase
   }
 
   _arNextAt = Date.now() + ms;
@@ -538,6 +547,11 @@ function _updateLiveIndicator() {
   if (fxStale)             { el.textContent = 'FX stale'; return; }
   if (phase === 'weekend') { el.textContent = 'closed';   return; }
   const remaining = Math.max(0, Math.round((_arNextAt - Date.now()) / 1000));
+  if (remaining >= 3600) {             // quiet-hours waits run to 4h — "240:00" is unreadable
+    const h = Math.floor(remaining / 3600), m = Math.floor((remaining % 3600) / 60);
+    el.textContent = `${h}h${m ? ' ' + m + 'm' : ''}`;
+    return;
+  }
   const mins = Math.floor(remaining / 60);
   const secs = String(remaining % 60).padStart(2, '0');
   el.textContent = `${mins}:${secs}`;

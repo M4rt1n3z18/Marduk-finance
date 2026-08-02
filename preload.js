@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Ticker search
   searchTickers: (query) => ipcRenderer.invoke('search-tickers', query),
+  getSymbolDirectory: () => ipcRenderer.invoke('get-symbol-directory'),
 
   // Sector data
   fetchSectors: (tickers) => ipcRenderer.invoke('fetch-sectors', tickers),
