@@ -120,8 +120,20 @@ function toggleHolding(id) {
 
 // Currency symbol helper for display — values are always stored in EUR internally
 const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', GBP: '£', CHF: '₣', BRL: 'R$' };
-// Exchange rates vs EUR (approximate fallbacks — refreshed from Yahoo on price fetch)
+// Units of each currency per 1 EUR. These are seed values only — `syncFxRates()`
+// overwrites them from the main process's live ECB table on startup and after
+// every price refresh. They were previously the *only* values in the renderer,
+// frozen since 2023, so a portfolio displayed in USD was converted at 1.08 while
+// the real rate was 1.1485, and every cash and dividend conversion was off too.
+// Mutated in place (not reassigned) so all existing readers keep working.
 const FX_RATES = { EUR: 1, USD: 1.08, GBP: 0.86, CHF: 0.96, BRL: 5.5 };
+
+async function syncFxRates() {
+  try {
+    const fx = await window.electronAPI?.getFxRates?.();
+    if (fx && fx.rates) { Object.assign(FX_RATES, fx.rates); _fxStatus = { ...(_fxStatus||{}), ...fx }; }
+  } catch(e) { /* keep whatever we already had — never worse than before */ }
+}
 
 function portCurrency() {
   return ap().currency || 'EUR';
@@ -409,7 +421,8 @@ async function refreshPrices(silent = false) {
             // Which rate produced currentPrice — lets a bad value be diagnosed later
             currentPriceNative: data.priceNative ?? null,
             priceCurrency: data.priceCurrency ?? null,
-            fxRateUsed: data.fxRate ?? null
+            fxRateUsed: data.fxRate ?? null,
+            priceUpdatedAt: new Date().toISOString() // so a stale price can look stale
           } : h);
         }
         fetchedCount++;
@@ -421,9 +434,13 @@ async function refreshPrices(silent = false) {
   // Sectors + dividends are handled by autoFetchPortfolioMetadata (has cooldown guard)
   autoFetchPortfolioMetadata();
 
+  await syncFxRates(); // keep the renderer's display/cash/dividend rates current
+
   const ts = new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
   if (fetchedCount === 0 && !silent) {
-    btn.textContent = `↻ No prices fetched`;
+    // Say *why*. A rate-limited fetch is not the same as a bad ticker, and
+    // silently keeping old prices is what made this look like wrong data.
+    btn.textContent = _fxStatus && _fxStatus.rateLimited ? '↻ Rate limited — try later' : '↻ No prices fetched';
     btn.style.color = 'var(--down)';
     setTimeout(() => { btn.textContent = '↻ Refresh Prices'; btn.style.color = ''; }, 5000);
   } else {

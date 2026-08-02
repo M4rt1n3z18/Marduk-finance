@@ -280,6 +280,17 @@ function renderAll() {
   }
 }
 
+// A price that failed to refresh silently keeps its old value. Past a trading
+// day, say so — an out-of-date number that looks current is worse than no number.
+function priceAgeBadge(h) {
+  if (!h.currentPrice) return '';
+  if (!h.priceUpdatedAt) return ' <span title="Price age unknown — refresh to update" style="color:var(--gold);">·</span>';
+  const hours = (Date.now() - new Date(h.priceUpdatedAt).getTime()) / 3600000;
+  if (hours < 24) return '';
+  const label = hours < 48 ? '1d old' : `${Math.floor(hours / 24)}d old`;
+  return ` <span title="Last successful price update: ${new Date(h.priceUpdatedAt).toLocaleString('en-GB')}" style="color:var(--gold);">· ${label}</span>`;
+}
+
 function portfolioStats() {
   const holdings = ap().holdings || [];
   const cashEur  = getCashTotalEur(); // always computed from cashEntries
@@ -458,7 +469,7 @@ function renderHoldingsGeneral() {
           <div style="font-size:11px;color:var(--text3);">${eurPort(h.buyPrice)}/sh</div>
         </td>
         <td style="text-align:right;">
-          ${h.currentPrice ? `<div style="font-weight:600;">${eurPort(val)}</div><div style="font-size:11px;color:var(--text3);">${eurPort(h.currentPrice)}/sh</div>` : '<span class="muted">—</span>'}
+          ${h.currentPrice ? `<div style="font-weight:600;">${eurPort(val)}</div><div style="font-size:11px;color:var(--text3);">${eurPort(h.currentPrice)}/sh${priceAgeBadge(h)}</div>` : '<span class="muted">—</span>'}
         </td>
         <td class="${h.dayChangePct != null && h.currentPrice ? (h.dayChangePct >= 0 ? 'up-text' : 'down-text') : ''}" style="font-weight:600;text-align:right;">
           ${h.dayChangePct != null && h.currentPrice

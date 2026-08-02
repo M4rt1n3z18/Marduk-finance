@@ -2,14 +2,32 @@
 let acIndex = -1;
 let acSearchTimer = null;
 
-function renderAcDrop(matches, input) {
+// Tickers you already own, as autocomplete entries. TICKER_DB holds ~314 large
+// caps, so most real portfolios contain symbols it has never heard of — and when
+// Yahoo's live search is rate-limited the dropdown came up empty, which looked
+// like "Marduk doesn't know this ticker". Whatever you hold is always known.
+function ownedTickerEntries() {
+  const seen = new Map();
+  for (const p of (state.portfolios || [])) {
+    for (const h of (p.holdings || [])) {
+      if (!h.ticker || seen.has(h.ticker)) continue;
+      const known = TICKER_DB.find(x => x.t === h.ticker);
+      seen.set(h.ticker, { t: h.ticker, n: known ? known.n : (h.sector || 'In your portfolio'), c: h.assetClass || 'Stock' });
+    }
+  }
+  return [...seen.values()];
+}
+
+function renderAcDrop(matches, input, note) {
   const drop = document.getElementById('ac-drop');
-  if (!matches.length) { drop.classList.remove('open'); return; }
+  if (!matches.length && !note) { drop.classList.remove('open'); return; }
   drop.innerHTML = matches.map(m =>
     `<div class="ac-item" data-ticker="${m.t}" onmousedown="acSelect('${m.t}','${(m.c||'Stock').replace(/'/g,"\\'")}')">
       <span class="ac-ticker">${m.t}</span><span class="ac-name">${m.n}</span>
     </div>`
-  ).join('');
+  ).join('') + (note
+    ? `<div style="padding:8px 14px;font-size:11px;color:var(--text3);border-top:1px solid var(--border);">${note}</div>`
+    : '');
   const rect = input.getBoundingClientRect();
   drop.style.top = (rect.bottom + 4) + 'px';
   drop.style.left = rect.left + 'px';
@@ -23,10 +41,14 @@ function acTicker(input) {
   acIndex = -1;
   if (!q || q.length < 1) { drop.classList.remove('open'); clearTimeout(acSearchTimer); return; }
 
-  // 1. Show local results instantly
-  const local = TICKER_DB.filter(x =>
-    x.t.startsWith(q) || x.n.toUpperCase().includes(q)
-  ).slice(0, 8);
+  // 1. Show local results instantly — your own holdings first, then the built-in DB
+  const pool = [...ownedTickerEntries(), ...TICKER_DB];
+  const seen = new Set();
+  const local = pool.filter(x => {
+    if (seen.has(x.t)) return false;
+    if (!(x.t.startsWith(q) || x.n.toUpperCase().includes(q))) return false;
+    seen.add(x.t); return true;
+  }).slice(0, 8);
   renderAcDrop(local, input);
 
   // 2. Debounce live search from Yahoo Finance (fires 400ms after typing stops)
@@ -35,12 +57,19 @@ function acTicker(input) {
     if (!window.electronAPI) return;
     try {
       const live = await window.electronAPI.searchTickers(input.value.trim());
-      if (!live || !live.length) return;
+      if (input.value.trim().toUpperCase() !== q) return; // user kept typing
+      // null = rate limited (couldn't ask). [] = asked, genuinely nothing found.
+      if (live === null) {
+        renderAcDrop(local, input, local.length
+          ? 'Live search unavailable — showing known tickers only'
+          : 'Live search rate-limited. Type the exact ticker and continue.');
+        return;
+      }
+      if (!live.length) return;
       // Merge: live results first, then local ones not already in live
       const liveSymbols = new Set(live.map(x => x.t));
       const merged = [...live, ...local.filter(x => !liveSymbols.has(x.t))].slice(0, 10);
-      // Only re-render if the input still has the same value
-      if (input.value.trim().toUpperCase() === q) renderAcDrop(merged, input);
+      renderAcDrop(merged, input);
     } catch(e) {}
   }, 400);
 }

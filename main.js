@@ -592,14 +592,17 @@ ipcMain.handle('fetch-sectors', async (event, tickers) => {
 });
 
 // ── Ticker search via Yahoo Finance autocomplete API ─────────────────────────
+const _searchCache = new Map(); // query → results, so a repeat lookup costs nothing
+
 ipcMain.handle('search-tickers', async (event, query) => {
-  const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+  const key = String(query || '').trim().toUpperCase();
+  if (_searchCache.has(key)) return _searchCache.get(key);
   try {
     const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=8&newsCount=0&listsCount=0`;
-    const res = await fetch(url, { headers: { 'User-Agent': UA } });
+    const res = await yfetch(url);
     const data = await res.json();
     const quotes = data?.quotes || [];
-    return quotes
+    const out = quotes
       .filter(q => q.symbol && q.quoteType)
       .map(q => ({
         t: q.symbol,
@@ -609,8 +612,13 @@ ipcMain.handle('search-tickers', async (event, query) => {
            : q.quoteType === 'MUTUALFUND' ? 'ETF/Fund'
            : 'Stock'
       }));
+    if (out.length) _searchCache.set(key, out);
+    return out;
   } catch (e) {
-    return [];
+    // `null` means "couldn't ask" — distinct from `[]`, "asked, nothing found".
+    // The dropdown used to show an empty list for both, so a rate-limited search
+    // looked identical to an unknown ticker.
+    return (e instanceof RateLimited) ? null : [];
   }
 });
 
@@ -643,6 +651,38 @@ ipcMain.handle('fetch-fx-rate', async (event, { date, fromCurrency }) => {
     return null;
   }
 });
+
+// ══════════════ YAHOO REQUEST DISCIPLINE ══════════════
+// Yahoo rate-limits hard, and the app used to make that worse in two ways:
+//   1. `fetchYahooQuote` couldn't tell "no such ticker" from HTTP 429 — both
+//      returned null — so a rate-limited symbol fell through to probing 13
+//      exchange suffixes. One refused request became 14.
+//   2. Every holding was fetched at once via Promise.all. 15 holdings × 14
+//      attempts ≈ 210 near-simultaneous requests, guaranteeing more 429s.
+// The result looked like "prices are wrong": stale values with nothing on
+// screen to say the fetch had failed.
+class RateLimited extends Error {}
+let _yfCooldownUntil = 0;
+
+async function yfetch(url) {
+  if (Date.now() < _yfCooldownUntil) throw new RateLimited('cooling down');
+  const res = await fetch(url, { headers: { 'User-Agent': FX_UA } });
+  if (res.status === 429) {
+    _yfCooldownUntil = Date.now() + 90 * 1000; // stop asking for a while
+    throw new RateLimited('HTTP 429');
+  }
+  return res;
+}
+
+// Bounded concurrency — a few in flight at a time, never the whole portfolio
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) { const i = next++; out[i] = await fn(items[i], i); }
+  }));
+  return out;
+}
 
 // ══════════════ LIVE FX RATE TABLE ══════════════
 // Every foreign holding's EUR value depends on this. It used to be a single
@@ -700,6 +740,14 @@ async function getFxRates() {
   if (last) { _fxMem = { ...last, stale: true }; return _fxMem; }
   return null;                                        // never invent a rate
 }
+
+// The renderer had its own hardcoded copy of this table (js/actions.js FX_RATES,
+// frozen at USD 1.08) used for display currency, cash and dividend conversion.
+// One source of truth instead.
+ipcMain.handle('get-fx-rates', async () => {
+  const fx = await getFxRates();
+  return fx ? { rates: fx.rates, source: fx.source, date: fx.date, stale: !!fx.stale } : null;
+});
 
 // Native price → EUR. Returns null when the rate is unknown, so callers can skip
 // the holding instead of showing a wrong number.
@@ -975,9 +1023,9 @@ ipcMain.handle('fetch-prices', async (event, tickers) => {
 
   // Helper: fetch a single Yahoo ticker symbol, return { price, dayChangePct } or null
   async function fetchYahooQuote(symbol) {
-    const res  = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`,
-      { headers: { 'User-Agent': UA } }
+    // Throws RateLimited on 429 so the caller can stop instead of probing suffixes
+    const res  = await yfetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`
     );
     const data = await res.json();
     const meta = data?.chart?.result?.[0]?.meta;
@@ -1012,25 +1060,37 @@ ipcMain.handle('fetch-prices', async (event, tickers) => {
   // Common European/other exchange suffixes to try when bare ticker fails
   const EXCHANGE_SUFFIXES = ['.DE', '.LS', '.PA', '.AS', '.MI', '.MC', '.L', '.SW', '.ST', '.CO', '.OL', '.HE', '.BR'];
 
-  // 2. Fetch each ticker in parallel via chart endpoint
-  const entries = await Promise.all(tickers.map(async ticker => {
+  // 2. Fetch tickers a few at a time (not all at once — see RateLimited above)
+  let rateLimited = false;
+  const entries = await mapLimit(tickers, 3, async ticker => {
     try {
-      // Try the ticker as-is first
+      // A previously resolved symbol skips the suffix probe entirely
+      const known = _tickerResolutionCache.get(ticker);
+      if (known) {
+        const hit = await fetchYahooQuote(known);
+        if (hit) return [ticker, hit];
+      }
+
       let result = await fetchYahooQuote(ticker);
       if (result) return [ticker, result];
 
-      // If no result and ticker has no exchange suffix, try common European suffixes
+      // No result and no exchange suffix — try the common European ones.
+      // Only reached on a genuine miss now, never on a rate-limit.
       if (!ticker.includes('.')) {
         for (const suffix of EXCHANGE_SUFFIXES) {
           result = await fetchYahooQuote(ticker + suffix);
-          if (result) return [ticker, result]; // return under original ticker key
+          if (result) {
+            _tickerResolutionCache.set(ticker, ticker + suffix);
+            return [ticker, result]; // return under original ticker key
+          }
         }
       }
     } catch (e) {
-      console.error(`Price fetch error for ${ticker}:`, e);
+      if (e instanceof RateLimited) rateLimited = true;   // keep the previous price
+      else console.error(`Price fetch error for ${ticker}:`, e);
     }
     return [ticker, null];
-  }));
+  });
 
   const result = {};
   for (const [ticker, data] of entries) {
@@ -1039,8 +1099,8 @@ ipcMain.handle('fetch-prices', async (event, tickers) => {
   // FX provenance for the renderer's staleness indicator. Carries no `.price`,
   // so the existing `if (data && data.price)` loop skips it harmlessly.
   result._fx = fx
-    ? { source: fx.source, date: fx.date, stale: !!fx.stale, ageMs: Date.now() - fx.fetchedAt }
-    : { source: null, date: null, stale: true, ageMs: null };
+    ? { source: fx.source, date: fx.date, stale: !!fx.stale, ageMs: Date.now() - fx.fetchedAt, rateLimited }
+    : { source: null, date: null, stale: true, ageMs: null, rateLimited };
   return result;
 });
 

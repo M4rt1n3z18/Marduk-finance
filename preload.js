@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Prices
   fetchPrices:   (tickers) => ipcRenderer.invoke('fetch-prices', tickers),
+  getFxRates:    () => ipcRenderer.invoke('get-fx-rates'),
   fetchHistory:   (params)  => ipcRenderer.invoke('fetch-history', params),
   fetchDividends: (tickers) => ipcRenderer.invoke('fetch-dividends', tickers),
   fetchDividendHistory: (tickers) => ipcRenderer.invoke('fetch-dividend-history', tickers),
