@@ -108,22 +108,33 @@ ipcMain.handle('install-update', async () => {
     try {
       const mountOut = spawnSync('hdiutil', ['attach', global._pendingDmg, '-nobrowse'], { encoding: 'utf8' });
       const mountPoint = mountOut.stdout.trim().split('\n').pop().split('\t').pop().trim();
-      const bundle = '/Applications/MARDUK.app';
-      spawnSync('cp',    ['-Rf', `${mountPoint}/MARDUK.app`, '/Applications/'], { timeout: 30000 });
-      spawnSync('xattr', ['-cr', bundle],                                       { timeout:  5000 });
-      spawnSync('hdiutil', ['detach', mountPoint, '-quiet'],                     { timeout: 10000 });
+
+      // Install over the bundle we are actually running from, not a hardcoded
+      // /Applications path — otherwise an app kept anywhere else updates a
+      // different copy (or none) and then reopens the wrong one.
+      const bundle = process.execPath.split('/Contents/')[0];
+      const parent = path.dirname(bundle);
+
+      spawnSync('cp',    ['-Rf', `${mountPoint}/MARDUK.app`, `${parent}/`], { timeout: 30000 });
+      spawnSync('xattr', ['-cr', bundle],                                    { timeout:  5000 });
+      spawnSync('hdiutil', ['detach', mountPoint, '-quiet'],                  { timeout: 10000 });
 
       // `app.relaunch()` cannot work here: it re-spawns process.execPath, which
       // points inside the bundle `cp -Rf` just overwrote. The old executable is
       // gone, so the app quit and never came back.
       //
-      // Hand the job to a detached shell instead — it outlives this process,
-      // waits for it to exit, then asks LaunchServices to open the *new*
-      // bundle. `open -a` also refreshes the LaunchServices record, which a
-      // raw spawn of the binary would not.
-      spawn('/bin/sh', ['-c', `sleep 2; open -a "${bundle}"`], {
-        detached: true, stdio: 'ignore'
-      }).unref();
+      // A detached shell outlives this process instead, waits for it to exit,
+      // then asks LaunchServices to open the *new* bundle — which also refreshes
+      // its registration, something a raw spawn of the binary would not do.
+      // Retried a few times because `open` refuses while the old instance is
+      // still shutting down, and its output is kept so a failure is diagnosable
+      // rather than just "it didn't come back".
+      const log = path.join(app.getPath('userData'), 'update-relaunch.log');
+      const script =
+        `for i in 1 2 3 4 5; do sleep 2; ` +
+        `open -a "${bundle}" >> "${log}" 2>&1 && exit 0; done; ` +
+        `echo "relaunch failed for ${bundle}" >> "${log}"`;
+      spawn('/bin/sh', ['-c', script], { detached: true, stdio: 'ignore' }).unref();
       app.exit(0);
     } catch(e) { console.error('macOS install failed:', e); }
   } else {

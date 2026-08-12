@@ -7,6 +7,15 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.29',
+    title: 'The reopen fix, for real this time',
+    items: [
+      'Installing this update is the first time the new restart code actually runs — the previous version shipped the fix but could not use it on its own install.',
+      'Updates now also install over wherever you keep Marduk, instead of assuming the Applications folder.',
+      'If it still fails to reopen, it now writes a log so the cause can be found.',
+    ],
+  },
+  {
     v: '1.0.28',
     title: 'Updates now reopen the app',
     items: [
