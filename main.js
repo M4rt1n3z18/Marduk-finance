@@ -69,14 +69,27 @@ async function checkForUpdatesMac() {
         const mod = url.startsWith('https') ? require('https') : require('http');
         mod.get(url, { headers: { 'User-Agent': 'MARDUK-App' } }, res => {
           if (res.statusCode === 301 || res.statusCode === 302) { download(res.headers.location, hops + 1); return; }
+          if (res.statusCode !== 200) return reject(new Error(`download HTTP ${res.statusCode}`));
           const total = parseInt(res.headers['content-length'] || '0');
           let done = 0;
           const file = fs.createWriteStream(dmgPath);
           res.on('data', chunk => {
-            done += chunk.length; file.write(chunk);
+            done += chunk.length;
             if (total > 0 && win) win.webContents.send('update-progress', Math.floor(done / total * 100));
           });
-          res.on('end',   () => { file.end(); resolve(); });
+          // pipe(), not manual write() — this respects backpressure on a 120 MB
+          // file, and `finish` fires once the bytes are actually on disk.
+          // Resolving on the response's `end` handed back a path whose file was
+          // still being flushed, so the installer could mount a partial DMG.
+          res.pipe(file);
+          file.on('finish', () => {
+            if (total > 0 && done !== total) {
+              fs.unlink(dmgPath, () => {});
+              return reject(new Error(`incomplete download (${done}/${total} bytes)`));
+            }
+            resolve();
+          });
+          file.on('error', reject);
           res.on('error', reject);
         }).on('error', reject);
       };
@@ -87,9 +100,19 @@ async function checkForUpdatesMac() {
     if (win) win.webContents.send('update-downloaded');
 
   } catch(e) {
-    console.log('macOS update check (non-fatal):', e.message);
+    // Was console.log only: every failure here — no network, GitHub rate limit,
+    // a truncated download — looked identical to "you are up to date".
+    console.log('macOS update check:', e.message);
+    if (win) win.webContents.send('update-error', e.message || 'Update check failed');
   }
 }
+
+// Manual trigger — the automatic check runs 5s after launch and then every 4h,
+// so a release published while the app was open was invisible until a restart.
+ipcMain.handle('check-for-updates', async () => {
+  if (process.platform === 'darwin') { await checkForUpdatesMac(); return true; }
+  try { await autoUpdater.checkForUpdates(); return true; } catch(e) { return false; }
+});
 
 // ── Windows / Linux: electron-updater ────────────────────────────────────────
 if (process.platform !== 'darwin') {

@@ -7,6 +7,15 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.30',
+    title: 'Updates you can actually ask for',
+    items: [
+      'New: Settings → Check for updates. Marduk only looked for updates when it started and then every four hours, so a new version released while the app was open stayed invisible until you restarted it.',
+      'If an update fails — no internet, a download that cuts out — Marduk now tells you instead of staying silent.',
+      'Fixed a download that could be treated as finished before the file was fully written to disk.',
+    ],
+  },
+  {
     v: '1.0.29',
     title: 'The reopen fix, for real this time',
     items: [

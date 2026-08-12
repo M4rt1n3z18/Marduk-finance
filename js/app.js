@@ -1188,5 +1188,39 @@ async function renderAiSummaryCard() {
     installBtn.style.display  = 'inline-flex';
     banner.style.display      = 'flex';
   });
+
+  // A failed check used to be indistinguishable from "you're up to date"
+  window.electronAPI.onUpdateError?.((text) => {
+    msg.textContent           = `Update failed: ${text}`;
+    pct.textContent           = '';
+    progressBar.style.display = 'none';
+    installBtn.style.display  = 'none';
+    banner.style.display      = 'flex';
+  });
 })();
+
+// Settings → Check for updates. The automatic check runs 5s after launch and
+// then every 4h, so a release published while the app was open stayed invisible
+// until a restart — which is what happened with 1.0.29.
+async function manualUpdateCheck() {
+  const banner = document.getElementById('update-banner');
+  const msg    = document.getElementById('update-msg');
+  if (banner && msg) {
+    msg.textContent = 'Checking for updates…';
+    document.getElementById('update-pct').textContent = '';
+    document.getElementById('update-install-btn').style.display = 'none';
+    document.getElementById('update-progress-bar').style.display = 'none';
+    banner.style.display = 'flex';
+  }
+  await window.electronAPI?.checkForUpdates?.();
+  // If nothing came back within a few seconds, we were already current — the
+  // download path takes over and rewrites the banner when there is an update.
+  const v = await window.electronAPI?.getVersion?.().catch(() => '') || '';
+  setTimeout(() => {
+    if (msg && msg.textContent === 'Checking for updates…') {
+      msg.textContent = v ? `You're on the latest version (${v}).` : "You're on the latest version.";
+      setTimeout(() => { if (banner) banner.style.display = 'none'; }, 4000);
+    }
+  }, 6000);
+}
 
