@@ -464,6 +464,10 @@ function txChangePage(dir) {
 
 let selectedExpenseMonth = null; // "YYYY-MM"
 let expensePage = 0;
+// Selected category filter. Kept in a variable rather than read back out of the
+// DOM — the old code queried a global `.chip.active`, which any other chip row
+// in the app could have answered.
+let expenseCatFilter = 'All';
 const EXPENSES_PER_PAGE = 15;
 
 function secondToLastBusinessDay(year, month) {
@@ -575,9 +579,7 @@ function buildMonthSelector() {
 function onMonthChange() {
   selectedExpenseMonth = document.getElementById('e-month-sel').value;
   expensePage = 0;
-  document.querySelectorAll('#expense-filters .chip').forEach(x => x.classList.remove('active'));
-  const allChip = document.querySelector('#expense-filters .chip');
-  if (allChip) allChip.classList.add('active');
+  expenseCatFilter = 'All';
   renderExpenses();
 }
 
@@ -798,7 +800,7 @@ function renderExpenses() {
   }
 
   // Category filter + search
-  const filter = document.querySelector('.chip.active')?.dataset.cat || 'All';
+  const filter = expenseCatFilter;
   const searchQ = (document.getElementById('e-search')?.value || '').toLowerCase().trim();
   let shown = filter === 'All' ? monthExpenses : monthExpenses.filter(e => e.cat === filter);
   if (searchQ) shown = shown.filter(e => e.desc.toLowerCase().includes(searchQ) || e.cat.toLowerCase().includes(searchQ));
@@ -853,17 +855,30 @@ function renderExpenses() {
     paginEl.innerHTML = sorted.length ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:10px 0;">${sorted.length} entr${sorted.length===1?'y':'ies'}</div>` : '';
   }
 
-  // Category filter chips — always rebuild to reflect dynamic CATS
-  const existing = document.getElementById('expense-filters');
-  const activeFilter = document.querySelector('#expense-filters .chip.active')?.dataset?.cat || 'All';
-  existing.innerHTML = '';
-  ['All', ...CATS].forEach(c => {
-    const btn = document.createElement('button');
-    btn.className = 'chip' + (c === activeFilter ? ' active' : '');
-    btn.dataset.cat = c; btn.textContent = c;
-    btn.onclick = () => { document.querySelectorAll('#expense-filters .chip').forEach(x => x.classList.remove('active')); btn.classList.add('active'); expensePage = 0; renderExpenses(); };
-    existing.appendChild(btn);
-  });
+  // Category filter — a dropdown, not a chip row. Custom categories push the
+  // chips onto a second line and the control grows without bound; a select
+  // stays one row however many categories exist. Counts come from the month
+  // being viewed, so you can see what is worth filtering to before you do.
+  const filterEl = document.getElementById('expense-filters');
+  if (filterEl) {
+    const counts = {};
+    for (const e of monthExpenses) counts[e.cat] = (counts[e.cat] || 0) + 1;
+    if (!['All', ...CATS].includes(expenseCatFilter)) expenseCatFilter = 'All'; // category deleted
+    const opt = c => {
+      const n = c === 'All' ? monthExpenses.length : (counts[c] || 0);
+      return `<option value="${c}"${c === expenseCatFilter ? ' selected' : ''}>${c}${n ? ` (${n})` : ''}</option>`;
+    };
+    filterEl.innerHTML = `
+      <label style="font-size:11px;color:var(--text3);">Category</label>
+      <select id="expense-cat-filter" style="padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;cursor:pointer;max-width:240px;">
+        ${['All', ...CATS].map(opt).join('')}
+      </select>`;
+    document.getElementById('expense-cat-filter').addEventListener('change', e => {
+      expenseCatFilter = e.target.value;
+      expensePage = 0;
+      renderExpenses();
+    });
+  }
 
   // Investment allocation card
   renderAllocations();

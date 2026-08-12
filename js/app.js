@@ -500,9 +500,11 @@ function syncCats() {
   }
   CAT_COLORS = CATS.map((_, i) => CAT_COLORS_PALETTE[i % CAT_COLORS_PALETTE.length]);
   renderCatOptions();
-  // Reset filter chips so they get rebuilt with the new list
-  const chips = document.getElementById('expense-filters');
-  if (chips) chips.innerHTML = '';
+  // Reset the category filter so it rebuilds against the new list — the
+  // selected category may no longer exist.
+  expenseCatFilter = 'All';
+  const filterEl = document.getElementById('expense-filters');
+  if (filterEl) filterEl.innerHTML = '';
 }
 
 function renderCatOptions() {
