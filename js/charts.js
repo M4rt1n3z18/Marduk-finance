@@ -717,38 +717,59 @@ function setPortRange(range, btn) {
   buildPortHistoryChart();
 }
 
-// ── Portfolio sub-views (Overview | Holdings | Dividends | Cash | Transactions) ──
-let portfolioSubTab = 'overview';
+// ══════════════ SUB-VIEWS ══════════════
+// Generic across tabs. Element ids are namespaced `psub-<tab>-<name>` and every
+// query is scoped to the owning tab — Portfolio and Expenses both have an
+// "Overview", so unscoped `#psub-overview` / `.psub-tab` lookups would grab the
+// wrong element and clear the other tab's active state.
+const subTab = { portfolio: 'overview', expenses: 'overview' };
 
-function showPortfolioSub(name, btn) {
-  portfolioSubTab = name;
-  document.querySelectorAll('#tab-portfolio .psub').forEach(d => d.classList.remove('active'));
-  const el = document.getElementById('psub-' + name);
-  if (el) el.classList.add('active');
-  document.querySelectorAll('.psub-tab').forEach(b => b.classList.remove('active'));
-  (btn || document.getElementById('psub-tab-' + name))?.classList.add('active');
+// What to (re)build when a sub-view becomes visible. Chart builders already
+// guard on `offsetParent`, so hidden panes cost nothing.
+const SUB_BUILDERS = {
+  portfolio: {
+    overview:     () => { renderAllocationStats(); buildPortDonut(); buildPnlBar();
+                          buildPortHistoryChart(); buildSectorChart(); buildReturnsCard(); },
+    holdings:     () => renderHoldingsTable(),
+    dividends:    () => refreshDividendsSection(),
+    cash:         () => renderCashTable(),
+    transactions: () => renderTransactions(),
+  },
+  // renderExpenses() is one pass that fills stats, charts, the list and the
+  // allocation history together. Rather than carve up a working 170-line
+  // function, the sub-views just control visibility and re-run it — charts
+  // redraw correctly once their canvas is on screen.
+  expenses: {
+    overview:    () => renderExpenses(),
+    logs:        () => renderExpenses(),
+    allocations: () => renderExpenses(),
+    import:      () => renderImportView(),
+  },
+};
 
-  // Build only what just became visible (chart builders skip hidden canvases)
-  if (name === 'overview') {
-    renderAllocationStats();
-    buildPortDonut(); buildPnlBar(); buildPortHistoryChart(); buildSectorChart();
-    buildReturnsCard();
-  } else if (name === 'holdings') {
-    renderHoldingsTable();
-  } else if (name === 'dividends') {
-    refreshDividendsSection();
-  } else if (name === 'cash') {
-    renderCashTable();
-  } else if (name === 'transactions') {
-    renderTransactions();
-  }
+function showSubView(tab, name, btn) {
+  const root = document.getElementById('tab-' + tab);
+  if (!root) return;
+  subTab[tab] = name;
+
+  root.querySelectorAll('.psub').forEach(d => d.classList.remove('active'));
+  document.getElementById(`psub-${tab}-${name}`)?.classList.add('active');
+
+  root.querySelectorAll('.psub-tab').forEach(b => b.classList.remove('active'));
+  (btn || document.getElementById(`psub-tab-${tab}-${name}`))?.classList.add('active');
+
+  try { SUB_BUILDERS[tab]?.[name]?.(); } catch(e) { console.error(`sub-view ${tab}/${name}:`, e); }
 }
 
-// Nav dropdown entry point: open the Portfolio tab directly on a sub-view
-function navToPortfolioSub(name) {
-  showTab('portfolio', document.getElementById('nav-portfolio-btn'));
-  showPortfolioSub(name);
+// Nav dropdown entry point: open a tab directly on one of its sub-views
+function navToSub(tab, name) {
+  showTab(tab, document.getElementById(`nav-${tab}-btn`));
+  showSubView(tab, name);
 }
+
+// Kept so existing call sites and any saved state keep working
+function showPortfolioSub(name, btn) { showSubView('portfolio', name, btn); }
+function navToPortfolioSub(name)     { navToSub('portfolio', name); }
 
 // Dividends sub-view: analysis + calendar + received log, with fresh data fetch
 function refreshDividendsSection() {

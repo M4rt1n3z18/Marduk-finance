@@ -16,7 +16,9 @@ let state = {
   allocations: [],            // InvestmentAllocation entities (see actions.js)
   unallocatedInvestment: {},  // portfolioId → EUR invested beyond allocated funds
   aiSummaries: {},            // "YYYY-MM" → { text, generatedAt }
-  dividendLog: []             // auto-detected received dividends (see returns.js)
+  dividendLog: [],            // auto-detected received dividends (see returns.js)
+  merchantRules: {},          // normalised merchant → category, learned on import
+  importBatches: []           // statement imports, each undoable as a batch
 };
 
 // ── Active portfolio helper ──────────────────────────────────────────────────

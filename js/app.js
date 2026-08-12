@@ -459,6 +459,7 @@ async function initApp() {
   // once at the seed rate. Cheap: ECB is cached 12h in the main process.
   syncFxRates().then(() => renderAll());
   loadSymbolDirectory(); // ~13k US symbols for offline ticker search (weekly cache)
+  initBankImport();      // statement import drop zone + review wiring
   startAutoRefresh(); // begin market-hours-aware price polling
 
   // Auto-generate this month's AI summary once (no-op without an AI key)

@@ -18,6 +18,7 @@ Personal finance dashboard built with Electron. Syncs data via Google Drive. Dis
 | `js/render.js` | All rendering — overview charts, portfolio table, cash table, expenses list + pagination, budget, net worth |
 | `js/actions.js` | State mutations — add/edit/delete assets, transactions, expenses, budget entries, goals, recurring expenses |
 | `js/salary.js` | Payslip modal (DataSnipper-style) — PDF rendering, click-to-fill, zoom controls, salary state + charts |
+| `js/bankimport.js` | Bank statement import — local spreadsheet parsing, column mapping, merchant learning, duplicate detection, undoable batches |
 
 ---
 
@@ -266,9 +267,25 @@ Tabs: `overview`, `portfolio`, `expenses`, `budget`, `networth`, `goals`, `salar
 
 **Visual conventions**: `font-variant-numeric: tabular-nums` is set on `body` (aligned number columns). No raw emojis in UI — every icon is an inline gold SVG (`stroke="currentColor"`, viewBox 24). Reusable `.info-tip` hover tooltip component for card-title explanations. Every nav button carries an inline SVG icon (stroke `currentColor`, Babylonian motifs: ziggurat, coin stack, tablet, scales, sun-dial circle, target, barley).
 
+## Bank Statement Import (`js/bankimport.js`)
+
+Expenses tab → **Import**. Spreadsheet in, categorised expenses out, **entirely local** — IPC `read-statement` returns the raw grid and every decision happens in the renderer. Nothing is uploaded; only the optional AI category guess would see a merchant string, never the account or balance. `.numbers` is *not* supported (Apple IWA protobuf) — needs the bank's own `.xlsx`/`.xls`/`.csv`.
+
+- **Header detection** — `impDetectLayout()` scans the first 30 rows for a header whose *following* row parses as date + number. CGD prefixes ~8 metadata rows ("Nome cliente", "Período"), so row 1 is not the header. Falls back to inferring from the first data-looking row.
+- **Column mapping** — header-name hints (PT/EN/ES) then heuristics: most-dates = date, most-numeric (excluding date and *Saldo*) = amount, longest text = description. Handles a single signed `Montante` **or** split `Débito`/`Crédito`. User-correctable via `#imp-map-fields`; re-parses live.
+- **Merchant normalisation** — `impMerchant()` strips transaction-type prefixes (`COMPRAS C.DEB`, `Trf`, `Pagamento`…), embedded dates and reference/card/masked digits. **`Mbway` is deliberately kept** — CGD writes `Trf Mbway 961XXX587`, and stripping both leaves nothing. Descriptions are bank-truncated (~22 chars), so `impGuessCategory()` matches on longest common prefix ≥5 chars.
+- **Learning** — `state.merchantRules` (merchant → category) grows from every confirmed import; then your own expense history; then AI for genuinely new merchants. Visible and deletable in the Learned Categories card, because a rule learned wrong must not be invisible.
+- **Duplicates** — `impFingerprint()` = `date|cents|merchant[:24]`, stored on each expense as `importFp`. Overlapping or re-uploaded statements show greyed and unticked. This is the classic silent-corruption failure of statement importers.
+- **Credits** default to `— Ignore —`; `— Investment —` writes an **allocation** rather than an expense, closing the loop with the Investment Allocations engine.
+- **Undo** — every row carries `importBatch`; `state.importBatches` (last 20) lists imports and `impUndoBatch()` removes the whole batch. A bulk write into financial data needs a bulk undo.
+
 ### Portfolio sub-views (Snowball-style)
 
-The Portfolio tab is split into 5 sub-views — only one visible at a time (`.psub` / `.psub.active`, state in `portfolioSubTab`, `showPortfolioSub(name, btn)` in `js/charts.js`):
+**Sub-views are generic across tabs** (`js/charts.js`): `showSubView(tab, name, btn)`, `navToSub(tab, name)`, state in `subTab`, builders in `SUB_BUILDERS[tab][name]`. Element ids are namespaced **`psub-<tab>-<name>`** and every query is scoped to `#tab-<tab>` — Portfolio and Expenses both have an "Overview", so an unscoped `#psub-overview` or `.psub-tab` lookup would hit the wrong element and clear the other tab's active state. `showPortfolioSub`/`navToPortfolioSub` remain as thin wrappers.
+
+**Expenses** has 4: `overview` (stats, salary day, recurring banner, charts) · `logs` (add form, search, filters, table) · `import` (see Bank Statement Import) · `allocations`. The month selector stays global above the sub-bar. All three non-import views call `renderExpenses()` — it is one pass that fills stats, charts, list and allocation history together, and carving up a working 170-line function was not worth the risk.
+
+The Portfolio tab is split into 5 sub-views — only one visible at a time (`.psub` / `.psub.active`):
 
 | Sub-view | Contents |
 |---|---|

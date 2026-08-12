@@ -1644,6 +1644,53 @@ ipcMain.handle('parse-payslip-from-path', async (event, filePath) => {
 });
 
 // ══════════════ XTB EXCEL IMPORT ══════════════
+// ── Bank statement: return the raw grid, nothing more ────────────────────────
+// Read locally and handed to the renderer as-is. Header detection, column
+// mapping and categorising all happen there, where they can be shown and
+// corrected. Nothing is uploaded — a statement never leaves this machine.
+ipcMain.handle('read-statement', async () => {
+  const { filePaths, canceled } = await dialog.showOpenDialog({
+    title: 'Select Bank Statement',
+    filters: [{ name: 'Spreadsheets', extensions: ['xlsx', 'xls', 'csv'] }],
+    properties: ['openFile'],
+  });
+  if (canceled || !filePaths.length) return null;
+  const filePath = filePaths[0];
+  const fileName = path.basename(filePath);
+
+  try {
+    if (/\.csv$/i.test(filePath)) {
+      // Portuguese banks commonly emit ';' with a UTF-8 BOM
+      let text = fs.readFileSync(filePath, 'utf8').replace(/^﻿/, '');
+      const delim = (text.match(/;/g) || []).length > (text.match(/,/g) || []).length ? ';' : ',';
+      const rows = text.split(/\r?\n/).filter(l => l.trim()).map(line => {
+        // quote-aware split on the chosen delimiter
+        const out = []; let cur = '', q = false;
+        for (const ch of line) {
+          if (ch === '"') q = !q;
+          else if (ch === delim && !q) { out.push(cur); cur = ''; }
+          else cur += ch;
+        }
+        out.push(cur);
+        return out.map(c => c.trim());
+      });
+      return { fileName, rows };
+    }
+
+    const XLSX = require('xlsx');
+    const wb = XLSX.readFile(filePath, { cellDates: true, raw: false });
+    // Statements are single-sheet in practice; take the one with the most rows
+    let best = [];
+    for (const name of wb.SheetNames) {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+      if (rows.length > best.length) best = rows;
+    }
+    return { fileName, rows: best.map(r => r.map(c => (c == null ? '' : String(c).trim()))) };
+  } catch (e) {
+    return { fileName, rows: null, error: e.message };
+  }
+});
+
 ipcMain.handle('import-xtb-excel', async () => {
   const { filePaths, canceled } = await dialog.showOpenDialog({
     title: 'Select XTB Export File',

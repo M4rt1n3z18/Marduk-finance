@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // XTB Excel import
   importXtbExcel: () => ipcRenderer.invoke('import-xtb-excel'),
+  readStatement: () => ipcRenderer.invoke('read-statement'),
 
   // Logos (company favicons via Clearbit, from Yahoo assetProfile)
   // Note: logos are now bundled into fetch-sectors response
