@@ -104,6 +104,20 @@ function existingFingerprints() {
   return set;
 }
 
+// Looser index: same day, same amount, any description. The exact fingerprint
+// catches a re-imported statement, but not an expense you typed by hand — you
+// wrote "Grocery run", the bank says "COMPRAS C.DEB CONTINENTE 1234 LIS". Same
+// transaction, no match, silently counted twice. Importing months you already
+// tracked manually is the likeliest case, so it needs its own check.
+function existingByDateAmount() {
+  const m = new Map();
+  for (const e of (state.expenses || [])) {
+    const k = `${e.date}|${Math.round(Math.abs(Number(e.amount)) * 100)}`;
+    if (!m.has(k)) m.set(k, e.desc);
+  }
+  return m;
+}
+
 // ── Learned rules ────────────────────────────────────────────────────────────
 // merchant → category, grown from every confirmed import. Deterministic, free
 // and instant; the AI is only consulted for merchants never seen before.
@@ -201,7 +215,8 @@ function impDetectLayout(grid) {
 
 // ── Build reviewable rows ────────────────────────────────────────────────────
 function impBuildRows(body, map) {
-  const seen = existingFingerprints();
+  const seen  = existingFingerprints();
+  const loose = existingByDateAmount();
   const rows = [];
   for (const r of body) {
     const date = impDate(r[map.date]);
@@ -216,15 +231,19 @@ function impBuildRows(body, map) {
     }
     if (!date || amount == null || amount === 0 || !desc) continue;
 
-    const fp  = impFingerprint(date, amount, desc);
-    const dup = seen.has(fp);
+    const fp   = impFingerprint(date, amount, desc);
+    const dup  = seen.has(fp);
+    const near = dup ? null : loose.get(`${date}|${Math.round(Math.abs(amount) * 100)}`) || null;
     const isCredit = amount > 0;
     const g = isCredit ? { cat: IMP_IGNORE, src: 'credit' } : impGuessCategory(desc);
     rows.push({
       date, desc, amount, fp, dup,
+      near,                                   // description of a same-day, same-amount expense
       merchant: impMerchant(desc),
       cat: g.cat, src: g.src,
-      include: !dup && !isCredit,
+      // Unticked by default when anything looks like a repeat. Double-counting
+      // is worse than re-ticking a row, and the reason is shown either way.
+      include: !dup && !near && !isCredit,
     });
   }
   rows.sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -303,7 +322,10 @@ function impRenderReview() {
     <tr style="${r.dup ? 'opacity:.45;' : ''}">
       <td><input type="checkbox" data-impinc="${i}"${r.include ? ' checked' : ''} style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer;"></td>
       <td class="muted" style="white-space:nowrap;">${r.date}</td>
-      <td>${r.desc}${r.dup ? ' <span style="font-size:10px;color:var(--gold);">already imported</span>' : ''}</td>
+      <td>${r.desc}${
+        r.dup  ? ' <span style="font-size:10px;color:var(--gold);">already imported</span>'
+      : r.near ? ` <span style="font-size:10px;color:var(--gold);" title="You already have an expense for this date and amount">possibly already logged as “${r.near}”</span>`
+      : ''}</td>
       <td style="text-align:right;font-weight:600;" class="${r.amount < 0 ? '' : 'up-text'}">${eur(Math.abs(r.amount))}</td>
       <td>${catSel(r, i)}</td>
       <td class="muted" style="font-size:11px;">${srcLabel[r.src] || ''}</td>
@@ -333,6 +355,7 @@ function impRenderSummary() {
   if (!_impRows) return;
   const inc  = _impRows.filter(r => r.include);
   const dups = _impRows.filter(r => r.dup).length;
+  const near = _impRows.filter(r => r.near && !r.dup).length;
   const need = inc.filter(r => !r.cat).length;
   const sum  = inc.filter(r => r.cat !== IMP_IGNORE && r.cat !== IMP_INVEST)
                   .reduce((s, r) => s + Math.abs(r.amount), 0);
@@ -340,7 +363,8 @@ function impRenderSummary() {
   if (el) el.innerHTML =
     `${_impRows.length} rows · <strong>${inc.length} selected</strong>` +
     (need ? ` · <span style="color:var(--gold);">${need} still need a category</span>` : ' · all categorised') +
-    (dups ? ` · ${dups} already imported` : '');
+    (dups ? ` · ${dups} already imported` : '') +
+    (near ? ` · <span style="color:var(--gold);">${near} possibly already logged by hand</span>` : '');
   const tot = document.getElementById('imp-total');
   if (tot) tot.textContent = `Will add ${eur(sum)} of expenses`;
   const btn = document.getElementById('imp-commit');
