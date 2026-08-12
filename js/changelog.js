@@ -7,6 +7,15 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.31',
+    title: 'A clearer budget tab',
+    items: [
+      'Categories and their limits are now one list instead of a row of name tags followed by a grid of cards showing the same categories again.',
+      'The list is sorted by how much of each limit you have used, so anything close to or over its limit is at the top instead of buried. You can also sort by amount spent, largest limit, or name.',
+      'Each row shows what you spent, what is left, and a bar — and you can change a limit without leaving the row.',
+    ],
+  },
+  {
     v: '1.0.30',
     title: 'Updates you can actually ask for',
     items: [

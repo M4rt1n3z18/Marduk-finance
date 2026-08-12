@@ -1069,6 +1069,10 @@ function renderNetWorth() {
   }).join('') || '<tr><td colspan="4" class="empty">No liabilities.</td></tr>';
 }
 
+// Budget list ordering. Default is "most used" so anything near or past its
+// limit is the first thing you see, rather than whatever you created first.
+let budgetSort = 'used';
+
 function renderBudget() {
   // Init selected budget month
   if (!selectedBudgetMonth) selectedBudgetMonth = getExpenseMonthKey(now.getFullYear(), now.getMonth());
@@ -1174,45 +1178,69 @@ function renderBudget() {
   document.getElementById('budget-total-bar').style.width = totalPct + '%';
   document.getElementById('budget-total-bar').style.background = over?'var(--down)':totalPct>80?'#e0965c':'var(--gold)';
 
-  // Render category chips (display only — delete is on each card)
-  const catsChipsEl = document.getElementById('cats-chips');
-  if (catsChipsEl) {
-    catsChipsEl.innerHTML = CATS.map((c, i) =>
-      `<div style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;font-size:12px;">
-        <span style="width:7px;height:7px;border-radius:50%;background:${CAT_COLORS[i]};flex-shrink:0;display:inline-block;"></span>
-        <span>${c}</span>
-      </div>`
-    ).join('');
-  }
+  // ── Categories & limits ────────────────────────────────────────────────────
+  // One sorted list, replacing a chip row that duplicated the same 14 names and
+  // a card grid that needed a screen and a half to show numbers which fit in
+  // half of one. Ordering is by attention needed, not creation order.
+  const rows = state.budgets.map(b => {
+    const ci    = CATS.indexOf(b.cat);
+    const spent = thisMonth.filter(e => e.cat === b.cat).reduce((s,e) => s + Number(e.amount), 0);
+    const limit = Number(b.limit) || 0;
+    return {
+      cat: b.cat,
+      color: CAT_COLORS[ci >= 0 ? ci : 0],
+      spent, limit,
+      // No limit set sorts last under "most used" rather than pretending to be 0%
+      used: limit > 0 ? spent / limit * 100 : -1,
+      over: limit > 0 && spent > limit,
+    };
+  });
 
-  // Category budget cards
-  document.getElementById('budget-grid').innerHTML = state.budgets.map((b) => {
-    const ci = CATS.indexOf(b.cat);
-    const color = CAT_COLORS[ci >= 0 ? ci : 0];
-    const spent = thisMonth.filter(e=>e.cat===b.cat).reduce((s,e)=>s+Number(e.amount),0);
-    const incPct = totalIncome ? (spent/totalIncome*100).toFixed(1) : null;
-    const usedPct = b.limit ? Math.min(spent/b.limit*100,100) : 0;
-    const isOver = b.limit>0 && spent>b.limit;
-    const barColor = isOver?'var(--down)':usedPct>80?'#e0965c':'var(--up)';
-    return `<div class="card">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-        <div style="width:9px;height:9px;border-radius:50%;background:${color};flex-shrink:0;"></div>
-        <span style="font-size:14px;font-weight:600;flex:1;">${b.cat}</span>
-        ${isOver?'<span style="font-size:11px;color:var(--down);font-weight:700;">OVER</span>':''}
-        <button onclick="delCategory('${b.cat}')" class="del-btn" title="Delete category" style="font-size:15px;opacity:0.5;transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5">✕</button>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-        <span style="font-size:12px;color:var(--text2);">Limit €</span>
-        <input type="number" value="${b.limit||''}" placeholder="0" onchange="setBudget('${b.cat}',this.value)"
-          style="flex:1;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;">
-      </div>
-      <div style="font-size:12px;color:${isOver?'var(--down)':'var(--text2)'};margin-bottom:4px;">
-        ${eur(spent)} spent${b.limit>0?' of '+eur(b.limit):''}
-      </div>
-      ${incPct!==null?`<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">${incPct}% of monthly income</div>`:''}
-      ${b.limit>0?`<div class="prog-wrap"><div class="prog-bar" style="width:${usedPct}%;background:${barColor};"></div></div>`:''}
-    </div>`;
-  }).join('');
+  const sorters = {
+    used:  (a,b) => b.used - a.used,
+    spent: (a,b) => b.spent - a.spent,
+    limit: (a,b) => b.limit - a.limit,
+    name:  (a,b) => a.cat.localeCompare(b.cat),
+  };
+  rows.sort(sorters[budgetSort] || sorters.used);
+
+  const sortSel = document.getElementById('budget-sort');
+  if (sortSel && sortSel.value !== budgetSort) sortSel.value = budgetSort;
+
+  const rowsEl = document.getElementById('budget-rows');
+  if (rowsEl) {
+    rowsEl.innerHTML = rows.map(r => {
+      const pct     = r.limit > 0 ? Math.min(r.spent / r.limit * 100, 100) : 0;
+      const barCol  = r.over ? 'var(--down)' : r.used > 80 ? '#e0965c' : 'var(--up)';
+      const left    = r.limit - r.spent;
+      const incPct  = totalIncome ? (r.spent / totalIncome * 100) : null;
+      return `<div class="budget-row">
+        <span class="budget-dot" style="background:${r.color};"></span>
+        <div class="budget-name">
+          ${r.cat}${r.over ? '<span class="budget-over">OVER</span>' : ''}
+          ${incPct !== null && r.spent > 0 ? `<span class="budget-sub">${incPct.toFixed(1)}% of income</span>` : ''}
+        </div>
+        <div class="budget-spent">
+          <div>${eur(r.spent)}</div>
+          <div class="budget-sub">${r.limit > 0 ? `of ${eur(r.limit)}` : 'no limit'}</div>
+        </div>
+        <div class="budget-left ${r.over ? 'down-text' : ''}">
+          ${r.limit > 0 ? `<div>${eur(Math.abs(left))}</div><div class="budget-sub">${left >= 0 ? 'left' : 'over'}</div>` : ''}
+        </div>
+        <div class="budget-track">
+          ${r.limit > 0 ? `<div class="budget-fill" style="width:${pct}%;background:${barCol};"></div>` : ''}
+        </div>
+        <input type="number" value="${r.limit || ''}" placeholder="—" title="Monthly limit"
+          onchange="setBudget('${r.cat.replace(/'/g,"\\'")}',this.value)" class="budget-limit-input">
+        <button onclick="delCategory('${r.cat.replace(/'/g,"\\'")}')" class="del-btn budget-del" title="Delete category">✕</button>
+      </div>`;
+    }).join('');
+  }
+}
+
+function setBudgetSort(v) {
+  budgetSort = v;
+  renderBudget();
 }
 
 function updateBuyLabel() {

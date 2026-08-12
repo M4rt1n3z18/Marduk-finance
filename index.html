@@ -141,6 +141,35 @@
     box-shadow: 0 10px 36px rgba(0,0,0,0.45); padding: 6px; min-width: 200px;
   }
 
+  /* ── Budget category rows ── */
+  .budget-row {
+    display:grid; align-items:center; gap:12px;
+    grid-template-columns: 9px minmax(120px,1.4fr) 92px 82px minmax(60px,1fr) 78px 22px;
+    padding:9px 0; border-bottom:1px solid var(--border);
+  }
+  .budget-row:last-child { border-bottom:none; }
+  .budget-dot  { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .budget-name { font-size:13px; font-weight:600; display:flex; align-items:baseline; gap:7px; flex-wrap:wrap; }
+  .budget-sub  { font-size:10px; color:var(--text3); font-weight:400; }
+  .budget-over { font-size:9px; font-weight:700; color:var(--down); letter-spacing:.5px; }
+  .budget-spent, .budget-left { font-size:13px; font-weight:600; text-align:right; }
+  .budget-left  { color:var(--text2); }
+  .budget-track { background:var(--bg3); border-radius:4px; height:6px; overflow:hidden; }
+  .budget-fill  { height:100%; border-radius:4px; transition:width .35s ease; }
+  .budget-limit-input {
+    width:78px; padding:6px 8px; background:var(--bg3); border:1px solid var(--border);
+    border-radius:7px; color:var(--text); font-family:Karla,sans-serif; font-size:12px;
+    text-align:right; outline:none;
+  }
+  .budget-limit-input:focus { border-color:var(--gold); }
+  .budget-del { font-size:13px; opacity:.35; transition:opacity .15s; }
+  .budget-del:hover { opacity:1; }
+  /* Below ~720px the bar and the "left" column are the first things to go */
+  @media(max-width:720px){
+    .budget-row { grid-template-columns: 9px minmax(90px,1fr) 84px 70px 22px; }
+    .budget-track, .budget-left { display:none; }
+  }
+
   /* ── Portfolio sub-views ── */
   .psub { display: none; }
   .psub.active { display: block; }
@@ -1989,20 +2018,27 @@
     <div style="font-size:11px;color:var(--text2);margin-top:4px;">Budget limit usage</div>
   </div>
 
-  <!-- Manage categories -->
+  <!-- Categories and their limits — one list, sorted by what needs attention -->
   <div class="card" style="margin-bottom:20px;">
-    <div class="card-title" style="margin-bottom:12px;">Categories</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;flex-wrap:wrap;">
+      <div class="card-title" style="margin:0;flex:1;">Categories &amp; Limits<span class="info-tip">i<span class="tip-body">Sorted by how much of each limit you have used, so anything close to or over its limit is at the top. Click a limit to change it.</span></span></div>
+      <select id="budget-sort" onchange="setBudgetSort(this.value)"
+        style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;outline:none;cursor:pointer;">
+        <option value="used">Sort: most used</option>
+        <option value="spent">Sort: most spent</option>
+        <option value="limit">Sort: largest limit</option>
+        <option value="name">Sort: name</option>
+      </select>
+    </div>
+    <div id="budget-rows"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
       <input id="new-cat-input" placeholder="Add a new category…"
         style="flex:1;min-width:140px;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;transition:border .2s;"
         onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"
         onkeydown="if(event.key==='Enter')addCategory()">
       <button class="btn" onclick="addCategory()">Add</button>
     </div>
-    <div id="cats-chips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
   </div>
-
-  <div id="budget-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;"></div>
 </div>
 
 <!-- ══════════════ GOALS ══════════════ -->
