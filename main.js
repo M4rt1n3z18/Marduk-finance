@@ -103,15 +103,28 @@ if (process.platform !== 'darwin') {
 
 ipcMain.handle('install-update', async () => {
   if (process.platform === 'darwin' && global._pendingDmg) {
-    // macOS: mount DMG → copy app → clear quarantine → relaunch
-    const { spawnSync } = require('child_process');
+    // macOS: mount DMG → copy app → clear quarantine → reopen
+    const { spawnSync, spawn } = require('child_process');
     try {
       const mountOut = spawnSync('hdiutil', ['attach', global._pendingDmg, '-nobrowse'], { encoding: 'utf8' });
       const mountPoint = mountOut.stdout.trim().split('\n').pop().split('\t').pop().trim();
+      const bundle = '/Applications/MARDUK.app';
       spawnSync('cp',    ['-Rf', `${mountPoint}/MARDUK.app`, '/Applications/'], { timeout: 30000 });
-      spawnSync('xattr', ['-cr', '/Applications/MARDUK.app'],                  { timeout:  5000 });
-      spawnSync('hdiutil', ['detach', mountPoint, '-quiet'],                    { timeout: 10000 });
-      app.relaunch(); app.exit(0);
+      spawnSync('xattr', ['-cr', bundle],                                       { timeout:  5000 });
+      spawnSync('hdiutil', ['detach', mountPoint, '-quiet'],                     { timeout: 10000 });
+
+      // `app.relaunch()` cannot work here: it re-spawns process.execPath, which
+      // points inside the bundle `cp -Rf` just overwrote. The old executable is
+      // gone, so the app quit and never came back.
+      //
+      // Hand the job to a detached shell instead — it outlives this process,
+      // waits for it to exit, then asks LaunchServices to open the *new*
+      // bundle. `open -a` also refreshes the LaunchServices record, which a
+      // raw spawn of the binary would not.
+      spawn('/bin/sh', ['-c', `sleep 2; open -a "${bundle}"`], {
+        detached: true, stdio: 'ignore'
+      }).unref();
+      app.exit(0);
     } catch(e) { console.error('macOS install failed:', e); }
   } else {
     autoUpdater.quitAndInstall();

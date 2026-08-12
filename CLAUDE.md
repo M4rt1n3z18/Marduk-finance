@@ -83,6 +83,14 @@ Two different strategies — **macOS cannot use electron-updater** (gets stuck a
 
 **macOS quarantine self-heal**: runs `xattr -cr <app bundle>` on every launch so the "damaged" error never appears.
 
+**macOS restart after update** — `app.relaunch()` **cannot** be used here. It re-spawns `process.execPath`, which points inside the bundle `cp -Rf` has just overwritten, so the app quit and never came back. Instead a detached `/bin/sh -c 'sleep 2; open -a /Applications/MARDUK.app'` is spawned with `.unref()` before `app.exit(0)` — it outlives the process and goes through LaunchServices, which also refreshes the bundle record.
+
+## Changelog (`js/changelog.js`)
+
+`CHANGELOG` is an array of `{v, title, items[]}`, newest first, written in end-user language (no function names, no "refactored"). **`v` on the top entry must match `package.json`** — bump both together.
+
+`maybeShowChangelog()` runs after unlock: compares `app.getVersion()` with `localStorage['marduk_last_seen_version']` and shows `#changelog-modal` once per version. `changelogSince()` compares versions **numerically** via `_vcmp` — index arithmetic in the list got this wrong for anyone updating from a version not listed, and a string sort puts `1.0.9` after `1.0.20`. No stored key = show only the current entry (an existing user updating into this feature, not a fresh install). Also reachable any time from Settings → What's new.
+
 **IPC events** (main → renderer):
 - `update-available` (version string)
 - `update-progress` (0–100)

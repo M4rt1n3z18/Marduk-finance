@@ -460,6 +460,7 @@ async function initApp() {
   syncFxRates().then(() => renderAll());
   loadSymbolDirectory(); // ~13k US symbols for offline ticker search (weekly cache)
   initBankImport();      // statement import drop zone + review wiring
+  maybeShowChangelog();  // "what's new", once per version
   startAutoRefresh(); // begin market-hours-aware price polling
 
   // Auto-generate this month's AI summary once (no-op without an AI key)
