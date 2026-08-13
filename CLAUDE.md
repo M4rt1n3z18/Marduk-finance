@@ -78,7 +78,7 @@ Two different strategies — **macOS cannot use electron-updater** (gets stuck a
 
 | Platform | Strategy |
 |----------|----------|
-| **macOS** | Custom `checkForUpdatesMac()` in `main.js` — GitHub API → download DMG with progress → `hdiutil attach` → `cp -Rf` → `xattr -cr` → `app.relaunch()` |
+| **macOS** | Custom `checkForUpdatesMac()` in `main.js` — GitHub API → download DMG with progress → `hdiutil attach` → `cp -Rf` → `xattr -cr` → detached `open -a` relaunch |
 | **Windows / Linux** | `electron-updater` with `autoDownload: true` |
 
 **macOS quarantine self-heal**: runs `xattr -cr <app bundle>` on every launch so the "damaged" error never appears.
@@ -87,9 +87,9 @@ Two different strategies — **macOS cannot use electron-updater** (gets stuck a
 
 ## Changelog (`js/changelog.js`)
 
-`CHANGELOG` is an array of `{v, title, items[]}`, newest first, written in end-user language (no function names, no "refactored"). **`v` on the top entry must match `package.json`** — bump both together.
+`CHANGELOG` is an array of `{v, title, items[]}`, newest first, written in end-user language: **only what is new**, never a recap of the old behaviour (no function names, no "refactored"). **`v` on the top entry must match `package.json`** — bump both together.
 
-`maybeShowChangelog()` runs after unlock: compares `app.getVersion()` with `localStorage['marduk_last_seen_version']` and shows `#changelog-modal` once per version. `changelogSince()` compares versions **numerically** via `_vcmp` — index arithmetic in the list got this wrong for anyone updating from a version not listed, and a string sort puts `1.0.9` after `1.0.20`. No stored key = show only the current entry (an existing user updating into this feature, not a fresh install). Also reachable any time from Settings → What's new.
+`maybeShowChangelog()` runs after unlock: compares `app.getVersion()` with `localStorage['marduk_last_seen_version']` and shows `#changelog-modal` once per version. `changelogSince()` compares versions **numerically** via `_vcmp` — index arithmetic in the list got this wrong for anyone updating from a version not listed, and a string sort puts `1.0.9` after `1.0.20`. No stored key = show only the current entry (an existing user updating into this feature, not a fresh install). Also reachable any time from Settings → Changelog.
 
 **IPC events** (main → renderer):
 - `update-available` (version string)
