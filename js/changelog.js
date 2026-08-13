@@ -9,6 +9,13 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.38',
+    title: 'Chart spacing',
+    items: [
+      'More space between the donut charts and their legends.',
+    ],
+  },
+  {
     v: '1.0.37',
     title: 'Readable spending breakdown',
     items: [
