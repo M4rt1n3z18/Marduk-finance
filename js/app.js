@@ -1015,12 +1015,21 @@ async function buildPortHistoryChart() {
 // Builds a compact aggregate payload (no raw transactions), sends it to Claude
 // once per month, caches the text in state.aiSummaries. Card lives on Overview.
 
+// Which month the card is showing. Defaults to the current one; the picker in
+// the card header changes it, so past months can be summarised too.
+let aiSummaryMonth = null;
+
+function _aiMonthKey() {
+  return aiSummaryMonth || getExpenseMonthKey(now.getFullYear(), now.getMonth());
+}
+
 function _aiSummaryPayload() {
-  const key = getExpenseMonthKey(now.getFullYear(), now.getMonth());
-  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const key = _aiMonthKey();
+  const [ky, km] = key.split('-').map(Number);
+  const prevDate = new Date(ky, km - 2, 1);
   const prevKey = getExpenseMonthKey(prevDate.getFullYear(), prevDate.getMonth());
 
-  const monthLabel = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const monthLabel = new Date(ky, km - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const monthExp = state.expenses.filter(e => expenseBelongsToMonth(e, key));
   const prevExp = state.expenses.filter(e => expenseBelongsToMonth(e, prevKey));
 
@@ -1056,7 +1065,7 @@ function _aiSummaryPayload() {
 
 async function generateMonthlySummary(force = false) {
   if (!window.electronAPI?.aiMonthlySummary) return;
-  const key = getExpenseMonthKey(now.getFullYear(), now.getMonth());
+  const key = _aiMonthKey();
   if (!state.aiSummaries) state.aiSummaries = {};
 
   // Already generated this month and not forcing → just render
@@ -1087,10 +1096,34 @@ async function generateMonthlySummary(force = false) {
   renderAiSummaryCard();
 }
 
+// Months worth offering: the last 12, so you can look back without scrolling
+// through every month you have ever recorded.
+function _fillAiMonthPicker() {
+  const sel = document.getElementById('ai-summary-month');
+  if (!sel) return;
+  const keys = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    keys.push(getExpenseMonthKey(d.getFullYear(), d.getMonth()));
+  }
+  const cur = _aiMonthKey();
+  sel.innerHTML = keys.map(k => {
+    const [y, m] = k.split('-').map(Number);
+    const label = new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    return `<option value="${k}"${k === cur ? ' selected' : ''}>${label}</option>`;
+  }).join('');
+}
+
+function setAiSummaryMonth(key) {
+  aiSummaryMonth = key;
+  renderAiSummaryCard();
+}
+
 async function renderAiSummaryCard() {
   const card = document.getElementById('ai-summary-card');
   if (!card) return;
-  const key = getExpenseMonthKey(now.getFullYear(), now.getMonth());
+  _fillAiMonthPicker();
+  const key = _aiMonthKey();
   const entry = (state.aiSummaries || {})[key];
 
   if (entry?.text) {

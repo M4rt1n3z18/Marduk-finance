@@ -9,6 +9,15 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.39',
+    title: 'Import options and month picker',
+    items: [
+      'Import: mark a row as \u2014 Cash \u2014 to add it to your portfolio\u2019s uninvested cash.',
+      'Review and Columns cards use the space properly, with centred headers.',
+      'Your Month in Review: pick any of the last 12 months.',
+    ],
+  },
+  {
     v: '1.0.38',
     title: 'Chart spacing',
     items: [

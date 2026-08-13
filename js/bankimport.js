@@ -19,6 +19,7 @@ let _impFile   = '';
 const IMP_IGNORE = '— Ignore —';        // internal transfers, not spending
 const IMP_INVEST = '— Investment —';    // money to the broker: an allocation, not an expense
 const IMP_EXTRA  = '— Extra Income —';  // a credit that is income: feeds the Budget tab's Extra
+const IMP_CASH   = '— Cash —';          // money moved to the broker and sitting there uninvested
 
 // ── Value parsing ────────────────────────────────────────────────────────────
 // European first (1.234,56) then US (1,234.56) — same rules as the payslip parser
@@ -256,7 +257,7 @@ function impCategories() {
   const cats = (state.categories && state.categories.length)
     ? [...state.categories]
     : ['Housing','Food','Transport','Healthcare','Entertainment','Shopping','Utilities','Other'];
-  return [...cats, IMP_EXTRA, IMP_INVEST, IMP_IGNORE];
+  return [...cats, IMP_EXTRA, IMP_CASH, IMP_INVEST, IMP_IGNORE];
 }
 
 // filePath set = file was dragged in; omitted = open the picker
@@ -290,7 +291,7 @@ function impRenderMapping(header) {
                   ['debit','Debit (if split)'], ['credit','Credit (if split)']];
   wrap.innerHTML = fields.map(([k, label]) => `
     <div class="field"><label>${label}</label>
-      <select data-impmap="${k}" style="width:160px;">
+      <select data-impmap="${k}" style="width:100%;">
         <option value="-1"${(_impMap[k] ?? -1) < 0 ? ' selected' : ''}>— none —</option>
         ${opts(_impMap[k])}
       </select>
@@ -314,7 +315,7 @@ function impRenderReview() {
   card.style.display = '';
 
   const cats = impCategories();
-  const catSel = (row, i) => `<select data-improw="${i}" style="padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;">
+  const catSel = (row, i) => `<select data-improw="${i}" style="width:100%;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;">
       <option value=""${!row.cat ? ' selected' : ''}>— choose —</option>
       ${cats.map(c => `<option${c === row.cat ? ' selected' : ''}>${c}</option>`).join('')}
     </select>`;
@@ -326,15 +327,15 @@ function impRenderReview() {
 
   body.innerHTML = _impRows.map((r, i) => `
     <tr style="${r.dup ? 'opacity:.45;' : ''}">
-      <td><input type="checkbox" data-impinc="${i}"${r.include ? ' checked' : ''} style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer;"></td>
-      <td class="muted" style="white-space:nowrap;">${r.date}</td>
+      <td style="text-align:center;"><input type="checkbox" data-impinc="${i}"${r.include ? ' checked' : ''} style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer;"></td>
+      <td class="muted" style="white-space:nowrap;text-align:center;">${r.date}</td>
       <td>${r.desc}${
         r.dup  ? ' <span style="font-size:10px;color:var(--gold);">already imported</span>'
       : r.near ? ` <span style="font-size:10px;color:var(--gold);" title="You already have an expense for this date and amount">possibly already logged as “${r.near}”</span>`
       : ''}</td>
       <td style="text-align:right;font-weight:600;" class="${r.amount < 0 ? '' : 'up-text'}">${eur(Math.abs(r.amount))}</td>
       <td>${catSel(r, i)}</td>
-      <td>${srcBadge(r.src)}</td>
+      <td style="text-align:center;">${srcBadge(r.src)}</td>
     </tr>`).join('');
 
   body.querySelectorAll('select[data-improw]').forEach(sel => {
@@ -363,7 +364,7 @@ function impRenderSummary() {
   const dups = _impRows.filter(r => r.dup).length;
   const near = _impRows.filter(r => r.near && !r.dup).length;
   const need = inc.filter(r => !r.cat).length;
-  const sum  = inc.filter(r => r.cat !== IMP_IGNORE && r.cat !== IMP_INVEST && r.cat !== IMP_EXTRA)
+  const sum  = inc.filter(r => ![IMP_IGNORE, IMP_INVEST, IMP_EXTRA, IMP_CASH].includes(r.cat))
                   .reduce((s, r) => s + Math.abs(r.amount), 0);
   const el = document.getElementById('imp-summary');
   if (el) el.innerHTML =
@@ -383,11 +384,25 @@ function impCommit() {
   const inc = _impRows.filter(r => r.include && r.cat);
   if (!inc.length) return;
   const batch = 'imp_' + Date.now().toString(36);
-  let added = 0, allocated = 0, ignored = 0, extras = 0;
+  let added = 0, allocated = 0, ignored = 0, extras = 0, cashAdded = 0;
+  const cashPort = (typeof ap === 'function' ? ap() : null) || (state.portfolios || [])[0] || null;
 
   for (const r of inc) {
     impLearn(r.merchant, r.cat);                    // learn from every confirmation
     if (r.cat === IMP_IGNORE) { ignored++; continue; }
+    if (r.cat === IMP_CASH) {
+      // Money that reached the broker but is not invested yet — the Cash card
+      // in the Portfolio tab. Always EUR: statement amounts are account currency.
+      if (cashPort) {
+        if (!cashPort.cashEntries) cashPort.cashEntries = [];
+        const eurEntry = cashPort.cashEntries.find(c => c.currency === 'EUR');
+        const amt = parseFloat(Math.abs(r.amount).toFixed(2));
+        if (eurEntry) eurEntry.amount = parseFloat((eurEntry.amount + amt).toFixed(2));
+        else cashPort.cashEntries.push({ currency: 'EUR', amount: amt });
+        cashAdded = parseFloat((cashAdded + amt).toFixed(2));
+      }
+      continue;
+    }
     if (r.cat === IMP_EXTRA) {
       // A credit that is genuinely income — lands in the Budget tab's Extra
       // income list, same shape as logExtra() writes, so it counts toward that
@@ -421,10 +436,13 @@ function impCommit() {
     added++;
   }
 
+  if (cashAdded && cashPort) cashPort.cash = getCashTotalEur();
+
   if (!state.importBatches) state.importBatches = [];
   state.importBatches.unshift({
     id: batch, file: _impFile, at: new Date().toISOString(),
     expenses: added, allocations: allocated, ignored, extras,
+    cash: cashAdded, cashPortfolioId: cashPort ? cashPort.id : null,
   });
   state.importBatches = state.importBatches.slice(0, 20);
 
@@ -434,6 +452,7 @@ function impCommit() {
   renderImportView();
   mardukAlert(`Imported ${added} expense${added === 1 ? '' : 's'}` +
         (extras ? `, ${extras} extra income entr${extras === 1 ? 'y' : 'ies'}` : '') +
+        (cashAdded ? `, ${eur(cashAdded)} to cash` : '') +
         (allocated ? `, ${allocated} investment allocation${allocated === 1 ? '' : 's'}` : '') +
         (ignored ? `, ${ignored} ignored` : '') + '.', 'IMPORT COMPLETE');
 }
@@ -444,10 +463,16 @@ async function impUndoBatch(batchId) {
   if (!await mardukConfirm(`Undo this import?\n\n${b.expenses} expense(s)` +
                (b.allocations ? `, ${b.allocations} allocation(s)` : '') +
                (b.extras ? `, ${b.extras} extra income entr${b.extras === 1 ? 'y' : 'ies'}` : '') +
+               (b.cash ? `, ${eur(b.cash)} of cash` : '') +
                ` from ${b.file} will be removed.`)) return;
   state.expenses     = (state.expenses || []).filter(e => e.importBatch !== batchId);
   state.allocations  = (state.allocations || []).filter(a => a.importBatch !== batchId);
   state.extraIncomes = (state.extraIncomes || []).filter(x => x.importBatch !== batchId);
+  if (b.cash) {
+    const p = (state.portfolios || []).find(x => x.id === b.cashPortfolioId);
+    const e = p && (p.cashEntries || []).find(c => c.currency === 'EUR');
+    if (e) { e.amount = parseFloat(Math.max(0, e.amount - b.cash).toFixed(2)); p.cash = getCashTotalEur(); }
+  }
   state.importBatches = (state.importBatches || []).filter(x => x.id !== batchId);
   save(); renderAll(); renderImportView();
 }
