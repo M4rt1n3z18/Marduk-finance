@@ -1,118 +1,121 @@
 // ══════════════ CHANGELOG ══════════════
-// Shown once, the first time you open Marduk after an update. Written for
-// someone using the app, not someone reading the code — no ticker symbols,
-// no function names, no "refactored". Each line answers "what is different
-// for me now?"
+// Shown once, the first time you open Marduk after an update.
+//
+// Keep every line short and say only what is new. Do NOT describe the old
+// behaviour ("it used to open a picker…") — nobody reads release notes to be
+// told what they already lived through. One line, present tense, what you can
+// do now. No function names, no "refactored".
 //
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
-    v: '1.0.32',
-    title: 'Drag and drop actually works',
+    v: '1.0.33',
+    title: 'Import and changelog tidy-up',
     items: [
-      'Dropping a bank statement onto the import box now imports that file. It used to open a file-picker window and ask you to find the same file again.',
-      'And it opened several windows at once: the import screen was being wired up again every time you unlocked Marduk, so each lock and unlock added another one.',
+      'Dropping a Numbers file now tells you how to export it as CSV.',
+      'These notes are shorter, and this window is called Changelog.',
+    ],
+  },
+  {
+    v: '1.0.32',
+    title: 'Drag and drop',
+    items: [
+      'Dropping a bank statement onto the import box imports that file.',
     ],
   },
   {
     v: '1.0.31',
-    title: 'A clearer budget tab',
+    title: 'Clearer budget tab',
     items: [
-      'Categories and their limits are now one list instead of a row of name tags followed by a grid of cards showing the same categories again.',
-      'The list is sorted by how much of each limit you have used, so anything close to or over its limit is at the top instead of buried. You can also sort by amount spent, largest limit, or name.',
-      'Each row shows what you spent, what is left, and a bar — and you can change a limit without leaving the row.',
+      'Categories and limits are one list, sorted so anything near or over its limit is at the top.',
+      'Each row shows spent, left, a bar, and an editable limit.',
     ],
   },
   {
     v: '1.0.30',
-    title: 'Updates you can actually ask for',
+    title: 'Update controls',
     items: [
-      'New: Settings → Check for updates. Marduk only looked for updates when it started and then every four hours, so a new version released while the app was open stayed invisible until you restarted it.',
-      'If an update fails — no internet, a download that cuts out — Marduk now tells you instead of staying silent.',
-      'Fixed a download that could be treated as finished before the file was fully written to disk.',
+      'Settings → Check for updates.',
+      'Failed updates now say what went wrong.',
     ],
   },
   {
     v: '1.0.29',
-    title: 'The reopen fix, for real this time',
+    title: 'Update install fixes',
     items: [
-      'Installing this update is the first time the new restart code actually runs — the previous version shipped the fix but could not use it on its own install.',
-      'Updates now also install over wherever you keep Marduk, instead of assuming the Applications folder.',
-      'If it still fails to reopen, it now writes a log so the cause can be found.',
+      'Updates install wherever you keep Marduk, not only the Applications folder.',
     ],
   },
   {
     v: '1.0.28',
-    title: 'Updates now reopen the app',
+    title: 'Updates reopen the app',
     items: [
-      'After installing an update, Marduk reopens itself. It used to just close, leaving you to start it again by hand.',
-      'This window: after every update you now get a plain-English summary of what changed.',
+      'Marduk reopens itself after installing an update.',
+      'This window, summarising each update.',
     ],
   },
   {
     v: '1.0.27',
-    title: 'Tidier expense filtering',
+    title: 'Expense filtering',
     items: [
-      'The category filter in Expenses is a dropdown instead of a long row of buttons that wrapped onto two lines, and it shows how many expenses each category has this month.',
+      'The category filter is a dropdown, with a count per category.',
     ],
   },
   {
     v: '1.0.26',
-    title: 'Safer statement imports',
+    title: 'Safer imports',
     items: [
-      'If a transaction in your bank statement looks like one you already typed in by hand, Marduk flags it and leaves it unticked, so importing old months does not count your spending twice.',
+      'Statement rows matching an expense you already entered by hand are flagged and left unticked.',
     ],
   },
   {
     v: '1.0.25',
     title: 'Import expenses from your bank',
     items: [
-      'New: Expenses → Import. Drop in a spreadsheet from your bank and Marduk reads your transactions, so you no longer have to type each one.',
-      'It learns as you go: the categories you pick are remembered, and the next statement fills them in for you.',
-      'Transfers to your broker can be marked as investments, and become an allocation instead of an expense.',
-      'Every import can be undone in one click, and nothing is saved until you confirm.',
-      'Your statement is read on this computer and never uploaded anywhere.',
-      'The Expenses tab is now split into Overview, Logs, Import and Allocations, with a menu when you hover the Expenses button.',
+      'Expenses → Import: drop in a spreadsheet from your bank instead of typing each expense.',
+      'Categories you pick are remembered and filled in automatically next time.',
+      'Transfers to your broker can be logged as investments rather than spending.',
+      'Any import can be undone in one click, and nothing is saved until you confirm.',
+      'Your statement is read on this computer and never uploaded.',
+      'The Expenses tab now has Overview, Logs, Import and Allocations.',
     ],
   },
   {
     v: '1.0.24',
-    title: 'Ticker search that always works',
+    title: 'Ticker search',
     items: [
-      'Searching for a company when adding a holding now covers every US-listed stock and ETF, and works even with no internet.',
-      'Prices refresh less often so the price service stops blocking us. Opening the app still refreshes straight away, so what you look at is always current.',
+      'Search covers every US-listed stock and ETF, and works offline.',
     ],
   },
   {
     v: '1.0.23',
-    title: 'Prices stop going quietly stale',
+    title: 'Reliable prices',
     items: [
-      'Fixed the main reason prices looked wrong: the app was asking for too much at once, getting blocked, and then silently keeping the old numbers.',
-      'Prices older than a day are now marked in the holdings table, so an out-of-date number can no longer look current.',
-      'Fixed a second place where foreign currency was converted at an old fixed rate.',
+      'Prices refresh reliably again.',
+      'Prices over a day old are marked in the holdings table.',
     ],
   },
   {
     v: '1.0.22',
     title: 'Correct exchange rates',
     items: [
-      'Foreign holdings are converted using the official daily European Central Bank rate. If no rate can be fetched, Marduk says so instead of guessing — it used to fall back to an out-of-date fixed rate and overvalue dollar holdings by about 6%.',
-      'Total Gain on the stat card and in the holdings table now agree. Dividends are shown separately rather than folded into one of them.',
-      'The Holdings Performance chart has a proper zero line, so a loss no longer stretches past the benchmark and looks like a win.',
+      'Foreign holdings use the official daily European Central Bank rate, and Marduk says so when no rate is available.',
+      'Total Gain matches between the stat card and the holdings table, with dividends shown separately.',
+      'The Holdings Performance chart has a zero line, so losses read as losses.',
     ],
   },
   {
     v: '1.0.21',
     title: 'Calmer price updates',
     items: [
-      'Prices refresh every 30 minutes while markets are open, more slowly when they are closed, and not at all at weekends. The dot next to the currency selector shows which.',
+      'Prices refresh on a schedule that follows market hours. The dot by the currency selector shows the current state.',
     ],
   },
   {
     v: '1.0.20',
     title: 'Menu fix',
     items: [
-      'The Portfolio menu no longer stays open after you click one of its items.',
+      'The Portfolio menu closes after you click an item.',
     ],
   },
 ];

@@ -1702,8 +1702,17 @@ ipcMain.handle('read-statement', async (event, droppedPath) => {
   // there isn't one. Previously a drop opened the picker, which meant dropping
   // a file asked you to go and find that same file.
   if (filePath) {
-    if (!/\.(xlsx|xls|csv)$/i.test(filePath) || !fs.existsSync(filePath)) {
-      return { fileName: path.basename(filePath), rows: [], error: 'Not a supported spreadsheet (.xlsx, .xls or .csv)' };
+    if (!fs.existsSync(filePath)) {
+      return { fileName: path.basename(filePath), rows: [], error: 'File not found' };
+    }
+    if (!/\.(xlsx|xls|csv)$/i.test(filePath)) {
+      // .numbers is Apple's own protobuf format, not a spreadsheet — and it is
+      // the likeliest wrong file to drop, since opening a bank export in Numbers
+      // and saving produces one. Say what to do, not just what is wrong.
+      const isNumbers = /\.numbers$/i.test(filePath);
+      return { fileName: path.basename(filePath), rows: [], error: isNumbers
+        ? 'Numbers files can\'t be read directly.\n\nIn Numbers: File → Export To → CSV…\nOr use the original .csv / .xlsx your bank gave you — it is often saved in the same folder.'
+        : 'Needs a spreadsheet: .xlsx, .xls or .csv' };
     }
   } else {
     const { filePaths, canceled } = await dialog.showOpenDialog({
