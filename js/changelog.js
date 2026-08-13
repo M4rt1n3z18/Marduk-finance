@@ -9,6 +9,14 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.36',
+    title: 'Allocation charts',
+    items: [
+      'Fixes the Overview allocation chart stacking the ring above its legend.',
+      'Both allocation charts now match: smaller ring, percentages beside their labels, largest slice first.',
+    ],
+  },
+  {
     v: '1.0.35',
     title: 'Import and chart polish',
     items: [

@@ -237,11 +237,13 @@ function buildPortDonut() {
     data: { labels, datasets:[{data, backgroundColor:bgColors, borderWidth:2, borderColor: isDark()?'#13131a':'#ede7d9'}] },
     options: { responsive:true, maintainAspectRatio:true, cutout:'62%', plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+eur(c.raw)}}} }
   });
-  document.getElementById('port-legend').innerHTML = labels.map((l,i) =>
-    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-      <div style="width:10px;height:10px;border-radius:50%;background:${bgColors[i]};flex-shrink:0;"></div>
-      <span style="flex:1;font-size:13px;">${l}</span>
-      <span style="font-size:13px;font-weight:600;">${((data[i]/total)*100).toFixed(1)}%</span>
+  // Largest slice first, so the legend reads in the same order as the ring
+  const pOrder = labels.map((l,i) => i).sort((a,b) => data[b] - data[a]);
+  document.getElementById('port-legend').innerHTML = pOrder.map(i =>
+    `<div style="display:flex;align-items:center;gap:9px;margin-bottom:9px;">
+      <div style="width:9px;height:9px;border-radius:50%;background:${bgColors[i]};flex-shrink:0;"></div>
+      <span style="flex:1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${labels[i]}</span>
+      <span style="font-size:13px;font-weight:700;">${((data[i]/total)*100).toFixed(1)}%</span>
     </div>`
   ).join('');
 }

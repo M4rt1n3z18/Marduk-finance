@@ -1201,11 +1201,12 @@
     </div>
     <div class="card" style="display:flex;flex-direction:column;">
       <div class="card-title">Allocation by Class</div>
-      <!-- Legend is capped and the pair is centred: letting it flex to the full
-           card width pushed the percentages far from their labels. -->
-      <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:26px;flex-wrap:wrap;">
-        <div style="flex-shrink:0;width:168px;height:168px;position:relative;"><canvas id="chart-alloc"></canvas></div>
-        <div id="alloc-legend" style="flex:0 1 210px;max-width:210px;min-width:150px;"></div>
+      <!-- Side by side, same as the Portfolio tab's version. No flex-wrap and no
+           min-width on the legend: this card sits in a narrower grid column, and
+           either one makes it collapse into a stack. -->
+      <div style="flex:1;display:flex;align-items:center;gap:18px;">
+        <div style="flex-shrink:0;width:150px;height:150px;position:relative;"><canvas id="chart-alloc"></canvas></div>
+        <div id="alloc-legend" style="flex:1;min-width:0;max-width:190px;"></div>
       </div>
     </div>
   </div>
@@ -1380,9 +1381,11 @@
   <div class="chart-grid-2" style="margin-bottom:20px;">
     <div class="card" style="display:flex;flex-direction:column;">
       <div class="card-title">Allocation by Asset Class</div>
-      <div style="flex:1;display:flex;align-items:center;gap:20px;min-height:185px;">
-        <div style="flex-shrink:0;width:200px;height:200px;position:relative;"><canvas id="chart-port-donut"></canvas></div>
-        <div id="port-legend" style="flex:1;min-width:0;"></div>
+      <!-- Legend capped so the percentages stay beside their labels rather than
+           being pushed to the far edge of a wide card. -->
+      <div style="flex:1;display:flex;align-items:center;gap:22px;min-height:185px;">
+        <div style="flex-shrink:0;width:170px;height:170px;position:relative;"><canvas id="chart-port-donut"></canvas></div>
+        <div id="port-legend" style="flex:1;min-width:0;max-width:230px;"></div>
       </div>
     </div>
     <div class="card" style="display:flex;flex-direction:column;">
