@@ -30,9 +30,9 @@ async function addHolding() {
   const existing = port.holdings.find(h => h.ticker === ticker);
 
   if (type === 'Sell') {
-    if (!existing) { alert('No existing holding found for ' + ticker + ' to sell.'); return; }
+    if (!existing) { mardukAlert('No existing holding found for ' + ticker + ' to sell.'); return; }
     const newShares = parseFloat((existing.shares - shares).toFixed(6));
-    if (newShares < 0) { alert('Cannot sell more shares than you hold (' + existing.shares + ').'); return; }
+    if (newShares < 0) { mardukAlert('Cannot sell more shares than you hold (' + existing.shares + ').'); return; }
     if (newShares === 0) {
       port.holdings = port.holdings.filter(h => h.ticker !== ticker);
     } else {
@@ -99,11 +99,11 @@ function quickSell(ticker, maxShares) {
   setTimeout(() => sharesInp.focus(), 300);
 }
 
-function delHolding(id) {
+async function delHolding(id) {
   const port = ap();
   const holding = port.holdings.find(h => h.id === id);
   if (!holding) return;
-  if (!confirm(`Remove ${holding.ticker} holding and its transaction history?`)) return;
+  if (!await mardukConfirm(`Remove ${holding.ticker} holding and its transaction history?`)) return;
   port.holdings = port.holdings.filter(h => h.id !== id);
   port.transactions = port.transactions.filter(t => t.ticker !== holding.ticker);
   save(); renderAll();
@@ -720,9 +720,9 @@ function addAllocation() {
   const date = getDateRaw('al-date') || now.toISOString().slice(0, 10);
   const notes = document.getElementById('al-note').value.trim() || null;
 
-  if (isNaN(amount) || amount <= 0) { alert('Enter a valid amount to allocate.'); return; }
+  if (isNaN(amount) || amount <= 0) { mardukAlert('Enter a valid amount to allocate.'); return; }
   if (!portfolioId || !(state.portfolios || []).find(p => p.id === portfolioId)) {
-    alert('Select a target portfolio.'); return;
+    mardukAlert('Select a target portfolio.'); return;
   }
 
   if (!state.allocations) state.allocations = [];
@@ -745,13 +745,13 @@ function addAllocation() {
   showToast(`✓ ${eur(amount)} allocated to ${pname}`);
 }
 
-function delAllocation(id) {
+async function delAllocation(id) {
   const a = (state.allocations || []).find(x => x.id === id);
   if (!a) return;
   const msg = a.amountInvested > 0
     ? `Delete this allocation? ${eur(a.amountInvested)} of it was already marked as invested — that history will be lost.`
     : 'Delete this allocation?';
-  if (!confirm(msg)) return;
+  if (!await mardukConfirm(msg)) return;
   state.allocations = state.allocations.filter(x => x.id !== id);
   save(); renderExpenses(); renderBudget(); renderPortfolio();
 }
@@ -788,13 +788,13 @@ function closeBackupsModal() {
 }
 
 async function restoreBackup(name, date) {
-  if (!confirm(`Restore the backup from ${date}?\n\nYour current data will be replaced with that day's snapshot.`)) return;
+  if (!await mardukConfirm(`Restore the backup from ${date}?\n\nYour current data will be replaced with that day's snapshot.`)) return;
   const content = await window.electronAPI?.readBackup?.(name);
-  if (!content) { alert('Could not read that backup file.'); return; }
+  if (!content) { mardukAlert('Could not read that backup file.'); return; }
   try {
     const parsed = JSON.parse(content);
     if (!Array.isArray(parsed.expenses) && !Array.isArray(parsed.portfolios)) {
-      alert('That backup file does not look like Marduk data.'); return;
+      mardukAlert('That backup file does not look like Marduk data.'); return;
     }
     state = parsed;
     save();
@@ -804,7 +804,7 @@ async function restoreBackup(name, date) {
     closeBackupsModal();
     showToast(`✓ Backup from ${date} restored`);
   } catch (e) {
-    alert('Backup file is corrupted and could not be restored.');
+    mardukAlert('Backup file is corrupted and could not be restored.');
   }
 }
 
@@ -871,20 +871,20 @@ function importData() {
   input.type = 'file'; input.accept = '.json';
   input.onchange = e => {
     const fr = new FileReader();
-    fr.onload = ev => {
+    fr.onload = async ev => {                       // awaits the themed confirm
       try {
         const imported = JSON.parse(ev.target.result);
         const required = ['expenses','assets','liabilities','budgets'];
         const missing = required.filter(k => !Array.isArray(imported[k]));
-        if (missing.length) { alert('Invalid file: missing sections: ' + missing.join(', ')); return; }
+        if (missing.length) { mardukAlert('Invalid file: missing sections: ' + missing.join(', ')); return; }
         if (!Array.isArray(imported.portfolios) && !Array.isArray(imported.holdings)) {
-          alert('Invalid file: missing portfolio data.'); return;
+          mardukAlert('Invalid file: missing portfolio data.'); return;
         }
-        if (!confirm('This will replace ALL current data with the imported file. Are you sure?')) return;
+        if (!await mardukConfirm('This will replace ALL current data with the imported file. Are you sure?')) return;
         state = imported;
         save(); renderAll();
-        alert('Data imported successfully!');
-      } catch(e) { alert('Invalid file: could not read JSON. Make sure you are importing a MARDUK backup file.'); }
+        mardukAlert('Data imported successfully!');
+      } catch(e) { mardukAlert('Invalid file: could not read JSON. Make sure you are importing a MARDUK backup file.'); }
     };
     fr.readAsText(e.target.files[0]);
   };

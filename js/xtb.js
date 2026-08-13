@@ -2,14 +2,14 @@
 // ══════════════ XTB EXCEL IMPORT ══════════════
 async function importXtbExcel() {
   if (!window.electronAPI?.importXtbExcel) {
-    alert('XTB import is only available in the desktop app.');
+    mardukAlert('XTB import is only available in the desktop app.');
     return;
   }
   try {
     const positions = await window.electronAPI.importXtbExcel();
     if (!positions) return; // user cancelled file picker
     if (!positions.length) {
-      alert('No open positions found in that file. Make sure you exported "Open Positions" from XTB.');
+      mardukAlert('No open positions found in that file. Make sure you exported "Open Positions" from XTB.');
       return;
     }
 
@@ -18,7 +18,7 @@ async function importXtbExcel() {
 
     // ── Filter valid positions ─────────────────────────────────────────────
     const validPositions = positions.filter(pos => pos.ticker && pos.shares > 0);
-    if (!validPositions.length) { alert('No valid positions found in that file.'); return; }
+    if (!validPositions.length) { mardukAlert('No valid positions found in that file.'); return; }
 
     // ── Transaction fingerprint for deduplication ──────────────────────────
     // Uses native price (priceOriginal) to avoid FX rounding skew between imports
@@ -44,11 +44,11 @@ async function importXtbExcel() {
 
     if (existingXtb.length > 0) {
       if (newPositions.length === 0) {
-        alert(`All ${validPositions.length} transaction(s) in this file are already imported. Nothing new to add.`);
+        mardukAlert(`All ${validPositions.length} transaction(s) in this file are already imported. Nothing new to add.`);
         return;
       }
       // Primary dialog: Smart Update
-      const doSmartUpdate = confirm(
+      const doSmartUpdate = await mardukConfirm(
         `Smart Update found ${newPositions.length} new transaction(s)` +
         (duplicateCount > 0 ? ` (${duplicateCount} already imported, skipped)` : '') + '.\n\n' +
         'OK → Smart Update: add only the new transactions\n' +
@@ -58,7 +58,7 @@ async function importXtbExcel() {
         importMode = 'smart';
       } else {
         // Secondary dialog: Full Replace or Abort
-        const doReplace = confirm(
+        const doReplace = await mardukConfirm(
           'Full Replace?\n\n' +
           'OK → Clear all existing XTB data and re-import everything from this file\n' +
           'Cancel → Abort — do not import anything'
@@ -211,7 +211,7 @@ async function importXtbExcel() {
               `${duplicateCount && importMode === 'smart' ? `, ${duplicateCount} duplicate${duplicateCount !== 1 ? 's' : ''} skipped` : ''}` +
               `${skipped ? `, ${skipped} invalid skipped` : ''}${fxNote}. Refresh prices to update.`);
   } catch(err) {
-    alert('XTB import failed:\n' + (err?.message || String(err)));
+    mardukAlert('XTB import failed:\n' + (err?.message || String(err)));
   }
 }
 
@@ -302,10 +302,10 @@ function renamePortfolio() {
   });
 }
 
-function deletePortfolio() {
+async function deletePortfolio() {
   if ((state.portfolios||[]).length <= 1) return;
   const port = ap();
-  if (!confirm(`Delete "${port.name}" and all its holdings? This cannot be undone.`)) return;
+  if (!await mardukConfirm(`Delete "${port.name}" and all its holdings? This cannot be undone.`)) return;
   state.portfolios = state.portfolios.filter(p => p.id !== port.id);
   state.activePortfolioId = state.portfolios[0].id;
   save();

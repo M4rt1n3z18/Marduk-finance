@@ -9,6 +9,14 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.34',
+    title: 'Marduk-styled dialogs, Extra Income on import',
+    items: [
+      'Confirmations and messages now use Marduk\u2019s own styling instead of the grey system box.',
+      'Import: mark a credit as \u2014 Extra Income \u2014 and it becomes an Extra income entry in the Budget tab, counting toward that month\u2019s income and savings rate.',
+    ],
+  },
+  {
     v: '1.0.33',
     title: 'Import and changelog tidy-up',
     items: [

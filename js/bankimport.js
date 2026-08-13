@@ -18,6 +18,7 @@ let _impFile   = '';
 
 const IMP_IGNORE = '— Ignore —';        // internal transfers, not spending
 const IMP_INVEST = '— Investment —';    // money to the broker: an allocation, not an expense
+const IMP_EXTRA  = '— Extra Income —';  // a credit that is income: feeds the Budget tab's Extra
 
 // ── Value parsing ────────────────────────────────────────────────────────────
 // European first (1.234,56) then US (1,234.56) — same rules as the payslip parser
@@ -255,22 +256,22 @@ function impCategories() {
   const cats = (state.categories && state.categories.length)
     ? [...state.categories]
     : ['Housing','Food','Transport','Healthcare','Entertainment','Shopping','Utilities','Other'];
-  return [...cats, IMP_INVEST, IMP_IGNORE];
+  return [...cats, IMP_EXTRA, IMP_INVEST, IMP_IGNORE];
 }
 
 // filePath set = file was dragged in; omitted = open the picker
 async function impPickFile(filePath) {
-  if (!window.electronAPI?.readStatement) { alert('File import is unavailable in this build.'); return; }
+  if (!window.electronAPI?.readStatement) { mardukAlert('File import is unavailable in this build.'); return; }
   const res = await window.electronAPI.readStatement(filePath);
   if (!res) return;                                   // cancelled
-  if (!res.rows || !res.rows.length) { alert(`Could not read ${res.fileName}${res.error ? ': ' + res.error : ''}`); return; }
+  if (!res.rows || !res.rows.length) { mardukAlert(`Could not read ${res.fileName}${res.error ? ': ' + res.error : ''}`); return; }
 
   _impFile = res.fileName;
   _impGrid = res.rows;
   const { map, header, body } = impDetectLayout(res.rows);
   _impMap = map;
   if (!body.length || map.date < 0) {
-    alert('No transactions found in that file. Check it is an account-movements export.');
+    mardukAlert('No transactions found in that file. Check it is an account-movements export.');
     return;
   }
   _impRows = impBuildRows(body, map);
@@ -358,7 +359,7 @@ function impRenderSummary() {
   const dups = _impRows.filter(r => r.dup).length;
   const near = _impRows.filter(r => r.near && !r.dup).length;
   const need = inc.filter(r => !r.cat).length;
-  const sum  = inc.filter(r => r.cat !== IMP_IGNORE && r.cat !== IMP_INVEST)
+  const sum  = inc.filter(r => r.cat !== IMP_IGNORE && r.cat !== IMP_INVEST && r.cat !== IMP_EXTRA)
                   .reduce((s, r) => s + Math.abs(r.amount), 0);
   const el = document.getElementById('imp-summary');
   if (el) el.innerHTML =
@@ -378,11 +379,23 @@ function impCommit() {
   const inc = _impRows.filter(r => r.include && r.cat);
   if (!inc.length) return;
   const batch = 'imp_' + Date.now().toString(36);
-  let added = 0, allocated = 0, ignored = 0;
+  let added = 0, allocated = 0, ignored = 0, extras = 0;
 
   for (const r of inc) {
     impLearn(r.merchant, r.cat);                    // learn from every confirmation
     if (r.cat === IMP_IGNORE) { ignored++; continue; }
+    if (r.cat === IMP_EXTRA) {
+      // A credit that is genuinely income — lands in the Budget tab's Extra
+      // income list, same shape as logExtra() writes, so it counts toward that
+      // month's income and savings rate instead of becoming a negative expense.
+      if (!state.extraIncomes) state.extraIncomes = [];
+      state.extraIncomes.push({
+        id: uid(), desc: r.desc, amount: Math.abs(r.amount),
+        date: r.date, month: r.date.slice(0, 7), importBatch: batch,
+      });
+      extras++;
+      continue;
+    }
     if (r.cat === IMP_INVEST) {
       // Money moved to the broker is an allocation, not spending
       const pid = (state.portfolios || [])[0]?.id;
@@ -407,7 +420,7 @@ function impCommit() {
   if (!state.importBatches) state.importBatches = [];
   state.importBatches.unshift({
     id: batch, file: _impFile, at: new Date().toISOString(),
-    expenses: added, allocations: allocated, ignored,
+    expenses: added, allocations: allocated, ignored, extras,
   });
   state.importBatches = state.importBatches.slice(0, 20);
 
@@ -415,19 +428,22 @@ function impCommit() {
   impReset();
   renderAll();
   renderImportView();
-  alert(`Imported ${added} expense${added === 1 ? '' : 's'}` +
+  mardukAlert(`Imported ${added} expense${added === 1 ? '' : 's'}` +
+        (extras ? `, ${extras} extra income entr${extras === 1 ? 'y' : 'ies'}` : '') +
         (allocated ? `, ${allocated} investment allocation${allocated === 1 ? '' : 's'}` : '') +
-        (ignored ? `, ${ignored} ignored` : '') + '.');
+        (ignored ? `, ${ignored} ignored` : '') + '.', 'IMPORT COMPLETE');
 }
 
-function impUndoBatch(batchId) {
+async function impUndoBatch(batchId) {
   const b = (state.importBatches || []).find(x => x.id === batchId);
   if (!b) return;
-  if (!confirm(`Undo this import?\n\n${b.expenses} expense(s)` +
-               (b.allocations ? ` and ${b.allocations} allocation(s)` : '') +
+  if (!await mardukConfirm(`Undo this import?\n\n${b.expenses} expense(s)` +
+               (b.allocations ? `, ${b.allocations} allocation(s)` : '') +
+               (b.extras ? `, ${b.extras} extra income entr${b.extras === 1 ? 'y' : 'ies'}` : '') +
                ` from ${b.file} will be removed.`)) return;
-  state.expenses    = (state.expenses || []).filter(e => e.importBatch !== batchId);
-  state.allocations = (state.allocations || []).filter(a => a.importBatch !== batchId);
+  state.expenses     = (state.expenses || []).filter(e => e.importBatch !== batchId);
+  state.allocations  = (state.allocations || []).filter(a => a.importBatch !== batchId);
+  state.extraIncomes = (state.extraIncomes || []).filter(x => x.importBatch !== batchId);
   state.importBatches = (state.importBatches || []).filter(x => x.id !== batchId);
   save(); renderAll(); renderImportView();
 }
@@ -501,7 +517,7 @@ function initBankImport() {
       const f = e.dataTransfer?.files?.[0];
       const p = f && (f.path || window.electronAPI?.getPathForFile?.(f));
       if (p) impPickFile(p);
-      else if (f) alert(`Could not read the path for "${f.name}". Click the box to choose it instead.`);
+      else if (f) mardukAlert(`Could not read the path for "${f.name}". Click the box to choose it instead.`);
       else impPickFile();
     });
   }

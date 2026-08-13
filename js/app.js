@@ -527,12 +527,12 @@ function addCategory() {
   save(); renderBudget(); renderExpenses();
 }
 
-function delCategory(cat) {
+async function delCategory(cat) {
   const expenseCount = state.expenses.filter(e => e.cat === cat).length;
   const msg = expenseCount > 0
     ? `Delete "${cat}"? It has ${expenseCount} expense${expenseCount > 1 ? 's' : ''} — they will keep the label but won't show in budget. Continue?`
     : `Delete category "${cat}"?`;
-  if (!confirm(msg)) return;
+  if (!await mardukConfirm(msg)) return;
   state.categories = (state.categories || CATS).filter(c => c !== cat);
   state.budgets = state.budgets.filter(b => b.cat !== cat);
   syncCats();

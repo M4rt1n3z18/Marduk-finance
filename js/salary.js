@@ -1,13 +1,13 @@
 // ══════════════ SALARY ══════════════
 
 async function importPayslip() {
-  if (!window.electronAPI?.parsePayslip) { alert('PDF import requires the desktop app.'); return; }
+  if (!window.electronAPI?.parsePayslip) { mardukAlert('PDF import requires the desktop app.'); return; }
   try {
     const raw = await window.electronAPI.parsePayslip();
     const confirmed = await showPayslipModal(raw);
     if (confirmed) await processParsedPayslip(confirmed);
   } catch (err) {
-    alert('Could not read payslip:\n' + (err?.message || err));
+    mardukAlert('Could not read payslip:\n' + (err?.message || err));
   }
 }
 
@@ -40,12 +40,12 @@ async function saveAiKey() {
     showToast('✓ AI key saved — payslips will now be parsed with Claude');
     closeAiSettings();
   } else {
-    alert(res?.error || 'Could not save the key.');
+    mardukAlert(res?.error || 'Could not save the key.');
   }
 }
 
 async function removeAiKey() {
-  if (!confirm('Remove the AI key? Payslip parsing will fall back to the built-in pattern parser.')) return;
+  if (!await mardukConfirm('Remove the AI key? Payslip parsing will fall back to the built-in pattern parser.')) return;
   await window.electronAPI.clearAiKey();
   showToast('AI key removed');
   closeAiSettings();
@@ -272,13 +272,13 @@ function showPayslipModal(data) {
 async function processParsedPayslip(data) {
   if (!data) return;
   if (!data.period || data.period.includes('NaN')) {
-    alert('Could not determine the payslip period. Please check the Month and Year fields.');
+    mardukAlert('Could not determine the payslip period. Please check the Month and Year fields.');
     return;
   }
   if (!state.payslips) state.payslips = [];
   const existing = state.payslips.find(p => p.period === data.period);
   if (existing) {
-    if (!confirm(`A payslip for ${data.periodLabel} already exists. Replace it?`)) return;
+    if (!await mardukConfirm(`A payslip for ${data.periodLabel} already exists. Replace it?`)) return;
     state.payslips = state.payslips.filter(p => p.period !== data.period);
   }
   data.id = uid();
@@ -346,21 +346,21 @@ function initSalaryDropZone() {
     e.preventDefault(); dragCounter = 0; zone.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.pdf')) { alert('Please drop a PDF file.'); return; }
+    if (!file.name.toLowerCase().endsWith('.pdf')) { mardukAlert('Please drop a PDF file.'); return; }
     const filePath = file.path;   // Electron adds .path to File objects
-    if (!filePath) { alert('Could not read file path. Please use the Import button instead.'); return; }
+    if (!filePath) { mardukAlert('Could not read file path. Please use the Import button instead.'); return; }
     try {
       const raw = await window.electronAPI?.parsePayslipFromPath(filePath);
       const confirmed = await showPayslipModal(raw);
       if (confirmed) await processParsedPayslip(confirmed);
     } catch (err) {
-      alert('Could not read payslip:\n' + (err?.message || err));
+      mardukAlert('Could not read payslip:\n' + (err?.message || err));
     }
   });
 }
 
-function delPayslip(id) {
-  if (!confirm('Remove this payslip?')) return;
+async function delPayslip(id) {
+  if (!await mardukConfirm('Remove this payslip?')) return;
   state.payslips = (state.payslips || []).filter(p => p.id !== id);
   save(); renderSalary(); buildSalaryCharts();
 }

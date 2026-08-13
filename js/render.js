@@ -643,8 +643,8 @@ function logSalary() {
   save(); renderBudget(); renderExpenses();
 }
 
-function clearSalary() {
-  if (!confirm('Remove the salary entry for this month?')) return;
+async function clearSalary() {
+  if (!await mardukConfirm('Remove the salary entry for this month?')) return;
   const key = selectedBudgetMonth || getExpenseMonthKey(now.getFullYear(), now.getMonth());
   state.salaries = state.salaries.filter(s => s.month !== key);
   save(); renderBudget(); renderExpenses();

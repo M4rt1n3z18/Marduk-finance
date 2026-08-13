@@ -884,6 +884,21 @@
 </div>
 
 <!-- ── Backups Modal ── -->
+<!-- Themed replacement for native alert()/confirm() -->
+<div id="dlg-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10050;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:440px;max-width:90vw;box-shadow:0 8px 48px rgba(0,0,0,0.6);overflow:hidden;">
+    <div style="padding:22px 26px 0;display:flex;align-items:center;gap:9px;">
+      <svg id="dlg-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="color:var(--gold);flex-shrink:0;"><path d="M12 2.6l2.6 5.6 6.1.8-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 9l6.1-.8z"/></svg>
+      <span id="dlg-title" style="font-family:'Cinzel',serif;font-size:13px;letter-spacing:2px;color:var(--gold);">MARDUK</span>
+    </div>
+    <div id="dlg-body" style="padding:12px 26px 22px;font-size:13px;line-height:1.6;color:var(--text2);white-space:pre-wrap;"></div>
+    <div style="padding:0 26px 22px;display:flex;justify-content:flex-end;gap:9px;">
+      <button id="dlg-cancel" class="btn-ghost" style="font-size:12px;display:none;">Cancel</button>
+      <button id="dlg-ok" class="btn" style="font-size:12px;">OK</button>
+    </div>
+  </div>
+</div>
+
 <!-- Changelog — shown once after an update -->
 <div id="changelog-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10002;align-items:center;justify-content:center;">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:560px;max-width:92vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
@@ -2207,6 +2222,7 @@
 <script src="js/charts2.js"></script>
 <script src="js/xtb.js"></script>
 <script src="js/bankimport.js"></script>
+<script src="js/dialog.js"></script>
 <script src="js/changelog.js"></script>
 <script src="js/calendar.js"></script>
 <div id="marduk-toast"></div>
