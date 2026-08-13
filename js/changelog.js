@@ -9,6 +9,14 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.35',
+    title: 'Import and chart polish',
+    items: [
+      'In the import review, where a category came from is now a coloured badge \u2014 green when Marduk already knew the merchant, gold when it needs your decision, blue for credits.',
+      'Allocation by Class: bigger ring, and the percentages sit beside their labels instead of across the card. Largest slice first.',
+    ],
+  },
+  {
     v: '1.0.34',
     title: 'Marduk-styled dialogs, Extra Income on import',
     items: [

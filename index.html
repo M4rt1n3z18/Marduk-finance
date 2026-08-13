@@ -350,6 +350,21 @@
   .badge.buy { background: rgba(76,175,130,0.15); color: var(--up); }
   .badge.sell { background: rgba(224,92,92,0.15); color: var(--down); }
 
+  /* Where an import row's category came from. Same visual language as the
+     asset-class badge: tinted fill, matching border, readable size. Green =
+     Marduk already knew it, gold = needs your attention, blue = income. */
+  .src-badge {
+    display:inline-block; padding:5px 11px; border-radius:8px;
+    font-size:12px; font-weight:600; line-height:1; white-space:nowrap;
+    border:1px solid transparent;
+  }
+  .src-learned { background:rgba(76,175,130,0.14); color:var(--up);   border-color:rgba(76,175,130,0.35); }
+  .src-history { background:rgba(76,175,130,0.09); color:var(--up);   border-color:rgba(76,175,130,0.22); }
+  .src-new     { background:rgba(201,168,76,0.16); color:var(--gold); border-color:rgba(201,168,76,0.42); }
+  .src-credit  { background:rgba(76,130,175,0.14); color:#4c8aaf;     border-color:rgba(76,130,175,0.35); }
+  .src-manual  { background:rgba(140,140,150,0.13); color:var(--text3); border-color:rgba(140,140,150,0.3); }
+  .src-ai      { background:rgba(120,100,220,0.14); color:#9b87f5;   border-color:rgba(120,100,220,0.35); }
+
   /* ── Progress bar ── */
   .prog-wrap { height: 6px; background: var(--bg4); border-radius: 3px; overflow: hidden; margin-top: 6px; }
   .prog-bar { height: 100%; border-radius: 3px; transition: width .5s; }
@@ -1186,9 +1201,11 @@
     </div>
     <div class="card" style="display:flex;flex-direction:column;">
       <div class="card-title">Allocation by Class</div>
-      <div style="flex:1;display:flex;align-items:center;gap:16px;">
-        <div style="flex-shrink:0;width:150px;height:150px;position:relative;"><canvas id="chart-alloc"></canvas></div>
-        <div id="alloc-legend" style="flex:1;min-width:0;"></div>
+      <!-- Legend is capped and the pair is centred: letting it flex to the full
+           card width pushed the percentages far from their labels. -->
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:26px;flex-wrap:wrap;">
+        <div style="flex-shrink:0;width:168px;height:168px;position:relative;"><canvas id="chart-alloc"></canvas></div>
+        <div id="alloc-legend" style="flex:0 1 210px;max-width:210px;min-width:150px;"></div>
       </div>
     </div>
   </div>

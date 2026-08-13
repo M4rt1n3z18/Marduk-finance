@@ -318,7 +318,11 @@ function impRenderReview() {
       <option value=""${!row.cat ? ' selected' : ''}>— choose —</option>
       ${cats.map(c => `<option${c === row.cat ? ' selected' : ''}>${c}</option>`).join('')}
     </select>`;
-  const srcLabel = { learned: 'learned', history: 'from history', ai: 'AI', new: 'new', credit: 'credit' };
+  // Where the suggested category came from. Colour carries the meaning at a
+  // glance: green = already known, gold = needs a decision, blue = income.
+  const srcLabel = { learned: 'Learned', history: 'From history', ai: 'AI', new: 'New', credit: 'Credit', manual: 'You' };
+  const srcBadge = src => src && srcLabel[src]
+    ? `<span class="src-badge src-${src}">${srcLabel[src]}</span>` : '';
 
   body.innerHTML = _impRows.map((r, i) => `
     <tr style="${r.dup ? 'opacity:.45;' : ''}">
@@ -330,7 +334,7 @@ function impRenderReview() {
       : ''}</td>
       <td style="text-align:right;font-weight:600;" class="${r.amount < 0 ? '' : 'up-text'}">${eur(Math.abs(r.amount))}</td>
       <td>${catSel(r, i)}</td>
-      <td class="muted" style="font-size:11px;">${srcLabel[r.src] || ''}</td>
+      <td>${srcBadge(r.src)}</td>
     </tr>`).join('');
 
   body.querySelectorAll('select[data-improw]').forEach(sel => {

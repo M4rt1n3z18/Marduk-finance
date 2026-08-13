@@ -73,11 +73,13 @@ function buildAllocChart() {
   // Custom HTML legend (keeps the donut ring full-size)
   const legendEl = document.getElementById('alloc-legend');
   if (legendEl) {
-    legendEl.innerHTML = labels.map((l,i) =>
-      `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-        <div style="width:10px;height:10px;border-radius:50%;background:${colors[i]};flex-shrink:0;"></div>
-        <span style="flex:1;font-size:13px;color:var(--text);">${l}</span>
-        <span style="font-size:13px;font-weight:600;color:var(--text);">${((data[i]/total)*100).toFixed(1)}%</span>
+    // Largest slice first — the legend should read in the same order the ring does
+    const order = labels.map((l,i) => i).sort((a,b) => data[b] - data[a]);
+    legendEl.innerHTML = order.map(i =>
+      `<div style="display:flex;align-items:baseline;gap:9px;margin-bottom:11px;">
+        <div style="width:9px;height:9px;border-radius:50%;background:${colors[i]};flex-shrink:0;align-self:center;"></div>
+        <span style="flex:1;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${labels[i]}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--text);">${((data[i]/total)*100).toFixed(1)}%</span>
       </div>`
     ).join('');
   }
