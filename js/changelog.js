@@ -9,6 +9,14 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.37',
+    title: 'Readable spending breakdown',
+    items: [
+      'Spending by Category is now Top Categories: the five biggest, with percentages beside them.',
+      'Everything smaller moves to its own Smaller Categories card, as ranked bars with amounts and percentages.',
+    ],
+  },
+  {
     v: '1.0.36',
     title: 'Allocation charts',
     items: [

@@ -668,22 +668,73 @@ function delExtra(id) {
   save(); renderBudget(); renderExpenses();
 }
 
+const EXP_CAT_TOP = 5;
+
+// Donut of the top 5 only. With 14 categories the built-in legend wrapped into
+// two columns of tiny labels and the ring was a fan of unreadable slivers.
+// Everything below the top 5 is summed into one slice and listed as ranked bars
+// underneath — bars stay legible at 1%, pie slices do not.
 function buildExpCatChart(expenses) {
   const el = document.getElementById('chart-exp-cat');
   if (!el || !el.offsetParent) return;
   destroyChart('exp-cat');
-  const allData = CATS.map(c => expenses.filter(e => e.cat === c).reduce((s, e) => s + Number(e.amount), 0));
-  const filtLabels = CATS.filter((_,i) => allData[i] > 0);
-  const filtData = allData.filter(v => v > 0);
-  const filtColors = CAT_COLORS.filter((_,i) => allData[i] > 0);
-  if (!filtData.length) return;
+
+  const rows = CATS
+    .map((c, i) => ({ cat: c, color: CAT_COLORS[i], val: expenses.filter(e => e.cat === c).reduce((s, e) => s + Number(e.amount), 0) }))
+    .filter(r => r.val > 0)
+    .sort((a, b) => b.val - a.val);
+
+  const legendEl = document.getElementById('exp-cat-legend');
+  const restCard = document.getElementById('exp-cat-rest-card');
+  const restEl   = document.getElementById('exp-cat-rest');
+  if (!rows.length) {
+    if (legendEl) legendEl.innerHTML = '<p class="muted" style="font-size:12px;">Nothing spent this month.</p>';
+    if (restCard) restCard.style.display = 'none';
+    return;
+  }
+
+  const total = rows.reduce((s, r) => s + r.val, 0);
+  const top   = rows.slice(0, EXP_CAT_TOP);
+  const rest  = rows.slice(EXP_CAT_TOP);
+  const restSum = rest.reduce((s, r) => s + r.val, 0);
+  const pct = v => (v / total * 100).toFixed(1) + '%';
+
+  // "+n more", not "Other" — Other is a real category of yours, and two things
+  // with the same name in one legend is worse than the clutter we're removing.
+  const slices = restSum > 0
+    ? [...top, { cat: `+${rest.length} more`, color: '#9aa0a6', val: restSum }]
+    : top;
+
   charts['exp-cat'] = new Chart(el.getContext('2d'), {
     type: 'doughnut',
-    data: { labels: filtLabels, datasets: [{ data: filtData, backgroundColor: filtColors, borderWidth: 2, borderColor: isDark() ? '#13131a' : '#ede7d9' }] },
-    options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
-      plugins: { legend: { position: 'right', labels: { color: textColor(), font: { size: 11 }, boxWidth: 10 } },
-        tooltip: { callbacks: { label: c => ' ' + eur(c.raw) } } } }
+    data: { labels: slices.map(s => s.cat),
+            datasets: [{ data: slices.map(s => s.val), backgroundColor: slices.map(s => s.color),
+                         borderWidth: 2, borderColor: isDark() ? '#13131a' : '#ede7d9' }] },
+    options: { responsive: true, maintainAspectRatio: true, cutout: '62%',
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + eur(c.raw) } } } }
   });
+
+  if (legendEl) {
+    legendEl.innerHTML = slices.map(s =>
+      `<div style="display:flex;align-items:center;gap:9px;margin-bottom:9px;">
+        <div style="width:9px;height:9px;border-radius:50%;background:${s.color};flex-shrink:0;"></div>
+        <span style="flex:1;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.cat}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--text);">${pct(s.val)}</span>
+      </div>`).join('');
+  }
+
+  if (restCard && restEl) {
+    restCard.style.display = rest.length ? '' : 'none';
+    const max = rest.length ? rest[0].val : 1;
+    restEl.innerHTML = rest.map(r =>
+      `<div class="expcat-row">
+        <span class="budget-dot" style="background:${r.color};"></span>
+        <span class="expcat-name">${r.cat}</span>
+        <span class="expcat-amt">${eur(r.val)}</span>
+        <span class="expcat-track"><span class="expcat-fill" style="width:${(r.val / max * 100).toFixed(1)}%;background:${r.color};"></span></span>
+        <span class="expcat-pct">${pct(r.val)}</span>
+      </div>`).join('');
+  }
 }
 
 function buildExpDailyChart(expenses, year, month) {

@@ -170,6 +170,23 @@
     .budget-track, .budget-left { display:none; }
   }
 
+  /* ── Smaller-categories bars (Expenses overview) ── */
+  .expcat-row {
+    display:grid; align-items:center; gap:12px;
+    grid-template-columns: 9px minmax(110px,1.1fr) 84px minmax(80px,2fr) 58px;
+    padding:8px 0; border-bottom:1px solid var(--border);
+  }
+  .expcat-row:last-child { border-bottom:none; }
+  .expcat-name  { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .expcat-amt   { font-size:13px; text-align:right; color:var(--text2); }
+  .expcat-track { background:var(--bg3); border-radius:4px; height:6px; overflow:hidden; }
+  .expcat-fill  { display:block; height:100%; border-radius:4px; transition:width .35s ease; }
+  .expcat-pct   { font-size:13px; font-weight:700; text-align:right; }
+  @media(max-width:640px){
+    .expcat-row { grid-template-columns: 9px minmax(90px,1fr) 78px 52px; }
+    .expcat-track { display:none; }
+  }
+
   /* ── Portfolio sub-views ── */
   .psub { display: none; }
   .psub.active { display: block; }
@@ -1744,14 +1761,25 @@
   </div>
   <!-- Chart + category breakdown -->
   <div class="chart-grid-2" style="margin-bottom:16px;">
-    <div class="card">
-      <div class="card-title">Spending by Category</div>
-      <div class="chart-wrap-sm"><canvas id="chart-exp-cat"></canvas></div>
+    <div class="card" style="display:flex;flex-direction:column;">
+      <div class="card-title">Top Categories<span class="info-tip">i<span class="tip-body">Your five biggest categories this month. Percentages are of total spending, so the "+n more" slice closes the gap to 100%.</span></span></div>
+      <div style="flex:1;display:flex;align-items:center;gap:18px;">
+        <div style="flex-shrink:0;width:160px;height:160px;position:relative;"><canvas id="chart-exp-cat"></canvas></div>
+        <div id="exp-cat-legend" style="flex:1;min-width:0;max-width:200px;"></div>
+      </div>
     </div>
     <div class="card">
       <div class="card-title">Daily Spending</div>
       <div class="chart-wrap-sm"><canvas id="chart-exp-daily"></canvas></div>
     </div>
+  </div>
+
+  <!-- Everything outside the top 5. Ranked bars rather than a second donut:
+       these are small slices, and small slices are what made the original
+       chart unreadable in the first place. -->
+  <div class="card" id="exp-cat-rest-card" style="margin-bottom:16px;display:none;">
+    <div class="card-title">Smaller Categories</div>
+    <div id="exp-cat-rest"></div>
   </div>
   </div>
 
