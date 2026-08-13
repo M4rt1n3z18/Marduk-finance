@@ -46,7 +46,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // XTB Excel import
   importXtbExcel: () => ipcRenderer.invoke('import-xtb-excel'),
-  readStatement: () => ipcRenderer.invoke('read-statement'),
+  // filePath is set when the file was dragged in; omitted opens the picker
+  readStatement: (filePath) => ipcRenderer.invoke('read-statement', filePath),
+  // File.path works on Electron 29; webUtils is the replacement from 30 onward.
+  // Exposed so drag-and-drop keeps working across an Electron upgrade.
+  getPathForFile: (file) => { try { return require('electron').webUtils.getPathForFile(file); } catch(e) { return null; } },
 
   // Logos (company favicons via Clearbit, from Yahoo assetProfile)
   // Note: logos are now bundled into fetch-sectors response

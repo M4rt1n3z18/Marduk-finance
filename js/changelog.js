@@ -7,6 +7,14 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.32',
+    title: 'Drag and drop actually works',
+    items: [
+      'Dropping a bank statement onto the import box now imports that file. It used to open a file-picker window and ask you to find the same file again.',
+      'And it opened several windows at once: the import screen was being wired up again every time you unlocked Marduk, so each lock and unlock added another one.',
+    ],
+  },
+  {
     v: '1.0.31',
     title: 'A clearer budget tab',
     items: [

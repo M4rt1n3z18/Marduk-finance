@@ -258,9 +258,10 @@ function impCategories() {
   return [...cats, IMP_INVEST, IMP_IGNORE];
 }
 
-async function impPickFile() {
+// filePath set = file was dragged in; omitted = open the picker
+async function impPickFile(filePath) {
   if (!window.electronAPI?.readStatement) { alert('File import is unavailable in this build.'); return; }
-  const res = await window.electronAPI.readStatement();
+  const res = await window.electronAPI.readStatement(filePath);
   if (!res) return;                                   // cancelled
   if (!res.rows || !res.rows.length) { alert(`Could not read ${res.fileName}${res.error ? ': ' + res.error : ''}`); return; }
 
@@ -477,18 +478,31 @@ function renderImportView() {
 }
 
 // ── Wiring (once, after DOM is ready) ────────────────────────────────────────
+// initApp() re-runs on every unlock, so without this guard each lock/unlock
+// cycle stacked another set of listeners on the drop zone — three unlocks meant
+// three file dialogs from a single drop.
+let _impInited = false;
+
 function initBankImport() {
+  if (_impInited) return;
+  _impInited = true;
+
   const drop = document.getElementById('imp-drop');
   if (drop) {
-    drop.addEventListener('click', impPickFile);
+    drop.addEventListener('click', () => impPickFile());   // no arg — opens the picker
     drop.addEventListener('dragover', e => {
       e.preventDefault(); drop.style.borderColor = 'var(--gold)'; drop.style.background = 'rgba(201,168,76,0.06)';
     });
     drop.addEventListener('dragleave', () => { drop.style.borderColor = 'var(--border)'; drop.style.background = ''; });
     drop.addEventListener('drop', e => {
       e.preventDefault(); drop.style.borderColor = 'var(--border)'; drop.style.background = '';
-      // Electron gives no path through contextIsolation, so route via the dialog
-      impPickFile();
+      // Electron exposes the real path on a dropped File, so use the file you
+      // actually dropped instead of asking you to pick it again.
+      const f = e.dataTransfer?.files?.[0];
+      const p = f && (f.path || window.electronAPI?.getPathForFile?.(f));
+      if (p) impPickFile(p);
+      else if (f) alert(`Could not read the path for "${f.name}". Click the box to choose it instead.`);
+      else impPickFile();
     });
   }
   document.getElementById('imp-commit')?.addEventListener('click', impCommit);

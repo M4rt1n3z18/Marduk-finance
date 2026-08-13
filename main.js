@@ -1695,14 +1695,25 @@ ipcMain.handle('parse-payslip-from-path', async (event, filePath) => {
 // Read locally and handed to the renderer as-is. Header detection, column
 // mapping and categorising all happen there, where they can be shown and
 // corrected. Nothing is uploaded — a statement never leaves this machine.
-ipcMain.handle('read-statement', async () => {
-  const { filePaths, canceled } = await dialog.showOpenDialog({
-    title: 'Select Bank Statement',
-    filters: [{ name: 'Spreadsheets', extensions: ['xlsx', 'xls', 'csv'] }],
-    properties: ['openFile'],
-  });
-  if (canceled || !filePaths.length) return null;
-  const filePath = filePaths[0];
+ipcMain.handle('read-statement', async (event, droppedPath) => {
+  let filePath = droppedPath;
+
+  // A dragged file arrives with its path; only fall back to the dialog when
+  // there isn't one. Previously a drop opened the picker, which meant dropping
+  // a file asked you to go and find that same file.
+  if (filePath) {
+    if (!/\.(xlsx|xls|csv)$/i.test(filePath) || !fs.existsSync(filePath)) {
+      return { fileName: path.basename(filePath), rows: [], error: 'Not a supported spreadsheet (.xlsx, .xls or .csv)' };
+    }
+  } else {
+    const { filePaths, canceled } = await dialog.showOpenDialog({
+      title: 'Select Bank Statement',
+      filters: [{ name: 'Spreadsheets', extensions: ['xlsx', 'xls', 'csv'] }],
+      properties: ['openFile'],
+    });
+    if (canceled || !filePaths.length) return null;
+    filePath = filePaths[0];
+  }
   const fileName = path.basename(filePath);
 
   try {
