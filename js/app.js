@@ -1083,7 +1083,16 @@ async function generateMonthlySummary(force = false) {
   if (btn) btn.disabled = true;
 
   try {
-    const text = await window.electronAPI.aiMonthlySummary(_aiSummaryPayload());
+    const result = await window.electronAPI.aiMonthlySummary(_aiSummaryPayload());
+    // The main process returns a string on success, or {error} on failure —
+    // previously every failure came back as null and looked like "not generated yet"
+    if (result && typeof result === 'object' && result.error) {
+      if (textEl) textEl.innerHTML =
+        `<span style="color:var(--down);">Couldn't write the summary: ${result.error}</span>`;
+      if (btn) btn.disabled = false;
+      return;
+    }
+    const text = result;
     if (text) {
       state.aiSummaries[key] = { text, generatedAt: new Date().toISOString() };
       // Keep only the last 12 summaries

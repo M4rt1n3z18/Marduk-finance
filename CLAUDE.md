@@ -168,7 +168,7 @@ Ranking is exact symbol → prefix → name substring, so typing `NIO` doesn't b
 **Hybrid strategy** (`main.js` → `parsePayslipHybrid`): if an Anthropic API key is configured, the PDF is parsed by Claude AI (`parsePayslipAI`); on any failure — or with no key — it falls back to the regex parser (`parsePdfAtPath`).
 
 ### AI parsing (`main.js` → `parsePayslipAI`)
-- Uses `@anthropic-ai/sdk`, model `claude-opus-4-8`, base64 PDF document block + structured outputs (`output_config.format` with `PAYSLIP_SCHEMA`)
+- Uses `@anthropic-ai/sdk`, model `claude-opus-5`, base64 PDF document block + structured outputs (`output_config.format` with `PAYSLIP_SCHEMA`), `max_tokens: 4096`
 - Does **not** require Python — reads the PDF directly (vision)
 - API key stored in `userData/marduk-ai-key.bin` (local only, like the password). IPC: `get-ai-key-status` (masked), `set-ai-key`, `clear-ai-key`
 - UI: "✨ AI Settings" button in salary tab → `#ai-settings-modal`; `#ps-ai-badge` shows "Parsed with AI" in the payslip modal (`_aiParsed` flag)
@@ -225,6 +225,16 @@ Reserve money for investing without counting it as an expense. Entity in `state.
 ## Other AI features (all optional — need the AI key)
 
 - **Expense auto-categorization**: `initAiCategorize()` in `actions.js` — on `#e-desc` change, tries local history match first (free), then IPC `ai-categorize` (Claude picks from CATS via structured-output enum).
+**AI model choices** (`main.js`) — thinking and response text **share `max_tokens`**, and on Opus-tier models thinking is invisible but still consumes it. The monthly summary sat at `max_tokens: 2048` with adaptive thinking: a long think left nothing for the text, the call "succeeded" with an empty response, and the card silently stayed on "No summary yet". Budgets are now 4096, and every failure returns `{error}` instead of `null` so the card can say what went wrong.
+
+| Call | Model | Why |
+|---|---|---|
+| Payslip parse | `claude-opus-5` | Vision + structured extraction, ~12×/year |
+| Monthly summary | `claude-opus-5`, `effort: 'low'` | Prose over pre-aggregated stats, 12×/year |
+| Expense categorise | `claude-haiku-4-5` | One enum pick from a fixed list; the most frequent call, ~5× cheaper, and the schema makes a malformed answer impossible |
+
+Never send `temperature`/`top_p`/`top_k` or `thinking.budget_tokens` — all four are rejected with a 400 on current Opus/Sonnet models.
+
 - **Monthly AI summary**: `generateMonthlySummary()` in `app.js` — once per month, sends aggregated stats (never raw transactions) via IPC `ai-monthly-summary`, caches text in `state.aiSummaries["YYYY-MM"]` (last 12 kept). Card `#ai-summary-card` on Overview with Regenerate button. Auto-runs 2.5s after unlock.
 
 ## Settings Menu & Theme

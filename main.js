@@ -1552,8 +1552,8 @@ async function parsePayslipAI(filePath, apiKey) {
   const pdfData = fs.readFileSync(filePath).toString('base64');
 
   const response = await client.messages.create({
-    model: 'claude-opus-4-8',
-    max_tokens: 2048,
+    model: 'claude-opus-5',
+    max_tokens: 4096,          // thinking shares this budget — 2048 risked truncation
     thinking: { type: 'adaptive' },
     output_config: { format: { type: 'json_schema', schema: PAYSLIP_SCHEMA } },
     messages: [{
@@ -1622,7 +1622,10 @@ ipcMain.handle('ai-categorize', async (event, { desc, categories }) => {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey: key, maxRetries: 0 });
     const response = await client.messages.create({
-      model: 'claude-opus-4-8',
+      // Picking one item from a fixed list, constrained by an enum schema — the
+      // easiest task here and the most frequent call. Haiku is ~5x cheaper and
+      // faster, and the schema makes a wrong-shaped answer impossible.
+      model: 'claude-haiku-4-5',
       max_tokens: 512,
       output_config: { format: { type: 'json_schema', schema: {
         type: 'object', additionalProperties: false, required: ['category'],
@@ -1651,9 +1654,13 @@ ipcMain.handle('ai-monthly-summary', async (event, payload) => {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey: key, maxRetries: 1 });
     const response = await client.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 2048,
+      model: 'claude-opus-5',
+      // Thinking and response text share max_tokens, and thinking is invisible
+      // but still billed against it. At 2048 a long think left nothing for the
+      // summary — the call "succeeded" with no text and the card stayed empty.
+      max_tokens: 4096,
       thinking: { type: 'adaptive' },
+      output_config: { effort: 'low' },   // 4-6 sentences over pre-aggregated stats
       messages: [{
         role: 'user',
         content:
@@ -1664,12 +1671,21 @@ ipcMain.handle('ai-monthly-summary', async (event, payload) => {
           'Do not invent data not present below. Aggregated data:\n' + JSON.stringify(payload),
       }],
     });
-    if (response.stop_reason === 'refusal') return null;
+    if (response.stop_reason === 'refusal') return { error: 'The request was declined.' };
     const textBlock = response.content.find(b => b.type === 'text');
-    return textBlock ? textBlock.text.trim() : null;
+    const text = textBlock ? textBlock.text.trim() : '';
+    if (!text) {
+      return { error: response.stop_reason === 'max_tokens'
+        ? 'Ran out of room before writing the summary.'
+        : 'No summary came back.' };
+    }
+    return text;
   } catch (e) {
-    console.error('[AI] monthly summary failed (non-fatal):', e.status || '', e.message);
-    return null;
+    // Was a silent null — every failure looked identical to "no summary yet"
+    console.error('[AI] monthly summary failed:', e.status || '', e.message);
+    return { error: e.status === 401 ? 'API key rejected — check Settings → AI.'
+           : e.status === 429 ? 'Rate limited by the API — try again shortly.'
+           : (e.message || 'Request failed') };
   }
 });
 

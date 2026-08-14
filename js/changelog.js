@@ -9,6 +9,14 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.40',
+    title: 'Month in Review works',
+    items: [
+      'Fixes Regenerate doing nothing on the monthly summary, and it now says why if it fails.',
+      'Expense category suggestions use a faster, cheaper model.',
+    ],
+  },
+  {
     v: '1.0.39',
     title: 'Import options and month picker',
     items: [
