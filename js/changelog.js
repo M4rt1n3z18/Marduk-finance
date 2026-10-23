@@ -9,6 +9,17 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.42',
+    title: 'Import holdings from a CSV, and more room',
+    items: [
+      'Holdings → Import CSV: bring in your lots from a file in the Yahoo Finance format (Symbol, Trade Date, Purchase Price, Quantity).',
+      'Each lot is converted to euros at the official ECB rate on its trade date, and you review everything before it is added.',
+      'Lots you already have are flagged and left unticked, and the last import can be undone in one click.',
+      'The Add Holding form folds away until you need it.',
+      'Marduk now uses the full width of your screen.',
+    ],
+  },
+  {
     v: '1.0.41',
     title: 'Lighter Portfolio and Expenses',
     items: [

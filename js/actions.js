@@ -48,28 +48,11 @@ async function addHolding() {
     port.cash = getCashTotalEur(); // keep legacy field in sync
   } else {
     // Buy — cost basis averaging
-    if (existing) {
-      const totalShares = existing.shares + shares;
-      const avgPrice = (existing.buyPrice * existing.shares + buyPrice * shares) / totalShares;
-      existing.shares = totalShares;
-      existing.buyPrice = parseFloat(avgPrice.toFixed(4));
-      port.transactions.push({ id:uid(), type:'Buy', ticker, shares, price:buyPrice, date:buyDate,
-        priceOriginal: buyCurrency !== 'EUR' ? buyPriceRaw : undefined,
-        priceCurrency: buyCurrency !== 'EUR' ? buyCurrency : undefined,
-        notes: buyFxRate ? `avg cost basis updated (${buyCurrency} @ ${buyFxRate})` : 'avg cost basis updated' });
-    } else {
-      const sector = SECTOR_DB[ticker] || null;
-      port.holdings.push({ id:uid(), ticker, assetClass, shares, buyPrice, buyDate,
-        currentPrice:null, dividends:0, sector,
-        buyCurrency: buyCurrency !== 'EUR' ? buyCurrency : undefined,
-        buyPriceOriginal: buyCurrency !== 'EUR' ? buyPriceRaw : undefined,
-        buyFxRate: buyFxRate || undefined
-      });
-      port.transactions.push({ id:uid(), type:'Buy', ticker, shares, price:buyPrice, date:buyDate,
-        priceOriginal: buyCurrency !== 'EUR' ? buyPriceRaw : undefined,
-        priceCurrency: buyCurrency !== 'EUR' ? buyCurrency : undefined,
-        notes: buyFxRate ? `via Add Holding (${buyCurrency} ${buyPriceRaw} @ ${buyFxRate})` : 'via Add Holding' });
-    }
+    applyBuy(port, { ticker, assetClass, shares, priceEur: buyPrice, priceNative: buyPriceRaw,
+      currency: buyCurrency, fxRate: buyFxRate, date: buyDate,
+      notes: existing
+        ? (buyFxRate ? `avg cost basis updated (${buyCurrency} @ ${buyFxRate})` : 'avg cost basis updated')
+        : (buyFxRate ? `via Add Holding (${buyCurrency} ${buyPriceRaw} @ ${buyFxRate})` : 'via Add Holding') });
     // New money invested — consume open investment allocations (FIFO)
     consumeAllocations(port.id, parseFloat((shares * buyPrice).toFixed(2)));
   }
@@ -85,7 +68,35 @@ async function addHolding() {
   save(); renderAll();
 }
 
+// One buy lot into a portfolio: weighted-average cost on an existing holding,
+// or a new holding, plus the transaction record. Shared by Add Holding and the
+// holdings CSV import so the two can never disagree on how a buy is stored.
+// `priceEur` is the EUR cost per share; `priceNative`/`currency` are kept on the
+// lot as its audit trail.
+function applyBuy(port, { ticker, assetClass, shares, priceEur, priceNative, currency, fxRate, date, notes, txExtra }) {
+  const foreign  = currency && currency !== 'EUR';
+  const existing = port.holdings.find(h => h.ticker === ticker);
+  if (existing) {
+    const totalShares = existing.shares + shares;
+    const avgPrice = (existing.buyPrice * existing.shares + priceEur * shares) / totalShares;
+    existing.shares = totalShares;
+    existing.buyPrice = parseFloat(avgPrice.toFixed(4));
+  } else {
+    port.holdings.push({ id:uid(), ticker, assetClass, shares, buyPrice: priceEur, buyDate: date,
+      currentPrice:null, dividends:0, sector: SECTOR_DB[ticker] || null,
+      buyCurrency: foreign ? currency : undefined,
+      buyPriceOriginal: foreign ? priceNative : undefined,
+      buyFxRate: fxRate || undefined
+    });
+  }
+  port.transactions.push({ id:uid(), type:'Buy', ticker, shares, price: priceEur, date,
+    priceOriginal: foreign ? priceNative : undefined,
+    priceCurrency: foreign ? currency : undefined,
+    notes, ...(txExtra || {}) });
+}
+
 function quickSell(ticker, maxShares) {
+  openAddHolding();
   document.getElementById('h-type').value = 'Sell';
   const inp = document.getElementById('h-ticker');
   inp.value = ticker;
@@ -94,7 +105,7 @@ function quickSell(ticker, maxShares) {
   sharesInp.value = '';
   sharesInp.placeholder = maxShares; // hint: max they can sell
   document.getElementById('h-buy').value = '';
-  document.querySelector('.add-holding-grid').closest('.card')
+  document.getElementById('add-holding-panel')
     .scrollIntoView({ behavior: 'smooth', block: 'center' });
   setTimeout(() => sharesInp.focus(), 300);
 }

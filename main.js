@@ -770,6 +770,44 @@ ipcMain.handle('fetch-fx-rate', async (event, { date, fromCurrency }) => {
   }
 });
 
+// ── Historical ECB rates for a date range, every currency in one request ─────
+// Used by the holdings CSV import, which can carry dozens of lots spanning
+// years: one Yahoo call per lot would trip the rate limit, while the ECB's data
+// API returns the whole range as plain CSV — free, no key, no rate limit, and
+// the official rates Portuguese tax reporting uses. Returns
+// { CUR: { 'YYYY-MM-DD': unitsPerEUR } } for business days only; the renderer
+// walks back over weekends/holidays. `{ error }` on failure — never a guess.
+const _fxHistCache = new Map();
+ipcMain.handle('fetch-fx-history', async (event, { currencies, from, to }) => {
+  const curs = [...new Set((currencies || []).filter(c => /^[A-Z]{3}$/.test(c) && c !== 'EUR'))].sort();
+  if (!curs.length) return {};
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return { error: 'bad date range' };
+  const key = `${curs.join('+')}|${from}|${to}`;
+  if (_fxHistCache.has(key)) return _fxHistCache.get(key);
+  try {
+    const url = `https://data-api.ecb.europa.eu/service/data/EXR/D.${curs.join('+')}.EUR.SP00.A`
+              + `?startPeriod=${from}&endPeriod=${to}&format=csvdata&detail=dataonly`;
+    const res = await fetch(url, { headers: { 'User-Agent': FX_UA, 'Accept': 'text/csv' } });
+    if (!res.ok) return { error: 'ECB HTTP ' + res.status };
+    // CRLF line endings — splitting on \n alone leaves "OBS_VALUE\r" in the header
+    const lines = (await res.text()).trim().split(/\r?\n/);
+    const head  = lines.shift().split(',');
+    const iCur = head.indexOf('CURRENCY'), iDate = head.indexOf('TIME_PERIOD'), iVal = head.indexOf('OBS_VALUE');
+    if (iCur < 0 || iDate < 0 || iVal < 0) return { error: 'ECB: unexpected format' };
+    const out = {};
+    for (const line of lines) {
+      const f = line.split(',');
+      const v = parseFloat(f[iVal]);
+      if (!(v > 0)) continue;
+      (out[f[iCur]] ||= {})[f[iDate]] = v;
+    }
+    _fxHistCache.set(key, out);
+    return out;
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+});
+
 // ══════════════ YAHOO REQUEST DISCIPLINE ══════════════
 // Yahoo rate-limits hard, and the app used to make that worse in two ways:
 //   1. `fetchYahooQuote` couldn't tell "no such ticker" from HTTP 429 — both

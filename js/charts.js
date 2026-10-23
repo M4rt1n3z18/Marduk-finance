@@ -440,6 +440,8 @@ function renderHoldingsTable() {
   if (holdingsSubTab === 'dividends') wrap.innerHTML = renderHoldingsDividends();
   else if (holdingsSubTab === 'returns') wrap.innerHTML = renderHoldingsReturns();
   else wrap.innerHTML = renderHoldingsGeneral();
+  // "Undo import" belongs to one portfolio and lapses once its positions change
+  if (typeof hiRefreshUndo === 'function') hiRefreshUndo();
 }
 
 function renderHoldingsGeneral() {

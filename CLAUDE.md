@@ -19,6 +19,7 @@ Personal finance dashboard built with Electron. Syncs data via Google Drive. Dis
 | `js/actions.js` | State mutations — add/edit/delete assets, transactions, expenses, budget entries, goals, recurring expenses |
 | `js/salary.js` | Payslip modal (DataSnipper-style) — PDF rendering, click-to-fill, zoom controls, salary state + charts |
 | `js/bankimport.js` | Bank statement import — local spreadsheet parsing, column mapping, merchant learning, duplicate detection, undoable batches |
+| `js/holdimport.js` | Holdings CSV import (Yahoo Finance format) — local parsing, ECB historical FX, duplicate flags, one-step undo; also the Add Holding panel toggle |
 
 ---
 
@@ -279,7 +280,7 @@ Tabs: `overview`, `portfolio`, `expenses`, `budget`, `networth`, `goals`, `salar
 
 `showTab(name, el)` in `js/app.js` rebuilds charts for the active tab.
 
-**Auto-refresh is market-hours aware** (`actions.js`): `marketPhase()` resolves `'open' | 'quiet' | 'weekend'` in **Europe/Lisbon** (explicit timezone, so it stays correct for users abroad; `hourCycle:'h23'` avoids the hour-24 midnight bug). Cadence — open (weekday 08:00–21:30, Euronext open → after NYSE close) `REFRESH_OPEN_MS` 5 min · quiet `REFRESH_QUIET_MS` 60 min · weekend paused, re-checking hourly so Monday resumes itself. `_resetAutoRefreshCountdown()` is a **self-rescheduling `setTimeout`**, not `setInterval`, because the delay changes with the phase; it re-arms immediately inside the callback so an early `return` in `refreshPrices()` can't break the chain. Never poll faster — that triggers Yahoo HTTP 429s which break the richer endpoints (company info, earnings, analyst data). One coarse window is intentional: per-exchange holiday calendars aren't worth the maintenance tail. `#live-dot`/`#live-countdown` show the phase (green + countdown / grey + hourly / `closed`).
+**Auto-refresh is market-hours aware** (`actions.js`): `marketPhase()` resolves `'open' | 'quiet' | 'weekend'` in **Europe/Lisbon** (explicit timezone, so it stays correct for users abroad; `hourCycle:'h23'` avoids the hour-24 midnight bug). Cadence — open (weekday 08:00–21:30, Euronext open → after NYSE close) `REFRESH_OPEN_MS` 30 min · quiet `REFRESH_QUIET_MS` 4 h · weekend paused, re-checking hourly so Monday resumes itself. `_resetAutoRefreshCountdown()` is a **self-rescheduling `setTimeout`**, not `setInterval`, because the delay changes with the phase; it re-arms immediately inside the callback so an early `return` in `refreshPrices()` can't break the chain. Never poll faster — that triggers Yahoo HTTP 429s which break the richer endpoints (company info, earnings, analyst data). One coarse window is intentional: per-exchange holiday calendars aren't worth the maintenance tail. `#live-dot`/`#live-countdown` show the phase (green + countdown / grey + hourly / `closed`).
 
 **Company modal** (`openCompanyModal` in `render.js`): price chart has a range selector (1D/1W/1M/6M/YTD/1Y/5Y — `cmodSetRange`/`_cmodDrawPriceChart`, `_CMOD_RANGE_CFG`); Market Data boxes and the Earnings/Analyst panels render only when data exists (no "—" placeholders). Holdings logo fallback uses `nextElementSibling` (a `nextSibling` text-node bug once hid the colored-initial circles).
 
@@ -298,6 +299,24 @@ Expenses tab → **Import**. Spreadsheet in, categorised expenses out, **entirel
 - **Themed dialogs** (`js/dialog.js`) — `mardukAlert()` / `mardukConfirm()` replace native `alert()`/`confirm()`, which rendered as a system-blue macOS box. `confirm()` returns a boolean synchronously and a modal cannot, so **`mardukConfirm()` returns a Promise and every call site must `await` it** — that is why those callers are `async`. Falls back to the native dialogs if `#dlg-modal` is absent.
 - **Credits** default to `— Ignore —`; `— Extra Income —` writes to `state.extraIncomes` (same shape as `logExtra()`, plus `importBatch`) so it lands in the Budget tab's income and savings rate rather than becoming a negative expense; `— Investment —` writes an **allocation** rather than an expense, closing the loop with the Investment Allocations engine.
 - **Undo** — every row carries `importBatch`; `state.importBatches` (last 20) lists imports and `impUndoBatch()` removes the whole batch. A bulk write into financial data needs a bulk undo.
+
+## Holdings CSV Import (`js/holdimport.js`)
+
+Portfolio → Holdings → **Import CSV** (also in the Actions menu). Reads the file Yahoo Finance's portfolio import takes and its export writes — `Symbol,Trade Date,Purchase Price,Quantity` plus optional `Commission`, and a non-Yahoo `Currency` column. Parsed in the renderer with `FileReader`; the file never leaves the machine.
+
+- **Header aliases are ordered most-specific first** (`HI_FIELDS`). Yahoo's export has both `Date` (quote date) and `Trade Date`, and both `Current Price` and `Purchase Price`; the order picks the right ones. Dates: `YYYYMMDD` (export), `YYYY-MM-DD` (template), or `D/M/YYYY` read day-first and flagged when ambiguous. `;`-delimited files go through `impNum` (European decimals).
+- **Skipped, not failed**: watchlist rows (no lot), `$$CASH_TX` rows, indices (`^`) and FX/futures (`=X`/`=F`).
+- **Currency**: Yahoo's convention is that Purchase Price is in the symbol's *own* trading currency. Resolved per row: manual override → "Prices are in" selector → `Currency` column → the existing holding's `priceCurrency` (what Yahoo actually quotes it in) → exchange suffix (`HI_SUFFIX_CCY`; no suffix = USD, `.L` = GBp, flagged "check GBp vs USD" because some London lines quote in USD). `GBp` converts via GBP ÷ 100.
+- **FX**: IPC `fetch-fx-history` makes **one ECB data-API request** for every currency and the whole date range (`D.USD+GBP….EUR.SP00.A`, CSV, **CRLF line endings**). Weekend/holiday trades walk back to the last published rate. No rate → the row can't be imported; never a guess. No Yahoo calls per row — prices arrive with the refresh that runs after an import creates new holdings.
+- **Landing**: `hiTarget()` merges a bare/suffixed pair (`VWCE` ↔ `VWCE.DE`) into the existing holding — XTB stores bare codes, Yahoo writes suffixed ones. Every lot goes through **`applyBuy()`** in `actions.js`, the same function Add Holding uses, so both record buys identically. Allocations are consumed with the XTB rule (only lots on/after the earliest open allocation).
+- **Duplicates**: same ticker + date + shares and same price (native or EUR) = "Already added"; same ticker + date + shares at a different price = "Possible duplicate" (likely the same buy typed in another currency). Both start unticked.
+- **Undo** — `state.lastHoldingImport` holds one pre-import snapshot (holdings, transactions, and allocations only if the import consumed any) plus a fingerprint of positions after it. Undo is offered only while the fingerprint still matches; price refreshes don't change it (they never touch shares or cost), any manual buy/sell/delete does. Restoring keeps live prices.
+
+The **Add Holding form is folded** into `#add-holding-panel` behind `+ Add holding` on the holdings card's header line; `openAddHolding()` / `toggleAddHolding()`. `quickSell()` opens it first.
+
+## Layout width
+
+`main` runs to 1640px (was 1200px) with 32px side padding matching the header, and only centres beyond that. `.chart-wrap` grows to 250px tall above 1500px wide so line charts don't flatten.
 
 ### Portfolio sub-views (Snowball-style)
 
@@ -334,6 +353,7 @@ The Portfolio tab is split into 5 sub-views — only one visible at a time (`.ps
 - `allocations` — InvestmentAllocation entities (see Investment Allocations section)
 - `unallocatedInvestment` — `{ portfolioId: eur }` invested beyond allocations
 - `aiSummaries` — `{ "YYYY-MM": { text, generatedAt } }` cached monthly AI summaries
+- `lastHoldingImport` — one-step undo snapshot for the holdings CSV import (see Holdings CSV Import)
 
 ---
 
