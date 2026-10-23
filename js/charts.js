@@ -759,8 +759,13 @@ function showSubView(tab, name, btn) {
   root.querySelectorAll('.psub').forEach(d => d.classList.remove('active'));
   document.getElementById(`psub-${tab}-${name}`)?.classList.add('active');
 
-  root.querySelectorAll('.psub-tab').forEach(b => b.classList.remove('active'));
-  (btn || document.getElementById(`psub-tab-${tab}-${name}`))?.classList.add('active');
+  // No in-page sub-tab bar any more — the nav dropdown and the section subtitle
+  // carry "where am I". Scoped to this tab's items so the other tab keeps its mark.
+  document.querySelectorAll(`.nav-drop-inner [data-sub^="${tab}:"]`)
+    .forEach(b => b.classList.toggle('active', b.dataset.sub === `${tab}:${name}`));
+  const crumb = document.getElementById('crumb-' + tab);
+  const item  = document.querySelector(`.nav-drop-inner [data-sub="${tab}:${name}"]`);
+  if (crumb && item) crumb.textContent = item.textContent.trim();
 
   try { SUB_BUILDERS[tab]?.[name]?.(); } catch(e) { console.error(`sub-view ${tab}/${name}:`, e); }
 }

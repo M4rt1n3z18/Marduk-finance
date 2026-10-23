@@ -301,9 +301,11 @@ Expenses tab → **Import**. Spreadsheet in, categorised expenses out, **entirel
 
 ### Portfolio sub-views (Snowball-style)
 
-**Sub-views are generic across tabs** (`js/charts.js`): `showSubView(tab, name, btn)`, `navToSub(tab, name)`, state in `subTab`, builders in `SUB_BUILDERS[tab][name]`. Element ids are namespaced **`psub-<tab>-<name>`** and every query is scoped to `#tab-<tab>` — Portfolio and Expenses both have an "Overview", so an unscoped `#psub-overview` or `.psub-tab` lookup would hit the wrong element and clear the other tab's active state. `showPortfolioSub`/`navToPortfolioSub` remain as thin wrappers.
+**Sub-views are generic across tabs** (`js/charts.js`): `showSubView(tab, name, btn)`, `navToSub(tab, name)`, state in `subTab`, builders in `SUB_BUILDERS[tab][name]`. Element ids are namespaced **`psub-<tab>-<name>`** and every query is scoped to `#tab-<tab>` — Portfolio and Expenses both have an "Overview", so an unscoped `#psub-overview` lookup would hit the wrong element.
 
-**Expenses** has 4: `overview` (stats, salary day, recurring banner, charts) · `logs` (add form, search, filters, table) · `import` (see Bank Statement Import) · `allocations`. The month selector stays global above the sub-bar. All three non-import views call `renderExpenses()` — it is one pass that fills stats, charts, list and allocation history together, and carving up a working 170-line function was not worth the risk.
+**There is no in-page sub-tab bar** (removed in 1.0.41 — the app felt heavy and the nav dropdowns duplicated it). Navigation is the hover dropdown on each nav button only. "Where am I" is carried by two things `showSubView()` keeps in sync: the dropdown item tagged `data-sub="<tab>:<name>"` gets `.active` (scoped to that tab's prefix so the other tab keeps its mark), and `#crumb-<tab>` in the section subtitle shows the section name. Overview is marked active in the markup because nothing calls `showSubView` on load. `showPortfolioSub`/`navToPortfolioSub` remain as thin wrappers.
+
+**Expenses** has 4: `overview` (stats, salary day, recurring banner, charts) · `logs` (add form, search, filters, table) · `import` (see Bank Statement Import) · `allocations`. The month selector stays global above the sub-views. All three non-import views call `renderExpenses()` — it is one pass that fills stats, charts, list and allocation history together, and carving up a working 170-line function was not worth the risk.
 
 The Portfolio tab is split into 5 sub-views — only one visible at a time (`.psub` / `.psub.active`):
 

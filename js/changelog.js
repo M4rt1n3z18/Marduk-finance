@@ -9,6 +9,14 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.41',
+    title: 'Lighter Portfolio and Expenses',
+    items: [
+      'The row of section tabs is gone from Portfolio and Expenses \u2014 switch sections from the menu on each tab button.',
+      'That menu highlights the section you are in, and its name shows under the page title.',
+    ],
+  },
+  {
     v: '1.0.40',
     title: 'Month in Review works',
     items: [

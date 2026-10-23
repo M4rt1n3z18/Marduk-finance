@@ -106,6 +106,8 @@
   .settings-item:hover { background: var(--bg3); }
   .settings-item .theme-check { margin-left: auto; color: var(--gold); visibility: hidden; font-weight: 700; }
   .settings-item.active .theme-check { visibility: visible; }
+  /* With the in-page sub-tab bars gone, the dropdown is where "you are here" shows */
+  .nav-drop-inner .settings-item.active { color: var(--gold); background: rgba(201,168,76,0.10); }
   .settings-divider { height: 1px; background: var(--border); margin: 6px 4px; }
   .settings-submenu { display: none; padding-left: 12px; }
   .settings-submenu.open { display: block; }
@@ -131,7 +133,7 @@
 
   /* ── Nav icons + Portfolio nav dropdown ── */
   nav button { display: inline-flex; align-items: center; gap: 7px; }
-  nav button svg, .psub-tab svg, .settings-item svg { flex-shrink: 0; opacity: .9; }
+  nav button svg, .settings-item svg { flex-shrink: 0; opacity: .9; }
   .nav-drop { position: relative; display: inline-block; }
   .nav-drop-menu { display: none; position: absolute; left: 0; top: 100%; padding-top: 8px; z-index: 10000; }
   /* :focus-visible (not :focus-within) — a mouse click must not pin the menu open */
@@ -190,19 +192,6 @@
   /* ── Portfolio sub-views ── */
   .psub { display: none; }
   .psub.active { display: block; }
-  .psub-bar {
-    display: flex; gap: 4px; border-bottom: 1px solid var(--border);
-    margin-bottom: 20px; flex-wrap: wrap;
-  }
-  .psub-tab {
-    display: inline-flex; align-items: center; gap: 7px;
-    background: none; border: none; border-bottom: 2px solid transparent;
-    color: var(--text2); font-family: Karla, sans-serif; font-size: 13px; font-weight: 600;
-    padding: 10px 16px; cursor: pointer; transition: color .15s, border-color .15s;
-    margin-bottom: -1px;
-  }
-  .psub-tab:hover { color: var(--text); }
-  .psub-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
 
   /* ── Layout ── */
   main { max-width: 1200px; margin: 0 auto; padding: 28px 24px; }
@@ -1016,23 +1005,23 @@
       </button>
       <div class="nav-drop-menu">
         <div class="nav-drop-inner">
-          <button class="settings-item" onclick="navToPortfolioSub('overview')">
+          <button class="settings-item active" data-sub="portfolio:overview" onclick="navToPortfolioSub('overview')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M7 15l3.5-4 3 2.5L18 8"/></svg>
             Overview
           </button>
-          <button class="settings-item" onclick="navToPortfolioSub('holdings')">
+          <button class="settings-item" data-sub="portfolio:holdings" onclick="navToPortfolioSub('holdings')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="9" rx="1.5"/><path d="M4 10c0-3 2.5-5.5 8-5.5s8 2.5 8 5.5M12 13v3"/></svg>
             Holdings
           </button>
-          <button class="settings-item" onclick="navToPortfolioSub('dividends')">
+          <button class="settings-item" data-sub="portfolio:dividends" onclick="navToPortfolioSub('dividends')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="10" r="5.5"/><path d="M13.5 6a5.5 5.5 0 1 1-.5 10.9M9 7.8v4.4M6.8 10h4.4"/></svg>
             Dividends
           </button>
-          <button class="settings-item" onclick="navToPortfolioSub('cash')">
+          <button class="settings-item" data-sub="portfolio:cash" onclick="navToPortfolioSub('cash')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6.2 12h.01M17.8 12h.01"/></svg>
             Cash
           </button>
-          <button class="settings-item" onclick="navToPortfolioSub('transactions')">
+          <button class="settings-item" data-sub="portfolio:transactions" onclick="navToPortfolioSub('transactions')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h12.5M13.5 5.5l3 3-3 3M20 15.5H7.5M10.5 12.5l-3 3 3 3"/></svg>
             Transactions
           </button>
@@ -1046,19 +1035,19 @@
       </button>
       <div class="nav-drop-menu">
         <div class="nav-drop-inner">
-          <button class="settings-item" onclick="navToSub('expenses','overview')">
+          <button class="settings-item active" data-sub="expenses:overview" onclick="navToSub('expenses','overview')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 16V9M12 16v-4M16 16v-7"/></svg>
             Overview
           </button>
-          <button class="settings-item" onclick="navToSub('expenses','logs')">
+          <button class="settings-item" data-sub="expenses:logs" onclick="navToSub('expenses','logs')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="1.5"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></svg>
             Logs
           </button>
-          <button class="settings-item" onclick="navToSub('expenses','import')">
+          <button class="settings-item" data-sub="expenses:import" onclick="navToSub('expenses','import')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v10M8.5 10 12 13.5 15.5 10M4.5 16v3a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-3"/></svg>
             Import Statement
           </button>
-          <button class="settings-item" onclick="navToSub('expenses','allocations')">
+          <button class="settings-item" data-sub="expenses:allocations" onclick="navToSub('expenses','allocations')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 17.5 9 12l3.5 3.5 7-7.5M14.5 8h5v5"/></svg>
             Allocations
           </button>
@@ -1307,32 +1296,9 @@
   </div>
 
   <div class="sec-header" style="margin-bottom:10px;">
-    <div><div class="sec-title" id="port-sec-title">Portfolio</div><div class="sec-sub">Track your investments with live-refreshable prices</div></div>
+    <div><div class="sec-title" id="port-sec-title">Portfolio</div><div class="sec-sub" id="crumb-portfolio">Overview</div></div>
   </div>
 
-  <!-- Sub-view navigation -->
-  <div class="psub-bar">
-    <button class="psub-tab active" id="psub-tab-portfolio-overview" onclick="showPortfolioSub('overview',this)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M7 15l3.5-4 3 2.5L18 8"/></svg>
-      Overview
-    </button>
-    <button class="psub-tab" id="psub-tab-portfolio-holdings" onclick="showPortfolioSub('holdings',this)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="9" rx="1.5"/><path d="M4 10c0-3 2.5-5.5 8-5.5s8 2.5 8 5.5M12 13v3"/></svg>
-      Holdings
-    </button>
-    <button class="psub-tab" id="psub-tab-portfolio-dividends" onclick="showPortfolioSub('dividends',this)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="10" r="5.5"/><path d="M13.5 6a5.5 5.5 0 1 1-.5 10.9M9 7.8v4.4M6.8 10h4.4"/></svg>
-      Dividends
-    </button>
-    <button class="psub-tab" id="psub-tab-portfolio-cash" onclick="showPortfolioSub('cash',this)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6.2 12h.01M17.8 12h.01"/></svg>
-      Cash
-    </button>
-    <button class="psub-tab" id="psub-tab-portfolio-transactions" onclick="showPortfolioSub('transactions',this)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h12.5M13.5 5.5l3 3-3 3M20 15.5H7.5M10.5 12.5l-3 3 3 3"/></svg>
-      Transactions
-    </button>
-  </div>
 
   <!-- ── SUB-VIEW: OVERVIEW ── -->
   <div class="psub active" id="psub-portfolio-overview">
@@ -1674,7 +1640,7 @@
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
     <div>
       <div class="sec-title">Expenses</div>
-      <div class="sec-sub" id="e-period-sub">Loading…</div>
+      <div class="sec-sub"><span id="crumb-expenses">Overview</span> · <span id="e-period-sub">Loading…</span></div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <select id="e-month-sel" onchange="onMonthChange()" style="padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;cursor:pointer;">
@@ -1684,25 +1650,6 @@
     </div>
   </div>
 
-  <!-- Sub-view bar. The month selector above stays global — it applies to all of them. -->
-  <div class="psub-bar">
-    <button class="psub-tab active" id="psub-tab-expenses-overview" onclick="showSubView('expenses','overview',this)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 16V9M12 16v-4M16 16v-7"/></svg>
-      Overview
-    </button>
-    <button class="psub-tab" id="psub-tab-expenses-logs" onclick="showSubView('expenses','logs',this)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="1.5"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></svg>
-      Logs
-    </button>
-    <button class="psub-tab" id="psub-tab-expenses-import" onclick="showSubView('expenses','import',this)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v10M8.5 10 12 13.5 15.5 10M4.5 16v3a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-3"/></svg>
-      Import
-    </button>
-    <button class="psub-tab" id="psub-tab-expenses-allocations" onclick="showSubView('expenses','allocations',this)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 17.5 9 12l3.5 3.5 7-7.5M14.5 8h5v5"/></svg>
-      Allocations
-    </button>
-  </div>
 
   <div class="psub active" id="psub-expenses-overview">
 
