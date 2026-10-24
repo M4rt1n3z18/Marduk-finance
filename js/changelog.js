@@ -9,6 +9,16 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.47',
+    title: 'Loans that count interest',
+    items: [
+      'Loans have an interest rate (TAN). Add it when you create a loan, or in the new Rate column of your liabilities.',
+      'A linked instalment now only takes its principal off the balance — the interest part is spending, not debt repaid — so your net worth stays accurate.',
+      'Each loan shows when it will really be paid off, with the interest included.',
+      'Instalments that come in through a bank statement or a recurring expense pay the loan too, and deleting one (or undoing an import) puts the amount back.',
+    ],
+  },
+  {
     v: '1.0.46',
     title: 'Prices and search are back',
     items: [

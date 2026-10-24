@@ -277,6 +277,14 @@ Header "Settings" dropdown (`#settings-menu` in `index.html`, logic in `js/app.j
 - **Change password** modal (`#changepw-modal`, `submitChangePw()`) — verifies current (incl. legacy base64), min 4 chars.
 - **Update re-check**: `main.js` re-runs the update check every 4h, not just at launch.
 
+## Loans (`actions.js`, Net Worth tab)
+
+Credit liabilities: `{ isCredit, value (balance), originalValue, instalment, rate (% a year, TAN), linkedKeyword }`.
+
+- **Only principal reduces debt.** `applyLoanPayment(exp)` — called from every place an expense is created (`addExpense`, `addOneRecurring`, `addAllRecurring`, `impCommit`) — finds the first credit liability whose keyword is in the description, splits the amount into interest (`balance × rate/12`) and principal, takes the principal off `value`, and stores `exp.loanPayment = { id, principal, interest }`. `revertLoanPayment(exp)` puts the principal back; `delExpense` and `impUndoBatch` call it. Until 1.0.47 the whole instalment came off (debt fell too fast, net worth read high), imports and recurring logs didn't touch the loan at all, and deleting the expense never restored it. Without a rate the full amount still counts; expenses from before 1.0.47 have no `loanPayment`, so deleting them doesn't restore anything (same as before).
+- **Payoff** — `loanMonthsLeft(l)` is the annuity formula `−ln(1 − r·B/P) / ln(1 + r)`: `null` without an instalment, `Infinity` when the instalment doesn't cover the monthly interest, plain `B/P` without a rate (and the row says so). `loanPayoffDate(l)` turns it into a month. Verified against a month-by-month simulation: €150k at 3.5% paying €650 = 384 months (B/P alone said 231).
+- Rate is editable per loan in the liabilities table (`updateLiabRate`).
+
 ## Dividend Calendar
 
 `renderDividendCalendar()` in `render.js` — card `#div-calendar-card` in Portfolio tab. Lists holdings with `dividendPerShare > 0`, sorted by `nextPayDate` (soonest first, "in Nd" badge within 14 days), shows projected annual income (`dps × shares`). Hidden when no dividend payers.

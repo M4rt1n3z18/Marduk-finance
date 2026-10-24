@@ -2114,11 +2114,12 @@
         <div class="form-row" style="flex-wrap:wrap;gap:10px 14px;">
           <div class="field"><label>Original loan (€)</label><input id="l-orig" type="number" placeholder="e.g. 150000" style="width:140px;"></div>
           <div class="field"><label>Monthly instalment (€)</label><input id="l-instalment" type="number" placeholder="e.g. 650" style="width:150px;"></div>
+          <div class="field"><label>Interest rate (% a year)</label><input id="l-rate" type="number" step="0.01" min="0" placeholder="e.g. 3.5" style="width:150px;"></div>
           <div class="field" style="flex:1;min-width:160px;"><label>Linked expense keyword</label><input id="l-keyword" placeholder="e.g. Prestação Casa" style="width:100%;"></div>
         </div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">When an expense description contains the keyword, the credit balance is automatically reduced.</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">When an expense description contains the keyword, its principal — the instalment minus that month's interest — comes off the balance. The rate (TAN) is on your loan statement.</div>
       </div>
-      <table class="data-table" style="margin-top:14px;"><thead><tr><th>Liability</th><th>Balance</th><th>Progress</th><th></th></tr></thead>
+      <table class="data-table" style="margin-top:14px;"><thead><tr><th>Liability</th><th>Balance</th><th>Rate</th><th></th></tr></thead>
       <tbody id="liabs-body"></tbody></table>
     </div>
   </div>

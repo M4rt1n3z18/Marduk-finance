@@ -1100,7 +1100,7 @@ function renderNetWorth() {
   document.getElementById('assets-body').innerHTML = [
     {id:'__portfolio__', name:'Portfolio (live)', value: ps.val},...state.assets
   ].map(a=>
-    `<tr><td>${a.name}</td><td style="font-weight:600;">${eur(a.value)}</td>
+    `<tr><td>${esc(a.name)}</td><td style="font-weight:600;">${eur(a.value)}</td>
     <td>${a.id==='__portfolio__'?'':`<button class="del-btn" onclick="delAsset('${a.id}')">✕</button>`}</td></tr>`
   ).join('') || '<tr><td colspan="3" class="empty">No assets.</td></tr>';
 
@@ -1109,14 +1109,20 @@ function renderNetWorth() {
       const orig = l.originalValue || l.value;
       const paid = Math.max(0, orig - l.value);
       const pct  = orig > 0 ? Math.min(100, (paid / orig) * 100) : 0;
-      const months = l.instalment > 0 ? Math.ceil(l.value / l.instalment) : null;
+      // Interest-aware payoff (loanMonthsLeft in actions.js); without a rate it
+      // can only be balance ÷ instalment, which is said rather than implied
+      const months = loanMonthsLeft(l), payoff = loanPayoffDate(l);
+      const span = n => { const y = Math.floor(n / 12), m = n % 12; return [y && `${y} yr${y > 1 ? 's' : ''}`, m && `${m} mo`].filter(Boolean).join(' '); };
+      const term = months == null || months === 0 ? ''
+        : !isFinite(months) ? ' · <span class="down-text">the instalment doesn\'t cover the interest</span>'
+        : l.rate > 0 ? ` · paid off ~${payoff.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} (${span(months)})`
+        : ` · ~${span(months)} left before interest — add the rate for the real date`;
       return `<tr>
         <td>
-          <div style="font-weight:600;">${l.name}</div>
+          <div style="font-weight:600;">${esc(l.name)}</div>
           <div style="font-size:11px;color:var(--text3);">
-            ${l.linkedKeyword ? `linked: "${l.linkedKeyword}"` : 'no keyword'}
-            ${l.instalment ? ` · ${eur(l.instalment)}/mo` : ''}
-            ${months ? ` · ~${months} months left` : ''}
+            ${l.linkedKeyword ? `linked: "${esc(l.linkedKeyword)}"` : 'no keyword'}
+            ${l.instalment ? ` · ${eur(l.instalment)}/mo` : ''}${term}
           </div>
           <div style="height:5px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-top:5px;width:140px;">
             <div style="height:100%;width:${pct.toFixed(1)}%;background:var(--up);border-radius:3px;transition:width .6s;"></div>
@@ -1129,12 +1135,17 @@ function renderNetWorth() {
             style="width:110px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--down);font-family:Karla,sans-serif;font-size:13px;font-weight:600;outline:none;text-align:right;"
             onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
         </td>
-        <td style="vertical-align:top;padding-top:14px;"></td>
+        <td style="vertical-align:top;padding-top:14px;white-space:nowrap;">
+          <input type="number" value="${l.rate || ''}" min="0" step="0.01" placeholder="TAN"
+            onchange="updateLiabRate('${l.id}',this.value)" title="Interest rate, % a year"
+            style="width:68px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;text-align:right;"
+            onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"> <span style="font-size:11px;color:var(--text3);">%</span>
+        </td>
         <td style="vertical-align:top;padding-top:14px;"><button class="del-btn" onclick="delLiab('${l.id}')">✕</button></td>
       </tr>`;
     }
     return `<tr>
-      <td>${l.name}</td>
+      <td>${esc(l.name)}</td>
       <td style="font-weight:600;color:var(--down);">–${eur(l.value)}</td>
       <td></td>
       <td><button class="del-btn" onclick="delLiab('${l.id}')">✕</button></td>

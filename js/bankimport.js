@@ -433,10 +433,12 @@ function impCommit() {
       }
       continue;
     }
-    state.expenses.push({
+    const exp = {
       id: uid(), desc: r.desc, amount: Math.abs(r.amount), cat: r.cat,
       date: r.date, recurring: false, importBatch: batch, importFp: r.fp,
-    });
+    };
+    applyLoanPayment(exp);   // an imported instalment pays its loan, like a typed one
+    state.expenses.push(exp);
     added++;
   }
 
@@ -469,6 +471,7 @@ async function impUndoBatch(batchId) {
                (b.extras ? `, ${b.extras} extra income entr${b.extras === 1 ? 'y' : 'ies'}` : '') +
                (b.cash ? `, ${eur(b.cash)} of cash` : '') +
                ` from ${b.file} will be removed.`)) return;
+  (state.expenses || []).filter(e => e.importBatch === batchId).forEach(revertLoanPayment);
   state.expenses     = (state.expenses || []).filter(e => e.importBatch !== batchId);
   state.allocations  = (state.allocations || []).filter(a => a.importBatch !== batchId);
   state.extraIncomes = (state.extraIncomes || []).filter(x => x.importBatch !== batchId);
