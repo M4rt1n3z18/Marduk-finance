@@ -9,6 +9,16 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.44',
+    title: 'Risk view, and one holdings template',
+    items: [
+      'Portfolio \u2192 Risk: how much your portfolio swings, its worst fall, how it moves with the market, which holdings carry the most risk, how concentrated it is and how much of it moves with exchange rates.',
+      'Import CSV accepts only the Marduk template: Symbol, Trade Date, Purchase Price, Quantity, Status. Download it from the import window.',
+      'The new Status column takes Open or Closed \u2014 closed rows are shown but not imported.',
+      'The XTB import has been removed; holdings you imported with it stay as they are.',
+    ],
+  },
+  {
     v: '1.0.43',
     title: 'More accurate prices, and a round of fixes',
     items: [

@@ -856,7 +856,7 @@ const _isoDaysBefore = (iso, n) => {
   return d.toISOString().slice(0, 10);
 };
 
-// Holdings CSV import and the XTB import: every lot's rate in one request
+// Holdings CSV import: every lot's rate in one request
 ipcMain.handle('fetch-fx-history', async (event, { currencies, from, to }) => {
   try { return await ecbHistory(currencies, from, to); }
   catch (e) { return { error: e.message || String(e) }; }
@@ -1851,7 +1851,13 @@ ipcMain.handle('parse-payslip-from-path', async (event, filePath) => {
   return parsePayslipHybrid(filePath);
 });
 
-// ══════════════ XTB EXCEL IMPORT ══════════════
+// YYYY-MM-DD in local time. toISOString() converts to UTC first, so a date
+// built at local midnight came out a day early whenever the clock was ahead of
+// UTC — every summer day in Portugal.
+function _localIso(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 // ── Bank statement: return the raw grid, nothing more ────────────────────────
 // Read locally and handed to the renderer as-is. Header detection, column
 // mapping and categorising all happen there, where they can be shown and
@@ -1922,223 +1928,3 @@ ipcMain.handle('read-statement', async (event, droppedPath) => {
     return { fileName, rows: null, error: e.message };
   }
 });
-
-ipcMain.handle('import-xtb-excel', async () => {
-  const { filePaths, canceled } = await dialog.showOpenDialog({
-    title: 'Select XTB Export File',
-    filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls', 'csv'] }],
-    properties: ['openFile'],
-  });
-  if (canceled || !filePaths.length) return null;
-  const filePath = filePaths[0];
-
-  try {
-    // xlsx is a bundled dependency and reads .csv too — the hand-rolled CSV
-    // fallback for "xlsx not installed" could never run, and has been removed.
-    const XLSX = require('xlsx');
-    const workbook = XLSX.readFile(filePath, { cellDates: true, raw: false });
-    const allPositions = [];
-
-    // Scan EVERY sheet — XTB exports have multiple tabs
-    for (const sheetName of workbook.SheetNames) {
-      const sheet = workbook.Sheets[sheetName];
-      const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-      const nameU = sheetName.toUpperCase().trim();
-
-      if (nameU.includes('CASH')) {
-        // "CASH OPERATION HISTORY" — extract stock purchases from Comment column
-        allPositions.push(...parseXtbCashHistory(rows));
-      } else {
-        // "OPEN POSITION *" / "CLOSED POSITION HISTORY" / generic statement
-        allPositions.push(...parseXtbRowsSafe(rows));
-      }
-    }
-
-    if (!allPositions.length) {
-      const sheetList = workbook.SheetNames.map(n => `  • ${n}`).join('\n');
-      throw new Error(
-        `No position data found in any sheet.\n\nSheets found:\n${sheetList}\n\n` +
-        `Supported exports: Open Positions, Closed History, or Cash Operation History (EN/PT/ES/DE/PL).`
-      );
-    }
-
-    return allPositions;
-  } catch (e) {
-    console.error('XTB import error:', e);
-    throw new Error('Could not parse XTB file:\n' + e.message);
-  }
-});
-
-// ── XTB column aliases — covers EN/PT/ES/DE/PL/FR ───────────────────────────
-const XTB_COL = {
-  ticker: ['symbol','instrument','ticker','aktie','instrumento','ativo','símbolo','nome','name','asset','security','market','produto','walor','nazwa','symbole'],
-  type:   ['type','side','direction','buy/sell','cmd','operation','tipo','operação','operacion','sens','rodzaj','typ'],
-  shares: ['volume','quantity','qty','units','lots','menge','quantidade','size','shares','ações','wolumen','ilość'],
-  price:  ['open price','opening price','open_price','purchase price','avg price','preço de abertura','preço abertura','precio apertura','eröffnungskurs','entry price','buy price','cena otwarcia'],
-  date:   ['open time','opening time','open_time','data/hora abertura','data de abertura','data abertura','hora abertura','fecha apertura','eröffnungszeit','time opened','transaction date','czas otwarcia'],
-};
-
-function _xtbMatchCell(cell, aliases) {
-  const c = cell.toLowerCase().trim();
-  return aliases.some(a => c === a || c.includes(a));
-}
-
-// YYYY-MM-DD in local time. toISOString() converts to UTC first, so a date
-// built at local midnight came out a day early whenever the clock was ahead of
-// UTC — every summer day in Portugal.
-function _localIso(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function parseXtbDate(raw) {
-  if (!raw) return _localIso(new Date());
-  if (raw instanceof Date && !isNaN(raw)) return _localIso(raw);
-  const s = String(raw).trim();
-  // YYYY-MM-DD at the start — read the digits, don't round-trip through UTC
-  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  // DD.MM.YYYY or DD/MM/YYYY
-  m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? _localIso(new Date()) : _localIso(d);
-}
-
-// XTB suffix → the currency its prices are in. CH/SE/DK/NO used to sit in the
-// EUR list and .UK/.PL fell through to USD, so those lots got a wrong cost basis.
-function _xtbCurrency(sym) {
-  const sfx = (sym.match(/\.([A-Z]+)$/i) || [])[1]?.toUpperCase();
-  const map = {
-    DE:'EUR', AT:'EUR', BE:'EUR', FR:'EUR', IT:'EUR', ES:'EUR', PT:'EUR', NL:'EUR', FI:'EUR',
-    AS:'EUR', LS:'EUR', PA:'EUR', MC:'EUR', MI:'EUR', HE:'EUR', BR:'EUR', VIE:'EUR', AMS:'EUR', LIS:'EUR',
-    UK:'GBP', L:'GBP', CH:'CHF', SW:'CHF', SE:'SEK', ST:'SEK', DK:'DKK', CO:'DKK', NO:'NOK', OL:'NOK',
-    PL:'PLN', CZ:'CZK', HU:'HUF', CA:'CAD', AU:'AUD', HK:'HKD', SG:'SGD',
-  };
-  return map[sfx] || 'USD';   // .US, no suffix, or unknown → USD
-}
-const _XTB_SUFFIX_RE = /\.(US|PL|DE|UK|FR|NL|IT|ES|SE|NO|DK|FI|AT|BE|CH|PT|HU|CZ|RO|CA|AU|HK|SG|L|AS|LS|PA|MC|MI|CO|ST|OL|HE|BR|SW|VIE|AMS|LIS)$/i;
-
-// Parses a standard position sheet (Open Positions / Closed History).
-// Returns [] silently if the sheet has no data rows — caller decides whether to throw.
-function parseXtbRowsSafe(rows) {
-  if (!rows || !rows.length) return [];
-  // Strip leading 'sep=...' line (some CSV exports)
-  if (String(rows[0]?.[0] || '').trim().toLowerCase().startsWith('sep=')) rows = rows.slice(1);
-
-  const allPositions = [];
-
-  // Scan ALL rows looking for header rows (file may have multiple sections)
-  for (let i = 0; i < rows.length; i++) {
-    const rawRow = rows[i];
-    const cellsLower = rawRow.map(c => String(c ?? '').toLowerCase().trim());
-
-    // A header row must contain at least one ticker-alias cell
-    const tickerIdx = cellsLower.findIndex(c => _xtbMatchCell(c, XTB_COL.ticker));
-    if (tickerIdx < 0) continue;
-
-    // Map remaining columns
-    const colMap = { ticker: tickerIdx };
-    let extraCols = 0;
-    for (const [field, aliases] of Object.entries(XTB_COL)) {
-      if (field === 'ticker') continue;
-      const idx = cellsLower.findIndex(c => _xtbMatchCell(c, aliases));
-      if (idx >= 0) { colMap[field] = idx; extraCols++; }
-    }
-
-    // Need at least 1 more recognised column besides ticker
-    if (extraCols < 1) continue;
-
-    // Parse data rows immediately following this header
-    for (let j = i + 1; j < rows.length; j++) {
-      const dataRow = rows[j];
-      const tickerRaw = String(dataRow[colMap.ticker] ?? '').trim();
-
-      if (!tickerRaw) continue; // blank cell in ticker col
-      // Stop if this row itself is another header
-      if (_xtbMatchCell(tickerRaw, XTB_COL.ticker)) { i = j - 1; break; }
-      // Stop at section dividers (all-text row with no numeric values)
-      const hasNumeric = dataRow.some(c => /^\d/.test(String(c ?? '').trim()));
-      if (!hasNumeric && j > i + 1 && tickerRaw.length > 20) { i = j - 1; break; }
-
-      // Detect currency from exchange suffix BEFORE stripping
-      const currency = _xtbCurrency(tickerRaw);
-
-      // Clean ticker: strip exchange suffixes (.US .PL .DE …)
-      const cleanTicker = tickerRaw.replace(_XTB_SUFFIX_RE, '').toUpperCase().trim();
-      // Symbol characters only — it ends up in the holdings table's HTML
-      if (!/^[A-Z][A-Z0-9.\-]{0,14}$/.test(cleanTicker)) continue;
-
-      const rawType = colMap.type != null ? String(dataRow[colMap.type] ?? '').toUpperCase().trim() : 'BUY';
-      const isSell  = rawType.includes('SELL') || rawType === '1' || rawType.includes('SHORT')
-        || rawType.includes('VEND') || rawType.includes('KRÓT');
-      const type = isSell ? 'Sell' : 'Buy';
-
-      const rawShares = String(dataRow[colMap.shares] ?? '').replace(/\s/g, '').replace(',', '.');
-      const shares = parseFloat(rawShares) || 0;
-      if (shares <= 0) continue;
-
-      const rawPrice = String(dataRow[colMap.price] ?? '').replace(/\s/g, '').replace(',', '.');
-      const price = parseFloat(rawPrice) || 0;
-
-      const date = parseXtbDate(colMap.date != null ? dataRow[colMap.date] : null);
-
-      allPositions.push({ ticker: cleanTicker, type, shares, price, date, currency });
-    }
-  }
-
-  return allPositions; // empty [] is fine — caller aggregates across sheets
-}
-
-// Parses "CASH OPERATION HISTORY" sheet.
-// XTB records stock purchases there with Comment = "OPEN BUY {shares} @ {price}".
-function parseXtbCashHistory(rows) {
-  if (!rows || !rows.length) return [];
-  const positions = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    const cells = rows[i].map(c => String(c ?? '').toLowerCase().trim());
-    // Find the header row: must have "type" and "comment" (or at least "symbol")
-    const typeIdx    = cells.findIndex(c => c === 'type');
-    const commentIdx = cells.findIndex(c => c === 'comment');
-    const symbolIdx  = cells.findIndex(c => c === 'symbol');
-    const timeIdx    = cells.findIndex(c => c === 'time');
-    if (typeIdx < 0 || (commentIdx < 0 && symbolIdx < 0)) continue;
-
-    // Parse data rows below the header
-    for (let j = i + 1; j < rows.length; j++) {
-      const row  = rows[j];
-      const type = String(row[typeIdx] ?? '').trim().toLowerCase();
-
-      // Only "Stock purchase" / "investment" / "buy" type rows
-      if (!type.includes('stock') && !type.includes('purchase')
-          && !type.includes('invest') && !type.includes('buy')) continue;
-
-      const comment = String(commentIdx >= 0 ? (row[commentIdx] ?? '') : '').trim();
-      const symbol  = String(symbolIdx  >= 0 ? (row[symbolIdx]  ?? '') : '').trim().toUpperCase();
-      const date    = parseXtbDate(timeIdx >= 0 ? row[timeIdx] : null);
-
-      // Extract shares + price from comment.
-      // Formats seen in XTB exports:
-      //   "OPEN BUY 2 @ 164.87"            → whole lot
-      //   "OPEN BUY 0.1002/1.1002 @ 154.00" → fractional fill: X/total (take X, the incremental amount)
-      //   "OPEN BUY 1/1.1002 @ 154.24"      → whole-share fill of same order (take 1)
-      const m = comment.match(/(?:OPEN\s+)?BUY\s+([\d.,]+)(?:\/[\d.,]+)?\s*@\s*([\d.,]+)/i);
-      if (!m || !symbol) continue;
-
-      const shares = parseFloat(m[1].replace(',', '.')) || 0;
-      const price  = parseFloat(m[2].replace(',', '.')) || 0;
-      if (shares <= 0) continue;
-
-      // Detect currency from exchange suffix BEFORE stripping
-      const currency = _xtbCurrency(symbol);
-
-      const cleanTicker = symbol.replace(_XTB_SUFFIX_RE, '').toUpperCase().trim();
-      if (!/^[A-Z][A-Z0-9.\-]{0,14}$/.test(cleanTicker)) continue;
-
-      positions.push({ ticker: cleanTicker, type: 'Buy', shares, price, date, currency });
-    }
-    break; // only one header row per sheet
-  }
-
-  return positions;
-}

@@ -189,6 +189,17 @@
     .expcat-track { display:none; }
   }
 
+  /* ── Risk view (js/risk.js) ── */
+  .risk-row { display:grid; grid-template-columns:minmax(150px,1.2fr) minmax(80px,2fr) 58px auto; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--border); }
+  .risk-row:last-of-type { border-bottom:none; }
+  .risk-name { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .risk-pct  { font-size:13px; font-weight:700; text-align:right; }
+  .risk-amt  { font-size:12px; color:var(--text3); text-align:right; min-width:90px; }
+  .risk-track { flex:1; display:block; background:var(--bg3); border-radius:4px; height:7px; overflow:hidden; min-width:60px; }
+  .risk-fill  { display:block; height:100%; border-radius:4px; transition:width .35s ease; }
+  .risk-note  { margin-top:12px; padding:9px 12px; border-radius:8px; background:rgba(201,168,76,0.08); border:1px solid rgba(201,168,76,0.22); font-size:12px; color:var(--text2); }
+  .risk-foot  { margin-top:12px; font-size:12px; color:var(--text3); line-height:1.6; }
+
   /* ── Portfolio sub-views ── */
   .psub { display: none; }
   .psub.active { display: block; }
@@ -956,19 +967,19 @@
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:1040px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
     <div style="padding:22px 26px 14px;border-bottom:1px solid var(--border);">
       <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);">IMPORT HOLDINGS</div>
-      <div style="font-size:12px;color:var(--text3);margin-top:5px;">Into <strong id="hi-port-name" style="color:var(--text2);"></strong> · Yahoo Finance CSV format · read on this computer, never uploaded</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:5px;">Into <strong id="hi-port-name" style="color:var(--text2);"></strong> · Marduk template only · read on this computer, never uploaded</div>
     </div>
     <div style="padding:18px 26px;overflow-y:auto;flex:1;">
       <div id="hi-pick">
         <div id="hi-drop" style="border:1.5px dashed var(--border);border-radius:12px;padding:30px;text-align:center;cursor:pointer;transition:border-color .2s;">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--gold);opacity:.8;"><path d="M12 3.5v10M8.5 10 12 13.5 15.5 10M4.5 16v3a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-3"/></svg>
           <div style="font-size:13px;font-weight:600;margin-top:8px;">Drop a CSV here, or click to choose</div>
-          <div class="muted" style="font-size:11px;margin-top:3px;">Columns: <strong>Symbol, Trade Date, Purchase Price, Quantity</strong> · optional Commission, Currency</div>
+          <div class="muted" style="font-size:11px;margin-top:3px;">First row: <strong>Symbol, Trade Date, Purchase Price, Quantity, Status</strong> · Status is Open or Closed</div>
         </div>
         <input type="file" id="hi-file" accept=".csv,text/csv" style="display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:12px;color:var(--text3);">
-          <span>Prices are read in each stock's own currency (USD for AAPL, EUR for VWCE.DE) and converted at the ECB rate on the trade date.</span>
-          <button class="btn-ghost" onclick="hiDownloadTemplate()" style="font-size:11px;padding:6px 12px;">↓ Template</button>
+          <span>Only the Marduk template is accepted. Prices are read in each stock's own currency (USD for AAPL, EUR for VWCE.DE) and converted at the ECB rate on the trade date; Closed rows are skipped.</span>
+          <button class="btn-ghost" onclick="hiDownloadTemplate()" style="font-size:11px;padding:6px 12px;white-space:nowrap;">↓ Download template</button>
         </div>
       </div>
       <div id="hi-error" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);color:var(--down);font-size:12px;"></div>
@@ -1086,6 +1097,10 @@
           <button class="settings-item" data-sub="portfolio:dividends" onclick="navToPortfolioSub('dividends')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="10" r="5.5"/><path d="M13.5 6a5.5 5.5 0 1 1-.5 10.9M9 7.8v4.4M6.8 10h4.4"/></svg>
             Dividends
+          </button>
+          <button class="settings-item" data-sub="portfolio:risk" onclick="navToPortfolioSub('risk')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l7 2.8v5.2c0 4.3-2.9 7.6-7 9-4.1-1.4-7-4.7-7-9V6.3z"/><path d="M8.5 13.5l2.2-2.4 1.9 1.6 2.9-3.2"/></svg>
+            Risk
           </button>
           <button class="settings-item" data-sub="portfolio:cash" onclick="navToPortfolioSub('cash')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6.2 12h.01M17.8 12h.01"/></svg>
@@ -1355,7 +1370,6 @@
         <div class="settings-menu" id="actions-menu">
           <button class="settings-item" id="refresh-btn" onclick="refreshPrices()">↻&nbsp; Refresh Prices</button>
           <button class="settings-item" onclick="closeActionsMenu();openHoldImport()" title="Import lots from a Yahoo Finance-format CSV">⬆&nbsp; Import CSV</button>
-          <button class="settings-item" onclick="closeActionsMenu();importXtbExcel()" title="Import open positions from XTB Excel export">⬆&nbsp; XTB Import</button>
           <button class="settings-item" onclick="closeActionsMenu();exportPortfolioCSV()">↓&nbsp; Export CSV</button>
           <button class="settings-item" onclick="closeActionsMenu();checkStockSplits(true)" title="Adjust holdings recorded before a stock split">⇅&nbsp; Check for stock splits</button>
           <div class="settings-divider"></div>
@@ -1660,6 +1674,59 @@
   </div><!-- /psub-dividends -->
 
   <!-- ── SUB-VIEW: CASH ── -->
+  <!-- ── SUB-VIEW: RISK ── js/risk.js -->
+  <div class="psub" id="psub-portfolio-risk">
+    <div id="risk-empty" class="card empty" style="display:none;padding:40px;text-align:center;">
+      No holdings yet.<br><span style="font-size:12px;color:var(--text3);">Risk figures appear once this portfolio holds something.</span>
+    </div>
+    <div id="risk-body">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Volatility<span class="info-tip">i<span class="tip-body">How much the portfolio's value swings, as the standard deviation of its returns scaled to a year. 15% means a typical year lands within about ±15% of its average. Broad stock indices usually sit around 15–20%.</span></span></div>
+          <div class="stat-val" id="risk-vol">—</div>
+          <div class="stat-sub" id="risk-vol-sub">per year</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Max Drawdown<span class="info-tip">i<span class="tip-body">The largest fall from a high point to a later low during the period, for the holdings you have now — the worst stretch you would have sat through.</span></span></div>
+          <div class="stat-val" id="risk-dd">—</div>
+          <div class="stat-sub" id="risk-dd-sub">&nbsp;</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label"><span id="risk-beta-label">Beta vs S&amp;P 500</span><span class="info-tip">i<span class="tip-body">How much the portfolio moves with the benchmark: 1.0 moves in step, 1.3 moves 30% more, 0.7 moves 30% less. Correlation says how closely it follows at all (1 = always the same direction). The benchmark is the one picked on the Overview's value chart.</span></span></div>
+          <div class="stat-val" id="risk-beta">—</div>
+          <div class="stat-sub" id="risk-beta-sub">&nbsp;</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Effective Holdings<span class="info-tip">i<span class="tip-body">How many equally sized holdings would give the same concentration (1 ÷ the sum of squared weights). Fifteen holdings with one at 40% behave like far fewer than fifteen.</span></span></div>
+          <div class="stat-val" id="risk-effn">—</div>
+          <div class="stat-sub" id="risk-effn-sub">&nbsp;</div>
+        </div>
+      </div>
+
+      <div class="chart-grid-2">
+        <div class="card">
+          <div class="card-title">Concentration<span class="info-tip">i<span class="tip-body">Shares of the invested value, cash excluded. Uses today's prices — no history needed.</span></span></div>
+          <div id="risk-conc" style="margin-top:6px;"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Currency Exposure<span class="info-tip">i<span class="tip-body">By the currency each holding is priced in, plus cash. A US stock bought with euros is still a dollar asset: its value in euros moves with EUR/USD as well as with its own price.</span></span></div>
+          <div id="risk-ccy" style="margin-top:6px;"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+          <div class="card-title" style="margin:0;">Risk by Holding<span class="info-tip">i<span class="tip-body">Share of portfolio risk is each holding's contribution to the portfolio's swings — weight × how much it moves with the rest. A small position in a volatile stock can carry more risk than a large ETF.</span></span></div>
+          <div class="range-bar" id="risk-ranges">
+            <button class="range-btn active" onclick="setRiskRange('1Y',this)">1Y</button>
+            <button class="range-btn" onclick="setRiskRange('3Y',this)">3Y</button>
+          </div>
+        </div>
+        <div id="risk-table"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="psub" id="psub-portfolio-cash">
 
   <!-- Uninvested Cash (multi-currency) -->
@@ -2307,10 +2374,11 @@
 <script src="js/app.js"></script>
 <script src="js/returns.js"></script>
 <script src="js/charts2.js"></script>
-<script src="js/xtb.js"></script>
+<script src="js/portfolios.js"></script>
 <script src="js/bankimport.js"></script>
 <script src="js/holdimport.js"></script>
 <script src="js/splits.js"></script>
+<script src="js/risk.js"></script>
 <script src="js/dialog.js"></script>
 <script src="js/changelog.js"></script>
 <script src="js/calendar.js"></script>

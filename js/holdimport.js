@@ -1,19 +1,31 @@
-// ══════════════ HOLDINGS CSV IMPORT (Yahoo Finance format) ══════════════
-// Portfolio → Holdings → Import CSV. Reads the file Yahoo Finance's portfolio
-// import takes (and its export writes):
+// ══════════════ HOLDINGS CSV IMPORT (Marduk template) ══════════════
+// Portfolio → Holdings → Import CSV. Exactly one layout is accepted — the
+// Marduk template, first row:
 //
-//   Symbol,Trade Date,Purchase Price,Quantity[,Commission,Comment,…]
+//   Symbol,Trade Date,Purchase Price,Quantity,Status
+//
+// Status (Open | Closed) is optional, so the original four-column file still
+// works with every row treated as Open. Closed rows are listed but never
+// imported: Marduk tracks what you hold now, and a sold lot counted as a
+// holding is exactly the mistake a broker's closed-positions sheet invites.
+// Any other header — broker exports, Yahoo's export, renamed or reordered
+// columns — is rejected rather than half-understood.
+//
+// Columns are strict; formatting is not. A template edited and saved by a
+// Portuguese Excel (`;` delimiter, decimal commas, D/M/Y dates) is the same
+// template and is read as such.
 //
 // Parsed entirely in the renderer — the file never leaves this computer. The
 // only network call is one ECB request for the historical rates the lots need.
 // No Yahoo calls per row (prices arrive with the next refresh), so a 40-lot
 // file can't trip the rate limit.
 //
-// Yahoo's convention is that Purchase Price is in the symbol's own trading
-// currency (USD for AAPL, EUR for VWCE.DE, pence for most .L listings). Lots
-// bought with euros but written in euros can be switched with the "Prices are
-// in" selector. A rate is never guessed: a lot with no ECB rate for its date
-// can't be imported.
+// Purchase Price is read in the symbol's own trading currency (USD for AAPL,
+// EUR for VWCE.DE, pence for most .L listings); lots written in euros can be
+// switched with the "Prices are in" selector. A rate is never guessed: a lot
+// with no ECB rate for its date can't be imported.
+
+const HI_TEMPLATE = ['Symbol', 'Trade Date', 'Purchase Price', 'Quantity', 'Status'];
 
 const HI_CCYS = ['EUR','USD','GBP','GBp','CHF','CAD','SEK','DKK','NOK','PLN','CZK','JPY','HKD','AUD','NZD','SGD','BRL','MXN','INR','KRW'];
 
@@ -24,18 +36,6 @@ const HI_SUFFIX_CCY = {
   L:'GBp', SW:'CHF', TO:'CAD', V:'CAD', NE:'CAD', ST:'SEK', CO:'DKK', OL:'NOK',
   WA:'PLN', PR:'CZK', T:'JPY', HK:'HKD', AX:'AUD', NZ:'NZD', SI:'SGD', SA:'BRL',
   MX:'MXN', NS:'INR', BO:'INR', KS:'KRW', KQ:'KRW',
-};
-
-// Header aliases, most specific first. Yahoo's export has both "Date" (quote
-// date) and "Trade Date", and both "Current Price" and "Purchase Price" — the
-// order here is what picks the right one.
-const HI_FIELDS = {
-  symbol:     ['symbol', 'ticker'],
-  date:       ['tradedate', 'purchasedate', 'buydate', 'date'],
-  price:      ['purchaseprice', 'buyprice', 'costpershare', 'averageprice', 'avgprice', 'price'],
-  qty:        ['quantity', 'shares', 'units', 'qty'],
-  commission: ['commission', 'fees', 'fee'],
-  currency:   ['currency', 'purchasecurrency'],
 };
 
 let _hiRows   = null;   // parsed lots for the open review
@@ -75,7 +75,7 @@ function hiParseCsv(text) {
 }
 
 // A ;-delimited file comes from a European Excel and uses decimal commas;
-// a ,-delimited one (Yahoo) can only carry commas inside quotes, as thousands.
+// a ,-delimited one can only carry commas inside quotes, as thousands.
 function hiNum(raw, delim) {
   const s = String(raw ?? '').trim();
   if (!s) return null;
@@ -84,14 +84,13 @@ function hiNum(raw, delim) {
   return isFinite(n) ? n : null;
 }
 
-// YYYYMMDD (Yahoo export), YYYY-MM-DD (Yahoo template), or D/M/YYYY.
+// YYYY-MM-DD as in the template, or D/M/YYYY as a Portuguese Excel re-saves it.
 // Slash dates are read day-first unless that's impossible — and flagged as
 // ambiguous when both readings are valid, so the review can say so.
 function hiDate(raw) {
   const s = String(raw ?? '').trim();
   let y, m, d, ambiguous = false, mt;
-  if ((mt = s.match(/^(\d{4})(\d{2})(\d{2})$/)))                  [, y, m, d] = mt;
-  else if ((mt = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/))) [, y, m, d] = mt;
+  if ((mt = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/))) [, y, m, d] = mt;
   else if ((mt = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/))) {
     const a = +mt[1], b = +mt[2]; y = mt[3];
     if (a > 12)      { d = a; m = b; }
@@ -104,14 +103,6 @@ function hiDate(raw) {
   return { iso: _hiIso(dt), ambiguous };
 }
 
-function hiNormCcy(raw) {
-  const s = String(raw ?? '').trim();
-  if (!s) return null;
-  if (s === 'GBp' || /^GBX$/i.test(s)) return 'GBp';
-  const up = s.toUpperCase();
-  return HI_CCYS.includes(up) ? up : null;
-}
-
 function hiSuffixCcy(sym) {
   const crypto = sym.match(/-(USD|EUR|GBP)$/);
   if (crypto) return crypto[1];
@@ -121,9 +112,10 @@ function hiSuffixCcy(sym) {
 }
 
 // Which holding a symbol lands in. Exact match first; otherwise a bare/suffixed
-// pair of the same code (VWCE ↔ VWCE.DE) is treated as the same holding — XTB
-// imports store bare codes, Yahoo writes suffixed ones, and splitting one
-// position across two rows would be worse than merging.
+// pair of the same code (VWCE ↔ VWCE.DE) is treated as the same holding —
+// holdings from the old XTB import store bare codes, Yahoo symbols are
+// suffixed, and splitting one position across two rows would be worse than
+// merging.
 function hiTarget(port, sym) {
   if (port.holdings.some(h => h.ticker === sym)) return { target: sym, merge: true };
   const bare = sym.split('.')[0];
@@ -144,42 +136,37 @@ function hiBuildRows(text, port) {
   const { delim, rows } = hiParseCsv(text);
   if (!rows.length) return { error: 'The file is empty.' };
 
-  const norm = h => String(h).toLowerCase().replace(/[^a-z]/g, '');
-  let hIdx = -1, col = {};
-  for (let i = 0; i < Math.min(rows.length, 10) && hIdx < 0; i++) {
-    const hdr = rows[i].map(norm);
-    if (!hdr.some(h => HI_FIELDS.symbol.includes(h))) continue;
-    hIdx = i;
-    for (const [field, aliases] of Object.entries(HI_FIELDS)) {
-      for (const a of aliases) { const j = hdr.indexOf(a); if (j >= 0) { col[field] = j; break; } }
-    }
-  }
-  const missing = ['symbol', 'date', 'price', 'qty'].filter(f => col[f] == null);
-  if (hIdx < 0 || missing.length) {
-    const names = { symbol: 'Symbol', date: 'Trade Date', price: 'Purchase Price', qty: 'Quantity' };
-    return { error: `This file needs these columns: Symbol, Trade Date, Purchase Price, Quantity.` +
-      (hIdx >= 0 ? ` Missing: ${missing.map(f => names[f]).join(', ')}.` : '') };
+  // The first row must be the template's header, word for word and in order.
+  // Trailing empty cells are ignored (spreadsheets add them).
+  const header = rows[0].map(h => String(h).trim().toLowerCase().replace(/\s+/g, ' '));
+  while (header.length && !header[header.length - 1]) header.pop();
+  const want = HI_TEMPLATE.map(h => h.toLowerCase());
+  const hasStatus = header.length === 5;
+  if (!(header.length === 4 || hasStatus) || header.some((h, i) => h !== want[i])) {
+    const found = rows[0].map(c => String(c).trim()).filter(Boolean).join(', ') || 'nothing';
+    return { error: `This file isn't in the Marduk template, so it can't be imported. The first row must be exactly: ` +
+      `${HI_TEMPLATE.join(', ')} (Status is optional). Found: ${found}. Download the template and copy your lots into it.` };
   }
 
   const today = _hiIso(new Date());
   const out = [];
-  rows.slice(hIdx + 1).forEach(cells => {
-    const get = f => col[f] == null ? '' : String(cells[col[f]] ?? '').trim();
-    const sym = get('symbol').toUpperCase();
+  rows.slice(1).forEach(cells => {
+    const get = i => String(cells[i] ?? '').trim();
+    const sym = get(0).toUpperCase();
     if (!sym) return;
     const r = { sym, include: true };
     out.push(r);
 
-    if (sym.startsWith('$$'))         { r.skip = 'Cash entry — not imported'; return; }
-    if (/^\^|=[XF]$/.test(sym))       { r.skip = 'Index or currency — not a holding'; return; }
     // Symbol characters only: the ticker ends up in the holdings table's HTML
     if (!/^[A-Z0-9][A-Z0-9.\-]{0,19}$/.test(sym)) { r.err = 'Not a valid symbol'; return; }
-    const qRaw = get('qty'), pRaw = get('price'), dRaw = get('date');
-    if (!qRaw && !pRaw && !dRaw)      { r.skip = 'No lot — watchlist only'; return; }
-
-    r.qty   = hiNum(qRaw, delim);
-    r.price = hiNum(pRaw, delim);
-    r.commission = Math.abs(hiNum(get('commission'), delim) || 0);
+    if (hasStatus) {
+      const st = get(4).toLowerCase();
+      if (st === 'closed')                        { r.skip = 'Closed — not imported'; return; }
+      if (st !== 'open' && st !== 'opened')       { r.err = 'Status must be Open or Closed'; return; }
+    }
+    const dRaw = get(1);
+    r.price = hiNum(get(2), delim);
+    r.qty   = hiNum(get(3), delim);
     const dt = hiDate(dRaw);
     if (!(r.qty > 0))                 { r.err = r.qty < 0 ? 'Short positions aren’t supported' : 'Missing quantity'; return; }
     if (!(r.price > 0))               { r.err = 'Missing purchase price'; return; }
@@ -189,8 +176,7 @@ function hiBuildRows(text, port) {
     r.ambiguous = dt.ambiguous;
 
     Object.assign(r, hiTarget(port, sym));
-    r.cls    = hiClass(r.target);
-    r.csvCcy = hiNormCcy(get('currency'));
+    r.cls = hiClass(r.target);
   });
   if (!out.length) return { error: 'No rows found under the header.' };
   return { rows: out };
@@ -198,7 +184,6 @@ function hiBuildRows(text, port) {
 
 // ── Currency, rates, duplicates ────────────────────────────────────────────
 function hiAutoCcy(r, port) {
-  if (r.csvCcy) return r.csvCcy;
   // What Yahoo actually quotes an existing holding in beats any suffix rule
   const h = port.holdings.find(h => h.ticker === r.target);
   if (h?.priceCurrency && HI_CCYS.includes(h.priceCurrency)) return h.priceCurrency;
@@ -232,7 +217,7 @@ function hiRecompute(port) {
       r.rate = hiRateOn(unit, r.date);
       if (!r.rate) { r.block = 'No ECB rate for this date'; continue; }
     } else r.rate = 1;
-    r.priceEur = parseFloat(((r.price + r.commission / r.qty) / hiDiv(r.ccy) / r.rate).toFixed(4));
+    r.priceEur = parseFloat((r.price / hiDiv(r.ccy) / r.rate).toFixed(4));
     r.costEur  = r.priceEur * r.qty;
 
     // Same lot already in this portfolio? Exact = same day, shares and price
@@ -321,8 +306,8 @@ function hiReadFile(f) {
   document.getElementById('hi-error').style.display = 'none';
   if (!/\.(csv|txt)$/i.test(f.name)) {
     hiShowError(/\.(xlsx?|numbers)$/i.test(f.name)
-      ? 'This needs a .csv file. Save the spreadsheet as CSV first — for an XTB export, use Actions → XTB Import instead.'
-      : 'Choose a .csv file in the Yahoo Finance format.');
+      ? 'This needs a .csv file. Save the spreadsheet as CSV first (File → Export To → CSV in Numbers).'
+      : 'Choose a .csv file made from the Marduk template.');
     return;
   }
   const fr = new FileReader();
@@ -378,8 +363,7 @@ function hiRender() {
     const fmtPx  = r.price != null ? r.price.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '';
     const notes  = [
       r.ambiguous ? 'date read as day/month' : '',
-      r.commission ? `incl. ${r.commission} commission` : '',
-      r.sym.endsWith('.L') && !r.ccyManual && _hiGlobal === 'auto' && !r.csvCcy ? 'London: check GBp vs USD' : '',
+      r.sym.endsWith('.L') && !r.ccyManual && _hiGlobal === 'auto' ? 'London: check GBp vs USD' : '',
     ].filter(Boolean).join(' · ');
     return `<tr style="${dead || r.dup ? 'opacity:.45;' : ''}">
       <td style="text-align:center;"><input type="checkbox" data-hiinc="${i}"${r.include && hiSelectable(r) ? ' checked' : ''}${hiSelectable(r) ? '' : ' disabled'} style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer;"></td>
@@ -458,8 +442,8 @@ async function hiCommit() {
       txExtra: { importBatch: batch } });
   }
 
-  // Same rule as the XTB import: only buys dated on/after the earliest open
-  // allocation consume it — a back-filled history must not.
+  // Only buys dated on/after the earliest open allocation consume it — a
+  // back-filled history must not.
   const minDate = earliestOpenAllocationDate(port.id);
   const invested = minDate ? lots.filter(r => r.date >= minDate).reduce((s, r) => s + r.costEur, 0) : 0;
   if (invested > 0) consumeAllocations(port.id, parseFloat(invested.toFixed(2)));
@@ -517,7 +501,7 @@ async function hiUndo() {
 }
 
 function hiDownloadTemplate() {
-  const csv = 'Symbol,Trade Date,Purchase Price,Quantity,Commission\nAAPL,2024-03-15,172.50,10,0\nVWCE.DE,2024-05-02,115.40,4,0\n';
+  const csv = HI_TEMPLATE.join(',') + '\nAAPL,2024-03-15,172.50,10,Open\nVWCE.DE,2024-05-02,115.40,4,Open\nTSLA,2023-01-10,118.20,3,Closed\n';
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
   a.download = 'marduk-holdings-template.csv';

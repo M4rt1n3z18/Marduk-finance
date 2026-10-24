@@ -11,7 +11,7 @@ Personal finance dashboard built with Electron. Syncs data via Google Drive. Dis
 
 | File | Role |
 |------|------|
-| `main.js` | Electron main process — IPC handlers, Yahoo Finance fetching, payslip parser, XTB importer, auto-updater |
+| `main.js` | Electron main process — IPC handlers, Yahoo Finance fetching, payslip parser, bank-statement reader, auto-updater |
 | `preload.js` | contextBridge — exposes `window.electronAPI` to renderer; `contextIsolation:true`, `nodeIntegration:false` |
 | `index.html` | Single-page app shell — all HTML, CSS, Chart.js 4.4.1, PDF.js 3.11.174 (CDN) |
 | `js/app.js` | Tab routing, theme toggle, lock screen, auto-lock, brute-force protection, updater UI, version display |
@@ -21,6 +21,8 @@ Personal finance dashboard built with Electron. Syncs data via Google Drive. Dis
 | `js/bankimport.js` | Bank statement import — local spreadsheet parsing, column mapping, merchant learning, duplicate detection, undoable batches |
 | `js/holdimport.js` | Holdings CSV import (Yahoo Finance format) — local parsing, ECB historical FX, duplicate flags, one-step undo; also the Add Holding panel toggle |
 | `js/splits.js` | Stock-split detection and confirm-first adjustment of lots and holdings |
+| `js/risk.js` | Portfolio → Risk: volatility, drawdown, beta, risk by holding, concentration, currency exposure |
+| `js/portfolios.js` | Portfolio CSV export, expenses CSV export, portfolio create/rename/delete (was `xtb.js`) |
 
 ---
 
@@ -210,15 +212,9 @@ Module-level variables: `_psActiveRow`, `_psPdf`, `_psScale = 1.2`
 
 ---
 
-## XTB Importer (`main.js`)
+## XTB Importer — removed in 1.0.44
 
-Handles `.xlsx`, `.xls`, and `.csv` exports from XTB broker. Multilingual column headers (EN/PT/ES/DE/PL/FR).
-
-- `parseXtbRowsSafe(rows)` — standard position sheets (Open Positions, Closed History)
-- `parseXtbCashHistory(rows)` — "CASH OPERATION HISTORY" sheet (parses `OPEN BUY {shares} @ {price}` from Comment column)
-- `parseXtbCsv(text)` — CSV fallback (handles `;` delimiter)
-- Strips exchange suffixes (`.US`, `.DE`, `.LS`, etc.) from tickers before saving
-- Detects currency from suffix before stripping
+Holdings come in through the Marduk CSV template only (see Holdings CSV Import). The XTB importer read broker sheets whose layout Marduk didn't control — its closed-positions sheet could be counted as open buys. Holdings imported by it before 1.0.44 keep `importedFromXtb: true` and bare tickers (`VWCE`); nothing reads the flag any more. `js/xtb.js` is now `js/portfolios.js` (CSV export + portfolio create/rename/delete). `xlsx` stays a dependency for bank statements.
 
 ---
 
@@ -228,8 +224,8 @@ Reserve money for investing without counting it as an expense. Entity in `state.
 `{ id, portfolioId, amountAllocated, amountInvested, allocationDate, status: 'open'|'used', notes, createdAt, updatedAt }` (remaining is derived).
 
 - **Create**: "Investment Allocation" card in Expenses tab (`addAllocation()` in `actions.js`). Reduces the month's Remaining budget in Expenses + Budget tabs (via `allocationTotalForMonth`), counts as savings in the savings rate.
-- **Consume**: `consumeAllocations(portfolioId, amountEur)` — FIFO on open allocations, called from `addHolding()` (manual buys) and the XTB importer. Never goes negative; excess accumulates in `state.unallocatedInvestment[portfolioId]` ("Unallocated Investment").
-- **XTB guard**: only imported buys dated on/after `earliestOpenAllocationDate(portfolioId)` consume allocations — historical bulk imports don't.
+- **Consume**: `consumeAllocations(portfolioId, amountEur)` — FIFO on open allocations, called from `addHolding()` (manual buys) and the holdings CSV import. Never goes negative; excess accumulates in `state.unallocatedInvestment[portfolioId]` ("Unallocated Investment").
+- **Import guard**: only imported buys dated on/after `earliestOpenAllocationDate(portfolioId)` consume allocations — historical bulk imports don't.
 - **UI**: allocation history table in Expenses; stat card row `#alloc-stats-row` (Allocated / Invested / Remaining / Unallocated) at top of Portfolio tab (`renderAllocationStats()` in `render.js`).
 
 ## Other AI features (all optional — need the AI key)
@@ -311,17 +307,28 @@ Expenses tab → **Import**. Spreadsheet in, categorised expenses out, **entirel
 
 ## Holdings CSV Import (`js/holdimport.js`)
 
-Portfolio → Holdings → **Import CSV** (also in the Actions menu). Reads the file Yahoo Finance's portfolio import takes and its export writes — `Symbol,Trade Date,Purchase Price,Quantity` plus optional `Commission`, and a non-Yahoo `Currency` column. Parsed in the renderer with `FileReader`; the file never leaves the machine.
+Portfolio → Holdings → **Import CSV** (also in the Actions menu). **Only the Marduk template is accepted** (the user's explicit requirement, 1.0.44): the first row must be exactly `Symbol,Trade Date,Purchase Price,Quantity,Status` (`HI_TEMPLATE`, case-insensitive, in that order; trailing empty cells ignored). `Status` is optional so the original four-column file still works (all rows Open). Anything else — Yahoo's export, broker sheets, renamed/reordered/extra columns, a header not on row 1 — is rejected with the expected header and a pointer to the template download. Parsed in the renderer with `FileReader`; the file never leaves the machine.
 
-- **Header aliases are ordered most-specific first** (`HI_FIELDS`). Yahoo's export has both `Date` (quote date) and `Trade Date`, and both `Current Price` and `Purchase Price`; the order picks the right ones. Dates: `YYYYMMDD` (export), `YYYY-MM-DD` (template), or `D/M/YYYY` read day-first and flagged when ambiguous. `;`-delimited files go through `impNum` (European decimals).
-- **Skipped, not failed**: watchlist rows (no lot), `$$CASH_TX` rows, indices (`^`) and FX/futures (`=X`/`=F`).
-- **Currency**: Yahoo's convention is that Purchase Price is in the symbol's *own* trading currency. Resolved per row: manual override → "Prices are in" selector → `Currency` column → the existing holding's `priceCurrency` (what Yahoo actually quotes it in) → exchange suffix (`HI_SUFFIX_CCY`; no suffix = USD, `.L` = GBp, flagged "check GBp vs USD" because some London lines quote in USD). `GBp` converts via GBP ÷ 100.
+- **Status**: `Open` (or `Opened`) imports; `Closed` is listed as "Closed — not imported" (Marduk tracks current holdings; a sold lot counted as held is the mistake a closed-positions sheet invites); anything else is a row error.
+- **Columns strict, formatting tolerant**: the template re-saved by a Portuguese Excel (`;` delimiter → decimals via `impNum`, `D/M/YYYY` dates read day-first and flagged when ambiguous) is the same template. Dates otherwise `YYYY-MM-DD`.
+- **Currency**: Purchase Price is read in the symbol's *own* trading currency. Resolved per row: manual override → "Prices are in" selector → the existing holding's `priceCurrency` (what Yahoo actually quotes it in) → exchange suffix (`HI_SUFFIX_CCY`; no suffix = USD, `.L` = GBp, flagged "check GBp vs USD" because some London lines quote in USD). `GBp` converts via GBP ÷ 100.
 - **FX**: IPC `fetch-fx-history` makes **one ECB data-API request** for every currency and the whole date range (`D.USD+GBP….EUR.SP00.A`, CSV, **CRLF line endings**). Weekend/holiday trades walk back to the last published rate. No rate → the row can't be imported; never a guess. No Yahoo calls per row — prices arrive with the refresh that runs after an import creates new holdings.
-- **Landing**: `hiTarget()` merges a bare/suffixed pair (`VWCE` ↔ `VWCE.DE`) into the existing holding — XTB stores bare codes, Yahoo writes suffixed ones. Every lot goes through **`applyBuy()`** in `actions.js`, the same function Add Holding uses, so both record buys identically. Allocations are consumed with the XTB rule (only lots on/after the earliest open allocation).
+- **Landing**: `hiTarget()` merges a bare/suffixed pair (`VWCE` ↔ `VWCE.DE`) into the existing holding — the old XTB import stored bare codes, Yahoo symbols are suffixed. Every lot goes through **`applyBuy()`** in `actions.js`, the same function Add Holding uses, so both record buys identically. Allocations are consumed with the XTB rule (only lots on/after the earliest open allocation).
 - **Duplicates**: same ticker + date + shares and same price (native or EUR) = "Already added"; same ticker + date + shares at a different price = "Possible duplicate" (likely the same buy typed in another currency). Both start unticked.
 - **Undo** — `state.lastHoldingImport` holds one pre-import snapshot (holdings, transactions, and allocations only if the import consumed any) plus a fingerprint of positions after it. Undo is offered only while the fingerprint still matches; price refreshes don't change it (they never touch shares or cost), any manual buy/sell/delete does. Restoring keeps live prices.
 
 The **Add Holding form is folded** into `#add-holding-panel` behind `+ Add holding` on the holdings card's header line; `openAddHolding()` / `toggleAddHolding()`. `quickSell()` opens it first.
+
+## Risk View (`js/risk.js`)
+
+Portfolio dropdown → **Risk** (`psub-portfolio-risk`, `SUB_BUILDERS.portfolio.risk = buildRiskView`; also re-run from `renderPortfolio()`, a no-op unless visible). Active portfolio only.
+
+- **Backtest of today's holdings** (current share counts) over 1Y daily (`perYear` 252) or 3Y weekly (52), valued in euros via `histCloseToEur` — describes the portfolio as it stands, independent of when things were bought. `computeRisk()` returns volatility (stdev of returns × √perYear), max drawdown with dates (`riskMaxDrawdown`), worst day/week, period return, and vs the benchmark (the one picked on the Overview chart, S&P 500 if none): beta, correlation, benchmark vol/return.
+- **Per holding**: weight, volatility, beta, and **share of portfolio risk** = wᵢ·cov(rᵢ, rₚ)/var(rₚ), normalised to 100%. Bars turn red when a holding's risk share exceeds 1.25× its weight.
+- **Alignment** (`riskAlign`): one date grid, values carried forward over other markets' holidays. The grid comes from exchange-traded holdings only — crypto trades daily and would add weekend points where every stock shows a fake 0%. A holding whose history starts after the first 10% of the window (recent listing) is excluded and named in the footnote rather than shortening the window.
+- **No prices needed**: `riskConcentration` (largest position, top 5, effective holdings = 1/Σw², largest sector) and `riskCurrencyExposure` (by *trading* currency — a US stock bought with euros is still dollar exposure — plus cash; GBp folded into GBP).
+- **Deliberately absent**: Sharpe (needs a risk-free assumption and years of history) and VaR (false precision). Notes state facts, never advice.
+- History is cached 15 min in the renderer (`_riskCache`) on top of the main-process cache, because the view re-renders on every price refresh and save.
 
 ## Stock Splits (`js/splits.js`)
 
@@ -353,19 +360,20 @@ Lots are stored as entered, so a holding bought before a split kept its old shar
 
 **Expenses** has 4: `overview` (stats, salary day, recurring banner, charts) · `logs` (add form, search, filters, table) · `import` (see Bank Statement Import) · `allocations`. The month selector stays global above the sub-views. All three non-import views call `renderExpenses()` — it is one pass that fills stats, charts, list and allocation history together, and carving up a working 170-line function was not worth the risk.
 
-The Portfolio tab is split into 5 sub-views — only one visible at a time (`.psub` / `.psub.active`):
+The Portfolio tab is split into 6 sub-views — only one visible at a time (`.psub` / `.psub.active`):
 
 | Sub-view | Contents |
 |---|---|
 | `psub-overview` | stat cards, allocation cards, donut + P&L charts, value history + benchmark, monthly returns, holdings performance, sector allocation |
 | `psub-holdings` | Add Holding form + holdings table (General/Dividends/Returns sub-tabs) |
 | `psub-dividends` | Dividend Analysis + Dividend Calendar (`refreshDividendsSection()` force-fetches metadata; `#psub-div-empty` empty state) |
+| `psub-risk` | Risk view — see Risk View (`js/risk.js`) |
 | `psub-cash` | Uninvested Cash card |
 | `psub-transactions` | Transaction History |
 
 - Hovering the **Portfolio nav button** shows a dropdown (`.nav-drop`, CSS `:hover`) linking to each sub-view via `navToPortfolioSub(name)`. The open rule is `:hover, :has(:focus-visible)` — never `:focus-within`, which leaves the menu pinned open after a mouse click because the clicked button keeps focus.
 - The portfolio switcher bar stays global above the sub-views — switching portfolio keeps the current sub-view.
-- Portfolio management actions (Refresh Prices `#refresh-btn`, XTB Import, CSV, Rename, New, Delete `#del-port-btn`) live in an **Actions dropdown** (`#actions-menu`, reuses `.settings-menu` classes) in the portfolio bar. `refreshPrices()` still updates `#refresh-btn`'s label even though it is now a menu item.
+- Portfolio management actions (Refresh Prices `#refresh-btn`, Import CSV, Export CSV, Check for stock splits, Rename, New, Delete `#del-port-btn`) live in an **Actions dropdown** (`#actions-menu`, reuses `.settings-menu` classes) in the portfolio bar. `refreshPrices()` still updates `#refresh-btn`'s label even though it is now a menu item.
 - Chart builders already guard on `el.offsetParent`, so hidden sub-views skip canvas work; `showPortfolioSub` rebuilds only the section that became visible.
 
 **State shape** (top-level keys in `marduk-data.json`):

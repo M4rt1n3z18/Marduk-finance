@@ -46,9 +46,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listBackups: ()     => ipcRenderer.invoke('list-backups'),
   readBackup:  (name) => ipcRenderer.invoke('read-backup', name),
 
-  // XTB Excel import
-  importXtbExcel: () => ipcRenderer.invoke('import-xtb-excel'),
-  // filePath is set when the file was dragged in; omitted opens the picker
+  // Bank statement — filePath is set when the file was dragged in; omitted opens the picker
   readStatement: (filePath) => ipcRenderer.invoke('read-statement', filePath),
   // File.path works on Electron 29; webUtils is the replacement from 30 onward.
   // Exposed so drag-and-drop keeps working across an Electron upgrade.

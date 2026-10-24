@@ -398,6 +398,7 @@ function renderPortfolio() {
   buildSectorChart();
   renderCashTable();
   renderTransactions();
+  buildRiskView();   // no-op unless the Risk view is on screen
 }
 
 // ══════════════ HOLDINGS TABLE SUB-TABS ══════════════
@@ -732,6 +733,7 @@ const SUB_BUILDERS = {
                           buildPortHistoryChart(); buildSectorChart(); buildReturnsCard(); },
     holdings:     () => renderHoldingsTable(),
     dividends:    () => refreshDividendsSection(),
+    risk:         () => buildRiskView(),
     cash:         () => renderCashTable(),
     transactions: () => renderTransactions(),
   },
