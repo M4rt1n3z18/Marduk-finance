@@ -45,6 +45,16 @@ function _dlgOpen(message, { title = 'MARDUK', confirm = false, okLabel = 'OK' }
   return new Promise(res => { _dlgResolve = res; });
 }
 
+// One dialog at a time. A second call while one was open used to overwrite the
+// pending resolver, so whoever awaited the first dialog waited forever (and the
+// key handler was attached twice). Now the second waits its turn.
+let _dlgQueue = Promise.resolve();
+function _dlgEnqueue(message, opts) {
+  const run = _dlgQueue.then(() => _dlgOpen(String(message), opts));
+  _dlgQueue = run.catch(() => {});
+  return run;
+}
+
 // Fire-and-forget: callers do not need to await unless they want to sequence
-function mardukAlert(message, title)   { return _dlgOpen(String(message), { title }); }
-function mardukConfirm(message, title) { return _dlgOpen(String(message), { title, confirm: true, okLabel: 'Confirm' }); }
+function mardukAlert(message, title)   { return _dlgEnqueue(message, { title }); }
+function mardukConfirm(message, title) { return _dlgEnqueue(message, { title, confirm: true, okLabel: 'Confirm' }); }

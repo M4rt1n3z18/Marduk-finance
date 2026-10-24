@@ -32,13 +32,18 @@ function ownedTickerEntries() {
 function renderAcDrop(matches, input, note) {
   const drop = document.getElementById('ac-drop');
   if (!matches.length && !note) { drop.classList.remove('open'); return; }
+  // Names come from Yahoo's live search, so they are escaped, and the class
+  // rides along in data-cls so keyboard selection gets it too (Enter used to
+  // pick the ticker but drop the class, filing ETFs as stocks).
   drop.innerHTML = matches.map(m =>
-    `<div class="ac-item" data-ticker="${m.t}" onmousedown="acSelect('${m.t}','${(m.c||'Stock').replace(/'/g,"\\'")}')">
-      <span class="ac-ticker">${m.t}</span><span class="ac-name">${m.n}</span>
+    `<div class="ac-item" data-ticker="${esc(m.t)}" data-cls="${esc(m.c || 'Stock')}">
+      <span class="ac-ticker">${esc(m.t)}</span><span class="ac-name">${esc(m.n)}</span>
     </div>`
   ).join('') + (note
     ? `<div style="padding:8px 14px;font-size:11px;color:var(--text3);border-top:1px solid var(--border);">${note}</div>`
     : '');
+  drop.querySelectorAll('.ac-item').forEach(el =>
+    el.addEventListener('mousedown', () => acSelect(el.dataset.ticker, el.dataset.cls)));
   const rect = input.getBoundingClientRect();
   drop.style.top = (rect.bottom + 4) + 'px';
   drop.style.left = rect.left + 'px';
@@ -120,7 +125,7 @@ function acKey(e) {
   if (!drop.classList.contains('open')) return;
   if (e.key === 'ArrowDown') { e.preventDefault(); acIndex = Math.min(acIndex+1, items.length-1); items.forEach((el,i)=>el.classList.toggle('selected',i===acIndex)); }
   else if (e.key === 'ArrowUp') { e.preventDefault(); acIndex = Math.max(acIndex-1, 0); items.forEach((el,i)=>el.classList.toggle('selected',i===acIndex)); }
-  else if (e.key === 'Enter' && acIndex >= 0 && acIndex < items.length) { e.preventDefault(); acSelect(items[acIndex].dataset.ticker); }
+  else if (e.key === 'Enter' && acIndex >= 0 && acIndex < items.length) { e.preventDefault(); acSelect(items[acIndex].dataset.ticker, items[acIndex].dataset.cls); }
   else if (e.key === 'Escape') { drop.classList.remove('open'); }
 }
 document.addEventListener('click', e => {
@@ -131,6 +136,17 @@ document.addEventListener('click', e => {
 const uid = () => Math.random().toString(36).slice(2,9);
 const eur = (n, d=2) => '€' + Number(n).toLocaleString('de-DE', {minimumFractionDigits:d, maximumFractionDigits:d});
 const pct = n => (n>=0?'+':'')+Number(n).toFixed(2)+'%';
+
+// Text from outside the app — Yahoo names and descriptions, bank statement
+// lines, file names — goes through this before it is put into innerHTML.
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+
+// Today (or `d`) as YYYY-MM-DD in local time. `toISOString()` converts to UTC
+// first, so between midnight and 1am in a Portuguese summer it said yesterday —
+// expenses, buys and allocations entered then were dated a day early.
+function localIso(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 let _toastTimer;
 function showToast(msg, duration = 4000) {

@@ -6,24 +6,36 @@ async function addHolding() {
   const shares = parseFloat(document.getElementById('h-shares').value);
   const buyPriceRaw = parseFloat(document.getElementById('h-buy').value);
   const buyCurrency = document.getElementById('h-buy-currency').value || 'EUR';
-  const buyDate = getDateRaw('h-date') || now.toISOString().slice(0,10);
+  const buyDate = getDateRaw('h-date') || localIso();
   if (!ticker || isNaN(shares) || isNaN(buyPriceRaw) || shares <= 0 || buyPriceRaw <= 0) return;
+  // Symbol characters only — the ticker is written into the table's HTML and
+  // its click handlers, where a stray quote broke the whole row.
+  if (!/^[A-Z0-9^][A-Z0-9.\-=^]{0,19}$/.test(ticker)) {
+    mardukAlert(`"${ticker}" doesn't look like a ticker. Use the symbol, e.g. AAPL, VWCE.DE or BTC-USD.`);
+    return;
+  }
 
-  // Convert buy price to EUR using historical FX rate on the buy date
+  // Convert buy price to EUR using the ECB rate on the buy date
   let buyPrice = buyPriceRaw;
   let buyFxRate = null;
-  if (buyCurrency !== 'EUR' && window.electronAPI?.fetchFxRate) {
+  if (buyCurrency !== 'EUR') {
     const btn = document.querySelector('.add-holding-grid .btn');
     if (btn) { btn.textContent = 'Converting…'; btn.disabled = true; }
+    let rate = null;
     try {
-      // fetchFxRate returns EUR{currency}=X rate (units of currency per 1 EUR)
-      const rate = await window.electronAPI.fetchFxRate({ date: buyDate, fromCurrency: buyCurrency });
-      if (rate && rate > 0) {
-        buyFxRate = parseFloat(rate.toFixed(6));
-        buyPrice  = parseFloat((buyPriceRaw / rate).toFixed(4)); // convert to EUR
-      }
+      // Units of the currency per 1 EUR on that date
+      rate = await window.electronAPI?.fetchFxRate?.({ date: buyDate, fromCurrency: buyCurrency });
     } catch(e) { console.error('FX rate fetch failed:', e); }
     if (btn) { btn.textContent = 'Add'; btn.disabled = false; }
+    // No rate, no holding. This used to carry on with the dollar price stored as
+    // if it were euros, quietly misstating the cost basis by the exchange rate.
+    if (!(rate > 0)) {
+      mardukAlert(`Couldn't get the ${buyCurrency}→EUR rate for ${buyDate}, so the cost in euros can't be worked out. ` +
+        'Check your connection and try again, or enter the price in EUR.');
+      return;
+    }
+    buyFxRate = parseFloat(rate.toFixed(6));
+    buyPrice  = parseFloat((buyPriceRaw / rate).toFixed(4));
   }
 
   const port = ap();
@@ -62,7 +74,7 @@ async function addHolding() {
   document.getElementById('h-buy').value = '';
   document.getElementById('h-buy-currency').value = 'EUR';
   updateBuyLabel();
-  setDateField('h-date', now.toISOString().slice(0,10));
+  setDateField('h-date', localIso());
   setClassBadge('Stock');
   document.getElementById('ac-drop').classList.remove('open');
   save(); renderAll();
@@ -139,6 +151,26 @@ const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', GBP: '£', CHF: '₣', BRL: 'R$
 // Mutated in place (not reassigned) so all existing readers keep working.
 const FX_RATES = { EUR: 1, USD: 1.08, GBP: 0.86, CHF: 0.96, BRL: 5.5 };
 
+// Native amount → EUR at today's ECB rate; GBp (LSE pence) via the pound.
+// null when the currency has no rate — callers keep what they had or skip it,
+// never show a foreign amount as if it were euros.
+function nativeToEur(amount, currency) {
+  if (amount == null) return null;
+  if (!currency || currency === 'EUR') return amount;
+  if (currency === 'GBp' || currency === 'GBX') return FX_RATES.GBP ? amount / 100 / FX_RATES.GBP : null;
+  const r = FX_RATES[currency];
+  return r ? amount / r : null;
+}
+
+// A historical close → EUR for the history charts. USD uses that day's EUR/USD
+// from the chart's own timeline; other currencies use today's ECB rate — close
+// enough for a chart, where they used to be added in as if they were euros, and
+// a missing USD point fell back to a hardcoded 1.08.
+function histCloseToEur(close, currency, eurUsdThen) {
+  if (currency === 'USD') return close / (eurUsdThen || FX_RATES.USD);
+  return nativeToEur(close, currency) ?? close;
+}
+
 async function syncFxRates() {
   try {
     const fx = await window.electronAPI?.getFxRates?.();
@@ -169,7 +201,7 @@ function addExpense() {
   const desc = document.getElementById('e-desc').value.trim();
   const amount = parseFloat(document.getElementById('e-amount').value);
   const cat = document.getElementById('e-cat').value;
-  const date = getDateRaw('e-date') || now.toISOString().slice(0,10);
+  const date = getDateRaw('e-date') || localIso();
   const recurring = document.getElementById('e-recurring').checked;
   if (!desc || isNaN(amount) || amount <= 0) return;
   state.expenses.push({ id:uid(), desc, amount, cat, date, recurring });
@@ -247,24 +279,50 @@ function delTransaction(id) {
   if (!port) return;
   const tx = port.transactions.find(t => t.id === id);
   if (!tx) return;
+  const ticker  = tx.ticker;
+  const holding = port.holdings.find(h => h.ticker === ticker);
+  const net = list => list.reduce((s, t) => s + (t.type === 'Sell' ? -t.shares : t.shares), 0);
+
+  // If the lot history doesn't account for the whole position (holdings from
+  // before lots were recorded, or edited by hand), rebuilding from the lots
+  // would wipe the rest of it — deleting one recent buy of a long-held stock
+  // removed the entire holding. Reverse just this lot instead.
+  const explained = holding && Math.abs(net(port.transactions.filter(t => t.ticker === ticker)) - holding.shares) < 1e-6;
   port.transactions = port.transactions.filter(t => t.id !== id);
 
+  if (holding && !explained) {
+    if (tx.type === 'Sell') holding.shares = parseFloat((holding.shares + tx.shares).toFixed(6));
+    else {
+      const left = holding.shares - tx.shares;
+      if (left <= 1e-6) port.holdings = port.holdings.filter(h => h !== holding);
+      else {
+        holding.buyPrice = parseFloat(((holding.buyPrice * holding.shares - tx.price * tx.shares) / left).toFixed(4));
+        holding.shares   = parseFloat(left.toFixed(6));
+      }
+    }
+    save(); renderAll();
+    return;
+  }
+
   // Recalculate the holding for this ticker from remaining transactions
-  const ticker = tx.ticker;
   const remaining = port.transactions.filter(t => t.ticker === ticker);
   const buys  = remaining.filter(t => t.type === 'Buy');
-  const sells = remaining.filter(t => t.type === 'Sell');
-  const netShares = buys.reduce((s,t)=>s+t.shares,0) - sells.reduce((s,t)=>s+t.shares,0);
+  const netShares = net(remaining);
 
-  if (netShares <= 0 || buys.length === 0) {
+  if (netShares <= 1e-6 || buys.length === 0) {
     port.holdings = port.holdings.filter(h => h.ticker !== ticker);
   } else {
     const totalCost = buys.reduce((s,t) => s + t.shares * t.price, 0);
     const avgPrice  = totalCost / buys.reduce((s,t) => s + t.shares, 0);
-    const holding   = port.holdings.find(h => h.ticker === ticker);
     if (holding) {
       holding.shares   = parseFloat(netShares.toFixed(6));
       holding.buyPrice = parseFloat(avgPrice.toFixed(4));
+    } else {
+      // Deleting the sell that closed a position brings the position back
+      port.holdings.push({ id: uid(), ticker, assetClass: guessAssetClass(ticker),
+        shares: parseFloat(netShares.toFixed(6)), buyPrice: parseFloat(avgPrice.toFixed(4)),
+        buyDate: buys.map(t => t.date).sort()[0], currentPrice: null, dividends: 0,
+        sector: SECTOR_DB[ticker] || null });
     }
   }
   save(); renderAll();
@@ -281,11 +339,11 @@ function renderTransactions() {
     const isBuy = t.type==='Buy';
     return `<tr>
       <td><span class="badge ${isBuy?'buy':'sell'}">${t.type}</span></td>
-      <td style="font-weight:700;color:var(--gold);">${t.ticker}</td>
-      <td class="muted">${t.shares}</td>
+      <td style="font-weight:700;color:var(--gold);">${esc(t.ticker)}</td>
+      <td class="muted">${fmtShares(t.shares)}</td>
       <td>${eur(t.price)}</td>
       <td class="muted">${t.date}</td>
-      <td class="muted">${t.notes||'—'}</td>
+      <td class="muted">${esc(t.notes||'—')}</td>
       <td><button class="del-btn" onclick="delTransaction('${t.id}')">✕</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="7" class="empty">No transactions logged yet.</td></tr>';
@@ -332,7 +390,7 @@ function checkRecurring() {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);';
     row.innerHTML = `
-      <span style="flex:1;font-size:13px;">${r.desc}</span>
+      <span style="flex:1;font-size:13px;">${esc(r.desc)}</span>
       <span class="muted" style="font-size:12px;">${r.cat}</span>
       <span style="font-weight:600;">${eur(r.amount)}</span>`;
 
@@ -372,7 +430,7 @@ function dismissRecurring(sourceId) {
 function addOneRecurring(sourceId) {
   const src = state.expenses.find(e=>e.id===sourceId);
   if (!src) return;
-  state.expenses.push({ id:uid(), desc:src.desc, amount:src.amount, cat:src.cat, date:now.toISOString().slice(0,10), recurring:true });
+  state.expenses.push({ id:uid(), desc:src.desc, amount:src.amount, cat:src.cat, date:localIso(), recurring:true });
   save(); renderExpenses(); renderOverview(); checkRecurring();
 }
 
@@ -386,7 +444,7 @@ function addAllRecurring() {
   const dismissed = (state.dismissedRecurring || {})[monthKey] || [];
   unique.forEach(r => {
     if (!thisMonthExpenses.find(e=>e.desc===r.desc&&e.recurring) && !dismissed.includes(r.id)) {
-      state.expenses.push({ id:uid(), desc:r.desc, amount:r.amount, cat:r.cat, date:now.toISOString().slice(0,10), recurring:true });
+      state.expenses.push({ id:uid(), desc:r.desc, amount:r.amount, cat:r.cat, date:localIso(), recurring:true });
     }
   });
   save(); renderAll(); checkRecurring();
@@ -552,7 +610,7 @@ function _updateLiveIndicator() {
     ? `Exchange rate unavailable — foreign holdings shown at the last known rate`
       + (_fxStatus.date ? ` (${_fxStatus.source} ${_fxStatus.date})` : '')
     : phase === 'open'  ? 'Markets open — next automatic price refresh'
-    : phase === 'quiet' ? 'Markets closed — refreshing hourly'
+    : phase === 'quiet' ? 'Markets closed — refreshing every 4 hours'
     :                     'Weekend — automatic refresh paused';
 
   if (fxStale)             { el.textContent = 'FX stale'; return; }
@@ -632,11 +690,19 @@ async function autoFetchPortfolioMetadata(force = false) {
           port.holdings = (port.holdings || []).map(h => {
             const info = divMap[h.ticker];
             if (!info) return h; // no response at all — network error, skip
+            // Yahoo's dividend is in the listing's currency (USD for AAPL) and
+            // every screen multiplies it by shares and shows it in euros, so it
+            // is stored converted. Without a rate, keep what we had.
+            const native = typeof info === 'number' ? info : (info.dps || 0);
+            const cur = info.currency || h.priceCurrency || null;
+            const dps = native ? nativeToEur(native, cur) : 0;
+            if (dps == null) return h;
             changed = true;
-            const dps = typeof info === 'number' ? info : (info.dps || 0);
             return {
               ...h,
-              dividendPerShare:  dps,
+              dividendPerShare:  parseFloat(dps.toFixed(6)),
+              dividendPerShareNative: native,
+              dividendCurrency:  cur,
               forwardYield:      info.forwardYield  ?? h.forwardYield  ?? null,
               trailingYield:     info.trailingYield ?? h.trailingYield ?? null,
               exDivDate:         info.exDivDate     ?? h.exDivDate     ?? null,
@@ -728,7 +794,7 @@ function earliestOpenAllocationDate(portfolioId) {
 function addAllocation() {
   const amount = parseFloat(document.getElementById('al-amount').value);
   const portfolioId = document.getElementById('al-port').value;
-  const date = getDateRaw('al-date') || now.toISOString().slice(0, 10);
+  const date = getDateRaw('al-date') || localIso();
   const notes = document.getElementById('al-note').value.trim() || null;
 
   if (isNaN(amount) || amount <= 0) { mardukAlert('Enter a valid amount to allocate.'); return; }
@@ -808,6 +874,7 @@ async function restoreBackup(name, date) {
       mardukAlert('That backup file does not look like Marduk data.'); return;
     }
     state = parsed;
+    _loadFailed = false;     // restoring a backup is the way out of an unreadable file
     save();
     syncCats();
     renderAll();
@@ -833,7 +900,9 @@ function _localCategoryMatch(desc) {
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .find(e => {
       const ed = (e.desc || '').toLowerCase().trim();
-      return ed === d || ed.includes(d) || d.includes(ed);
+      // A very short old description ("a", "uk") is contained in almost
+      // anything and used to hijack every suggestion
+      return ed === d || (ed.length >= 3 && (ed.includes(d) || d.includes(ed)));
     });
   return past ? past.cat : null;
 }
@@ -893,7 +962,8 @@ function importData() {
         }
         if (!await mardukConfirm('This will replace ALL current data with the imported file. Are you sure?')) return;
         state = imported;
-        save(); renderAll();
+        _loadFailed = false;     // a good file replaces whatever couldn't be read
+        save(); syncCats(); renderAll(); checkRecurring();
         mardukAlert('Data imported successfully!');
       } catch(e) { mardukAlert('Invalid file: could not read JSON. Make sure you are importing a MARDUK backup file.'); }
     };

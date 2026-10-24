@@ -9,6 +9,20 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.43',
+    title: 'More accurate prices, and a round of fixes',
+    items: [
+      'Stock splits: Marduk spots holdings recorded before a split and offers to adjust them, so they stop showing as a big loss. Also under Actions → Check for stock splits.',
+      'Far fewer requests to Yahoo, so prices, charts and company details load more reliably.',
+      'Buying in dollars or pounds now always uses the official ECB rate for that day — if no rate is available, Marduk asks you to try again rather than guessing.',
+      'Dividend amounts and the company window now show euros correctly.',
+      'The benchmark picker on the value-history chart works.',
+      'Pressing Enter on the lock screen no longer unlocks twice, and Forgot password works.',
+      'If your data file can’t be read when Marduk opens, nothing is saved over it until it’s fixed.',
+      'The daily spending chart covers your whole budget month when you use a paycheck day.',
+    ],
+  },
+  {
     v: '1.0.42',
     title: 'Import holdings from a CSV, and more room',
     items: [

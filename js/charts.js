@@ -269,18 +269,12 @@ function buildPnlBar() {
 
 // ══════════════ RENDER ══════════════
 function renderAll() {
-  try {
-    now = new Date(); // always use the real current time
-    snapshotNetWorth(); // keep NW history current on every change
-    renderOverview();
-    renderPortfolio();
-    renderExpenses();
-    renderNetWorth();
-    renderBudget();
-    renderGoals();
-    renderSalary();
-  } catch(err) {
-    console.error('renderAll error:', err);
+  now = new Date(); // always use the real current time
+  // Each section on its own: one throwing (say, a malformed old record) used to
+  // abort everything after it, leaving the rest of the app stale.
+  for (const fn of [snapshotNetWorth, renderOverview, renderPortfolio, renderExpenses,
+                    renderNetWorth, renderBudget, renderGoals, renderSalary]) {
+    try { fn(); } catch (err) { console.error(`renderAll: ${fn.name} failed:`, err); }
   }
 }
 
@@ -349,7 +343,7 @@ function renderOverview() {
   // Recent transactions (last 5 expenses)
   const recent = [...state.expenses].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
   document.getElementById('ov-recent-body').innerHTML = recent.map(e=>
-    `<tr><td><span class="badge buy">Expense</span></td><td>${e.desc}</td><td class="muted">${e.date}</td><td class="down-text" style="font-weight:600;">${eur(e.amount)}</td></tr>`
+    `<tr><td><span class="badge buy">Expense</span></td><td>${esc(e.desc)}</td><td class="muted">${e.date}</td><td class="down-text" style="font-weight:600;">${eur(e.amount)}</td></tr>`
   ).join('') || '<tr><td colspan="4" class="empty">No transactions yet.</td></tr>';
 
   renderAiSummaryCard();
@@ -495,7 +489,7 @@ function renderHoldingsGeneral() {
       <tr class="holding-detail" id="hdetail-${h.id}" style="display:none;">
         <td colspan="8">${lotsTableFor(h)}</td>
       </tr>`;
-  }).join('') || '<tr><td colspan="8" class="empty">No holdings yet. Add one above!</td></tr>';
+  }).join('') || '<tr><td colspan="8" class="empty">No holdings yet — use Import CSV or + Add holding above.</td></tr>';
 
   return `<table class="data-table">
     <thead><tr>
@@ -778,8 +772,7 @@ function navToSub(tab, name) {
   showSubView(tab, name);
 }
 
-// Kept so existing call sites and any saved state keep working
-function showPortfolioSub(name, btn) { showSubView('portfolio', name, btn); }
+// Kept because the Portfolio nav dropdown's markup calls it
 function navToPortfolioSub(name)     { navToSub('portfolio', name); }
 
 // Dividends sub-view: analysis + calendar + received log, with fresh data fetch
@@ -888,9 +881,11 @@ function setHperfRange(range, btn) {
 function openBenchmarkModal() {
   const list = document.getElementById('benchmark-list');
   if (list) {
-    list.innerHTML = BENCHMARK_PRESETS.map(b =>
-      `<div class="benchmark-item${b.ticker === selectedBenchmarkTicker ? ' active' : ''}"
-          onclick="selectBenchmark(${JSON.stringify(b.ticker)},${JSON.stringify(b.name)})">
+    // Wired with listeners, not inline onclick: JSON.stringify() put double
+    // quotes inside the double-quoted attribute, which cut it short — clicking
+    // a benchmark never did anything, so the comparison line was stuck on S&P.
+    list.innerHTML = BENCHMARK_PRESETS.map((b, i) =>
+      `<div class="benchmark-item${b.ticker === selectedBenchmarkTicker ? ' active' : ''}" data-bm="${i}">
         <div>
           <div class="bm-name">${b.name}</div>
           <div class="bm-ticker">${b.label}</div>
@@ -898,6 +893,10 @@ function openBenchmarkModal() {
         ${b.ticker === selectedBenchmarkTicker ? '<span style="color:var(--gold);font-size:16px;">✓</span>' : ''}
       </div>`
     ).join('');
+    list.querySelectorAll('[data-bm]').forEach(el => el.addEventListener('click', () => {
+      const b = BENCHMARK_PRESETS[Number(el.dataset.bm)];
+      selectBenchmark(b.ticker, b.name);
+    }));
   }
   document.getElementById('benchmark-overlay').classList.add('open');
 }

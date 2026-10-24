@@ -14,11 +14,10 @@ function sharesHeldAt(port, ticker, dateStr) {
   return Math.max(0, parseFloat(shares.toFixed(6)));
 }
 
-function _divToEur(amount, currency) {
-  if (!currency || currency === 'EUR') return amount;
-  const rate = FX_RATES[currency];
-  return rate ? amount / rate : amount;
-}
+// Was its own converter, which treated LSE pence as pounds (100× too much) and
+// passed any currency without a rate straight through as euros. A dividend
+// with no rate is now skipped, and picked up on a later sync once there is one.
+const _divToEur = (amount, currency) => nativeToEur(amount, currency);
 
 // ── 1. Automatic received-dividends log ──────────────────────────────────────
 // For every dividend event Yahoo recorded, if the user held shares on that
@@ -45,7 +44,7 @@ async function syncDividendLog(force = false) {
 
     if (!state.dividendLog) state.dividendLog = [];
     const existing = new Set(state.dividendLog.map(d => `${d.portfolioId}|${d.ticker}|${d.date}`));
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localIso();
 
     for (const port of ports) {
       const tickers = [...new Set((port.transactions || []).map(t => t.ticker))];
@@ -58,7 +57,9 @@ async function syncDividendLog(force = false) {
           if (existing.has(key)) continue;
           const shares = sharesHeldAt(port, ticker, ev.date);
           if (shares <= 0) continue;
-          const amountEur = parseFloat((_divToEur(ev.amount, info.currency) * shares).toFixed(2));
+          const perShareEur = _divToEur(ev.amount, info.currency);
+          if (perShareEur == null) continue;
+          const amountEur = parseFloat((perShareEur * shares).toFixed(2));
           if (amountEur <= 0) continue;
           state.dividendLog.push({
             id: uid(), portfolioId: port.id, ticker,
@@ -225,8 +226,7 @@ async function _yearlyReturns(port) {
       if (shares <= 0 || !tls[tk]) continue;
       const close = nearestClose(tls[tk].tl, ts);
       if (close == null) continue;
-      const eurUsd = nearestClose(fxTl, ts) || 1.08;
-      total += shares * (tls[tk].currency === 'USD' ? close / eurUsd : close);
+      total += shares * histCloseToEur(close, tls[tk].currency, nearestClose(fxTl, ts));
       any = true;
     }
     return any ? total : 0;
@@ -241,7 +241,7 @@ async function _yearlyReturns(port) {
   const rows = [];
   for (let y = firstYear; y <= nowYear; y++) {
     const start = `${y}-01-01`;
-    const end = y === nowYear ? new Date().toISOString().slice(0, 10) : `${y}-12-31`;
+    const end = y === nowYear ? localIso() : `${y}-12-31`;
     const V0 = y === firstYear ? 0 : valueAt(start);
     const V1 = y === nowYear ? liveValue : valueAt(end);
 

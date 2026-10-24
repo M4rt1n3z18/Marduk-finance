@@ -1,4 +1,3 @@
-// ══════════════ CSV EXPORT ══════════════
 // ══════════════ XTB EXCEL IMPORT ══════════════
 async function importXtbExcel() {
   if (!window.electronAPI?.importXtbExcel) {
@@ -51,7 +50,7 @@ async function importXtbExcel() {
       const doSmartUpdate = await mardukConfirm(
         `Smart Update found ${newPositions.length} new transaction(s)` +
         (duplicateCount > 0 ? ` (${duplicateCount} already imported, skipped)` : '') + '.\n\n' +
-        'OK → Smart Update: add only the new transactions\n' +
+        'Confirm → Smart Update: add only the new transactions\n' +
         'Cancel → Choose a different option…'
       );
       if (doSmartUpdate) {
@@ -60,7 +59,7 @@ async function importXtbExcel() {
         // Secondary dialog: Full Replace or Abort
         const doReplace = await mardukConfirm(
           'Full Replace?\n\n' +
-          'OK → Clear all existing XTB data and re-import everything from this file\n' +
+          'Confirm → Clear all existing XTB data and re-import everything from this file\n' +
           'Cancel → Abort — do not import anything'
         );
         if (!doReplace) return; // truly abort
@@ -71,7 +70,45 @@ async function importXtbExcel() {
       importMode = 'replace';
     }
 
-    // ── For Full Replace: clear existing XTB holdings and transactions first ─
+    // ── Historical FX rates for an accurate EUR cost basis ────────────────
+    // XTB records prices in the stock's native currency, converted here at the
+    // ECB rate on each purchase date — every currency and date in one request.
+    // This used to be one Yahoo call per lot, falling back to a hardcoded 1.08
+    // (or 0.86 for GBP) whenever a call failed — and with that many calls, some
+    // always did. Rates are fetched before anything is changed, so a missing
+    // rate stops the import with your data untouched.
+    const positionsToProcess = importMode === 'smart' ? newPositions : validPositions;
+
+    const foreign = positionsToProcess.filter(p => (p.currency || 'USD') !== 'EUR');
+    let fxHist = {};
+    if (foreign.length) {
+      showToast('Fetching ECB exchange rates for cost basis…');
+      const dates = foreign.map(p => p.date).sort();
+      const from = new Date(dates[0] + 'T12:00:00Z'); from.setUTCDate(from.getUTCDate() - 10);
+      fxHist = await window.electronAPI?.fetchFxHistory?.({
+        currencies: [...new Set(foreign.map(p => p.currency || 'USD'))],
+        from: from.toISOString().slice(0, 10), to: dates[dates.length - 1],
+      }) || { error: 'unavailable' };
+    }
+    // Last published rate on or before the date (weekends, holidays)
+    const getFxRate = (currency, date) => {
+      if (currency === 'EUR') return 1;
+      const map = fxHist[currency] || {};
+      const d = new Date(date + 'T12:00:00Z');
+      for (let k = 0; k <= 10; k++, d.setUTCDate(d.getUTCDate() - 1)) {
+        const r = map[d.toISOString().slice(0, 10)];
+        if (r) return r;
+      }
+      return null;
+    };
+    const unrated = foreign.filter(p => !getFxRate(p.currency || 'USD', p.date));
+    if (fxHist.error || unrated.length) {
+      mardukAlert(`Couldn't get ECB exchange rates for ${fxHist.error ? 'this import' : unrated.length + ' lot(s)'}, ` +
+        'so their cost in euros can\'t be worked out. Nothing was changed — check your connection and import again.');
+      return;
+    }
+
+    // ── For Full Replace: clear existing XTB holdings and transactions ─────
     if (importMode === 'replace') {
       const xtbTickers = new Set(existingXtb.map(h => h.ticker));
       port.holdings    = port.holdings.filter(h => !h.importedFromXtb);
@@ -79,56 +116,6 @@ async function importXtbExcel() {
         t => !(xtbTickers.has(t.ticker) && t.notes === 'XTB import')
       );
     }
-
-    // ── Fetch historical FX rates for accurate EUR cost basis ─────────────
-    // XTB records prices in the stock's native currency. We convert to EUR at
-    // the purchase date using historical ECB/Yahoo FX rates.
-    const positionsToProcess = importMode === 'smart' ? newPositions : validPositions;
-
-    showToast('Fetching historical FX rates for cost basis…');
-
-    // Collect all (currency, date) pairs we need
-    const needRates = {}; // currency → Set<date>
-    for (const pos of positionsToProcess) {
-      const cur = pos.currency || 'USD';
-      if (cur === 'EUR') continue;
-      if (!needRates[cur]) needRates[cur] = new Set();
-      needRates[cur].add(pos.date);
-    }
-
-    const fxRates    = {}; // fxRates[currency][date] = unitsPerEUR
-    const liveFallback = {}; // currency → live rate fallback
-    const today = new Date().toISOString().slice(0, 10);
-
-    await Promise.all(
-      Object.entries(needRates).flatMap(([cur, dates]) =>
-        [...dates].map(async date => {
-          try {
-            if (window.electronAPI?.fetchFxRate) {
-              const r = await window.electronAPI.fetchFxRate({ date, fromCurrency: cur });
-              if (r && r > 0) {
-                if (!fxRates[cur]) fxRates[cur] = {};
-                fxRates[cur][date] = r;
-              }
-            }
-          } catch(e) {}
-        })
-      )
-    );
-
-    // Live fallback for any failed historical lookups
-    await Promise.all(Object.keys(needRates).map(async cur => {
-      try {
-        const r = await window.electronAPI.fetchFxRate({ date: today, fromCurrency: cur });
-        if (r && r > 0) liveFallback[cur] = r;
-      } catch(e) {}
-      if (!liveFallback[cur]) liveFallback[cur] = cur === 'GBP' ? 0.86 : 1.08;
-    }));
-
-    const getFxRate = (currency, date) => {
-      if (currency === 'EUR') return 1;
-      return (fxRates[currency]?.[date]) || liveFallback[currency] || 1.08;
-    };
 
     let added = 0, skipped = 0;
     const affectedTickers = new Set();
@@ -202,10 +189,8 @@ async function importXtbExcel() {
 
     save();
     renderPortfolio();
-    const rateCount = Object.values(fxRates).reduce((s, d) => s + Object.keys(d).length, 0);
-    const fxNote   = rateCount > 0
-      ? ` · ${rateCount} historical FX rate${rateCount !== 1 ? 's' : ''} applied`
-      : ' · using live FX rate';
+    const fxNote = foreign.length
+      ? ` · ${foreign.length} lot${foreign.length !== 1 ? 's' : ''} converted at the ECB rate on the trade date` : '';
     const modeLabel = importMode === 'smart' ? 'Smart Update' : 'Full import';
     showToast(`✓ XTB ${modeLabel}: ${added} transaction${added !== 1 ? 's' : ''} added` +
               `${duplicateCount && importMode === 'smart' ? `, ${duplicateCount} duplicate${duplicateCount !== 1 ? 's' : ''} skipped` : ''}` +
@@ -221,7 +206,9 @@ function exportPortfolioCSV() {
     const price = h.currentPrice || h.buyPrice;
     const val = price * h.shares;
     const cost = h.buyPrice * h.shares;
-    const gain = val - cost + Number(h.dividends || 0);
+    // Price-only, like the Total Gain column in the app; dividends have their
+    // own column (this added them in, so the export disagreed with the screen)
+    const gain = val - cost;
     const gainPct = cost ? gain / cost * 100 : 0;
     const effCls = guessAssetClass(h.ticker); const expCls = effCls !== 'Stock' ? effCls : (h.assetClass || 'Stock');
     rows.push([h.ticker, expCls, h.shares, h.buyPrice.toFixed(2), h.currentPrice ? h.currentPrice.toFixed(2) : '',

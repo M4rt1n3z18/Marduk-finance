@@ -52,12 +52,12 @@ async function buildPortDynamicsChart(preData) {
   const cash = ap().cash || 0;
   const portVals = sortedTs.map(ts => {
     let total = cash; let hasAny = false;
-    const eurUsd = nearestClose(dynFx, ts) || 1.08;
+    const eurUsd = nearestClose(dynFx, ts);
     for (const h of holdings) {
       const tl = dynTimelines[h.ticker]; if (!tl) continue;
       const close = nearestClose(tl, ts); if (close == null) continue;
       hasAny = true;
-      total += h.shares * (dynData[h.ticker]?.currency === 'USD' ? close / eurUsd : close);
+      total += h.shares * histCloseToEur(close, dynData[h.ticker]?.currency, eurUsd);
     }
     return hasAny ? total : null;
   });

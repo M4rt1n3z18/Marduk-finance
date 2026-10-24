@@ -23,7 +23,16 @@ const GITHUB_OWNER = 'M4rt1n3z18';
 const GITHUB_REPO  = 'Marduk-finance';
 
 // ── macOS custom updater ──────────────────────────────────────────────────────
-async function checkForUpdatesMac() {
+// One check at a time. The 4-hourly timer and Settings → Check for updates
+// could otherwise both start downloading the same 120 MB DMG into the same
+// file, interleaving two streams into a corrupt installer.
+let _macUpdateRun = null;
+function checkForUpdatesMac() {
+  if (!_macUpdateRun) _macUpdateRun = _checkForUpdatesMac().finally(() => { _macUpdateRun = null; });
+  return _macUpdateRun;
+}
+
+async function _checkForUpdatesMac() {
   try {
     const https = require('https');
 
@@ -58,17 +67,24 @@ async function checkForUpdatesMac() {
     );
     if (!asset) return;
 
-    if (win) win.webContents.send('update-available', latest);
-
     // 4. Download the DMG with real progress tracking
     const dmgPath = path.join(os.tmpdir(), `MARDUK-${latest}.dmg`);
+
+    // Already downloaded this version in this session — the 4-hourly re-check
+    // used to fetch the whole DMG again every time until you restarted.
+    if (global._pendingDmg === dmgPath && fs.existsSync(dmgPath)) {
+      if (win) win.webContents.send('update-downloaded');
+      return;
+    }
+
+    if (win) win.webContents.send('update-available', latest);
 
     await new Promise((resolve, reject) => {
       const download = (url, hops = 0) => {
         if (hops > 5) return reject(new Error('Too many redirects'));
         const mod = url.startsWith('https') ? require('https') : require('http');
         mod.get(url, { headers: { 'User-Agent': 'MARDUK-App' } }, res => {
-          if (res.statusCode === 301 || res.statusCode === 302) { download(res.headers.location, hops + 1); return; }
+          if ([301, 302, 303, 307, 308].includes(res.statusCode)) { res.resume(); download(res.headers.location, hops + 1); return; }
           if (res.statusCode !== 200) return reject(new Error(`download HTTP ${res.statusCode}`));
           const total = parseInt(res.headers['content-length'] || '0');
           let done = 0;
@@ -125,12 +141,21 @@ if (process.platform !== 'darwin') {
 }
 
 ipcMain.handle('install-update', async () => {
-  if (process.platform === 'darwin' && global._pendingDmg) {
+  if (process.platform === 'darwin') {
+    if (!global._pendingDmg) return;   // nothing downloaded — electron-updater isn't used on macOS
     // macOS: mount DMG → copy app → clear quarantine → reopen
     const { spawnSync, spawn } = require('child_process');
+    // A failed step used to be ignored: the app quit anyway and reopened the
+    // old version, which then offered the same update again. Stop and say why.
+    const fail = msg => { if (win) win.webContents.send('update-error', msg); };
     try {
       const mountOut = spawnSync('hdiutil', ['attach', global._pendingDmg, '-nobrowse'], { encoding: 'utf8' });
-      const mountPoint = mountOut.stdout.trim().split('\n').pop().split('\t').pop().trim();
+      const mountPoint = (mountOut.stdout || '').trim().split('\n').pop().split('\t').pop().trim();
+      if (mountOut.status !== 0 || !mountPoint || !fs.existsSync(`${mountPoint}/MARDUK.app`)) {
+        fs.unlink(global._pendingDmg, () => {});
+        global._pendingDmg = null;               // force a fresh download next check
+        return fail('Could not open the downloaded update — it will download again on the next check.');
+      }
 
       // Install over the bundle we are actually running from, not a hardcoded
       // /Applications path — otherwise an app kept anywhere else updates a
@@ -138,9 +163,12 @@ ipcMain.handle('install-update', async () => {
       const bundle = process.execPath.split('/Contents/')[0];
       const parent = path.dirname(bundle);
 
-      spawnSync('cp',    ['-Rf', `${mountPoint}/MARDUK.app`, `${parent}/`], { timeout: 30000 });
+      const cp = spawnSync('cp', ['-Rf', `${mountPoint}/MARDUK.app`, `${parent}/`], { timeout: 30000 });
       spawnSync('xattr', ['-cr', bundle],                                    { timeout:  5000 });
       spawnSync('hdiutil', ['detach', mountPoint, '-quiet'],                  { timeout: 10000 });
+      if (cp.status !== 0) {
+        return fail(`Could not replace the app in ${parent} — check that folder is writable, or install the update manually.`);
+      }
 
       // `app.relaunch()` cannot work here: it re-spawns process.execPath, which
       // points inside the bundle `cp -Rf` just overwrote. The old executable is
@@ -159,7 +187,7 @@ ipcMain.handle('install-update', async () => {
         `echo "relaunch failed for ${bundle}" >> "${log}"`;
       spawn('/bin/sh', ['-c', script], { detached: true, stdio: 'ignore' }).unref();
       app.exit(0);
-    } catch(e) { console.error('macOS install failed:', e); }
+    } catch(e) { console.error('macOS install failed:', e); fail(e.message || 'Install failed'); }
   } else {
     autoUpdater.quitAndInstall();
   }
@@ -257,6 +285,16 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+
+  // Installers from earlier updates were never deleted — ~120 MB per release
+  // piling up in the temp folder. The running version's own DMG is no longer
+  // needed either, so everything matching goes.
+  if (process.platform === 'darwin') {
+    try {
+      for (const f of fs.readdirSync(os.tmpdir()))
+        if (/^MARDUK-[\d.]+\.dmg$/.test(f)) fs.unlink(path.join(os.tmpdir(), f), () => {});
+    } catch (e) {}
+  }
 
   // Check for updates a few seconds after launch (gives the window time to load),
   // then re-check every 4 hours so long-running sessions still see new versions.
@@ -368,9 +406,6 @@ ipcMain.handle('clear-pw', () => {
   } catch (e) { return false; }
 });
 
-// Data file location (so user knows where it is)
-ipcMain.handle('get-data-path', () => DATA_FILE);
-
 // ── AI key (Anthropic API — optional, enables AI payslip parsing) ─────────────
 // Stored locally in userData like the password — never synced to Google Drive.
 function getAiKey() {
@@ -415,13 +450,10 @@ async function ensureYahooCrumb(force = false) {
     // Step 1: visit Yahoo Finance homepage to receive session cookies.
     // Include Accept-Language: en-US to avoid being served a GDPR consent page
     // (which wouldn't set the needed session cookie).
-    const r1 = await fetch('https://finance.yahoo.com/', {
-      headers: {
-        'User-Agent':      YAHOO_UA,
-        'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-      },
+    const r1 = await yfetch('https://finance.yahoo.com/', {
+      'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
     });
     let cookieStr = '';
     if (typeof r1.headers.getSetCookie === 'function') {
@@ -432,13 +464,10 @@ async function ensureYahooCrumb(force = false) {
       cookieStr = raw.split(/,(?=\s*\w+=)/).map(c => c.trim().split(';')[0]).join('; ');
     }
     // Step 2: exchange cookies for a crumb token
-    const r2 = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
-      headers: {
-        'User-Agent':      YAHOO_UA,
-        'Accept':          'text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cookie':          cookieStr,
-      },
+    const r2 = await yfetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+      'Accept':          'text/plain, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Cookie':          cookieStr,
     });
     const crumb = (await r2.text()).trim();
     // Crumbs are typically 8-20 chars; reject HTML/JSON error responses
@@ -449,6 +478,7 @@ async function ensureYahooCrumb(force = false) {
       console.warn('[Yahoo] Crumb response invalid (len=' + crumb.length + '):', crumb.slice(0, 40));
     }
   } catch (e) {
+    if (e instanceof RateLimited) throw e;   // let the caller stop, not carry on crumb-less
     console.error('[Yahoo] Crumb fetch error:', e.message);
   }
 }
@@ -464,9 +494,7 @@ async function yahooQuoteSummary(ticker, modules) {
       const cookieHdr  = _yahooMeta.cookies ? { Cookie: _yahooMeta.cookies } : {};
       const host = attempt === 0 ? 'query1' : 'query2'; // alternate hosts
       const url  = `https://${host}.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules}${crumbParam}`;
-      const res  = await fetch(url, {
-        headers: { 'User-Agent': YAHOO_UA, 'Referer': 'https://finance.yahoo.com/', 'Accept-Language': 'en-US,en;q=0.9', ...cookieHdr },
-      });
+      const res  = await yfetch(url, { 'Referer': 'https://finance.yahoo.com/', 'Accept-Language': 'en-US,en;q=0.9', ...cookieHdr });
       if (!res.ok) { console.warn(`[Yahoo] quoteSummary HTTP ${res.status} for ${ticker}`); continue; }
       const json = await res.json();
       const r    = json?.quoteSummary?.result?.[0];
@@ -480,6 +508,7 @@ async function yahooQuoteSummary(ticker, modules) {
         continue;
       }
     } catch (e) {
+      if (e instanceof RateLimited) throw e;
       console.error(`[Yahoo] quoteSummary attempt ${attempt + 1} for ${ticker}:`, e.message);
     }
   }
@@ -490,65 +519,107 @@ async function yahooQuoteSummary(ticker, modules) {
 // Non-US tickers need an exchange suffix on Yahoo Finance (e.g. EDP → EDP.LS,
 // SXR8 → SXR8.DE). fetchV8Chart() tries the bare ticker then common EU suffixes,
 // caching the successful form so all subsequent calls use it automatically.
-const EU_EXCHANGE_SUFFIXES = ['.DE','.LS','.PA','.AS','.MI','.MC','.L','.SW','.ST','.CO','.OL','.HE','.BR','.VI','.PR','.WAR'];
-const _tickerResolutionCache = new Map(); // bare ticker → resolved Yahoo symbol
+const EU_EXCHANGE_SUFFIXES = ['.DE','.LS','.PA','.AS','.MI','.MC','.L','.SW','.ST','.CO','.OL','.HE','.BR','.VI','.PR','.WA'];
 
+// Bare ticker → the Yahoo symbol that answered (EDP → EDP.LS). Kept on disk:
+// it used to live in memory only, so every launch re-probed up to 16 suffixes
+// per European holding — exactly the request bursts that got the IP throttled.
+const TICKERS_FILE = path.join(app.getPath('userData'), 'marduk-tickers.json');
+const _tickerResolutionCache = new Map(Object.entries((() => {
+  try { return JSON.parse(fs.readFileSync(TICKERS_FILE, 'utf8')) || {}; } catch (e) { return {}; }
+})()));
+// Tickers no suffix resolved, with when — a delisted or mistyped symbol would
+// otherwise cost 17 requests on every refresh. Session-only, retried after 6h.
+const _unresolvable = new Map();
+const UNRESOLVABLE_TTL = 6 * 60 * 60 * 1000;
+let _tickersSaveTimer = null;
+
+function _saveTickerCache() {
+  clearTimeout(_tickersSaveTimer);
+  _tickersSaveTimer = setTimeout(() => {
+    try { fs.writeFileSync(TICKERS_FILE, JSON.stringify(Object.fromEntries(_tickerResolutionCache))); } catch (e) {}
+  }, 2000);
+}
+function rememberResolution(ticker, sym) {
+  _unresolvable.delete(ticker);
+  if (sym === ticker || _tickerResolutionCache.get(ticker) === sym) return;
+  _tickerResolutionCache.set(ticker, sym);
+  _saveTickerCache();
+}
+function forgetResolution(ticker) {
+  if (_tickerResolutionCache.delete(ticker)) _saveTickerCache();
+}
 function getResolvedTicker(ticker) {
   return _tickerResolutionCache.get(ticker) || ticker;
 }
 
-// Fetch v8/chart data, trying exchange suffixes when bare ticker has no price.
-// Returns { result, resolvedTicker }. Side-effect: populates _tickerResolutionCache.
-async function fetchV8Chart(ticker, params = 'interval=1d&range=1y') {
+// Yahoo symbols worth trying for a ticker, cheapest first.
+function symbolCandidates(ticker) {
   const known = _tickerResolutionCache.get(ticker);
-  const candidates = known ? [known]
-    : ticker.includes('.') ? [ticker]
-    : [ticker, ...EU_EXCHANGE_SUFFIXES.map(s => ticker + s)];
-  for (const sym of candidates) {
-    try {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?${params}`;
-      const res = await fetch(url, { headers: { 'User-Agent': YAHOO_UA } });
-      if (!res.ok) continue;
-      const json = await res.json();
-      const result = json?.chart?.result?.[0];
-      if (result?.meta?.regularMarketPrice) {
-        if (sym !== ticker) _tickerResolutionCache.set(ticker, sym);
-        return { result, resolvedTicker: sym };
-      }
-    } catch(e) {}
-  }
-  return { result: null, resolvedTicker: ticker };
+  if (known) return [known];
+  // US class shares: the NASDAQ directory and many brokers write BRK.B, Yahoo
+  // writes BRK-B. A single letter A–C after the dot is a share class, never an
+  // exchange suffix.
+  if (/^[A-Z]{1,5}\.[A-C]$/.test(ticker)) return [ticker.replace('.', '-'), ticker];
+  // Already a full Yahoo symbol: exchange suffix, crypto pair, FX pair or index
+  if (/[.\-=^]/.test(ticker)) return [ticker];
+  const miss = _unresolvable.get(ticker);
+  if (miss && Date.now() - miss < UNRESOLVABLE_TTL) return [ticker];
+  return [ticker, ...EU_EXCHANGE_SUFFIXES.map(s => ticker + s)];
 }
 
-// Auth-free Yahoo Finance v7/quote — returns market data + dividends without
-// needing a crumb. Also tries exchange suffixes and caches the resolved form.
+// Runs `fetchOne(sym)` over the candidates until one answers (non-null). A
+// remembered symbol that stops answering is forgotten and probed afresh once.
+// RateLimited thrown inside propagates — a 429 is never mistaken for "ticker
+// not found", which is what used to turn one refused request into seventeen.
+async function withResolution(ticker, fetchOne) {
+  let cands = symbolCandidates(ticker);
+  for (let pass = 0; pass < 2; pass++) {
+    for (const sym of cands) {
+      const value = await fetchOne(sym);
+      if (value != null) { rememberResolution(ticker, sym); return { value, sym }; }
+    }
+    if (pass === 0 && _tickerResolutionCache.has(ticker)) {
+      forgetResolution(ticker);
+      cands = symbolCandidates(ticker);
+      continue;
+    }
+    break;
+  }
+  if (cands.length > 1) _unresolvable.set(ticker, Date.now());
+  return { value: null, sym: ticker };
+}
+
+// v8/chart for a ticker, resolving its exchange suffix. Returns { result, resolvedTicker }.
+async function fetchV8Chart(ticker, params = 'interval=1d&range=1y') {
+  const { value, sym } = await withResolution(ticker, async s => {
+    const res = await yfetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(s)}?${params}`);
+    if (!res.ok) return null;
+    let json; try { json = await res.json(); } catch (e) { return null; }
+    const result = json?.chart?.result?.[0];
+    return result?.meta?.regularMarketPrice ? result : null;
+  });
+  return { result: value, resolvedTicker: sym };
+}
+
+// Yahoo v7/quote — market cap, P/E, beta, dividends. It now answers 401 without
+// a crumb, and it used to be probed across 16 suffixes × 2 hosts = 34 requests
+// per unresolved European ticker, every one of them refused. One request on the
+// already-resolved symbol, with the crumb; the v8 path does the resolving.
 // NOTE: no &fields= parameter — it is non-standard for v7 and causes errors on
 // some Yahoo endpoints, especially for non-US symbols.
 async function yahooV7Quote(ticker) {
-  const known = _tickerResolutionCache.get(ticker);
-  const candidates = known ? [known]
-    : ticker.includes('.') ? [ticker]
-    : [ticker, ...EU_EXCHANGE_SUFFIXES.map(s => ticker + s)];
-  // Try both query1 and query2 hosts to maximise success rate
-  const hosts = ['query1', 'query2'];
-  for (const sym of candidates) {
-    for (const host of hosts) {
-      try {
-        const url = `https://${host}.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(sym)}`;
-        const res = await fetch(url, {
-          headers: { 'User-Agent': YAHOO_UA, 'Accept-Language': 'en-US,en;q=0.9', 'Accept': 'application/json' },
-        });
-        if (!res.ok) continue;
-        const json = await res.json();
-        const q = json?.quoteResponse?.result?.[0];
-        if (q?.regularMarketPrice) {
-          if (sym !== ticker) _tickerResolutionCache.set(ticker, sym);
-          return q;
-        }
-      } catch(e) {}
-    }
-  }
-  return null;
+  const sym = getResolvedTicker(ticker);
+  await ensureYahooCrumb();
+  const crumb = _yahooMeta.crumb ? `&crumb=${encodeURIComponent(_yahooMeta.crumb)}` : '';
+  const res = await yfetch(`https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(sym)}${crumb}`, {
+    'Accept-Language': 'en-US,en;q=0.9', 'Accept': 'application/json',
+    ...(_yahooMeta.cookies ? { Cookie: _yahooMeta.cookies } : {}),
+  });
+  if (!res.ok) return null;
+  let json; try { json = await res.json(); } catch (e) { return null; }
+  const q = json?.quoteResponse?.result?.[0];
+  return q?.regularMarketPrice ? q : null;
 }
 
 // Fetch dividend payment history from v8/chart events (public, no auth needed).
@@ -558,7 +629,7 @@ async function fetchDividendEvents(ticker) {
   const sym = getResolvedTicker(ticker);
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?events=dividends&interval=3mo&range=3y`;
-    const res = await fetch(url, { headers: { 'User-Agent': YAHOO_UA } });
+    const res = await yfetch(url);
     if (!res.ok) return null;
     const json = await res.json();
     const result = json?.chart?.result?.[0];
@@ -591,11 +662,11 @@ async function fetchDividendEvents(ticker) {
 //   { TICKER: { currency, events: [{ date: 'YYYY-MM-DD', amount }] } }
 ipcMain.handle('fetch-dividend-history', async (event, tickers) => {
   const results = {};
-  await Promise.all((tickers || []).map(async ticker => {
+  await mapLimit(tickers || [], 3, async ticker => {
     try {
       const sym = getResolvedTicker(ticker);
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?events=dividends&interval=1mo&range=10y`;
-      const res = await fetch(url, { headers: { 'User-Agent': YAHOO_UA } });
+      const res = await yfetch(url);
       if (!res.ok) return;
       const json = await res.json();
       const result = json?.chart?.result?.[0];
@@ -607,13 +678,13 @@ ipcMain.handle('fetch-dividend-history', async (event, tickers) => {
         .sort((a, b) => a.date.localeCompare(b.date));
       if (events.length) results[ticker] = { currency: result.meta?.currency || 'USD', events };
     } catch (e) {}
-  }));
+  });
   return results;
 });
 
 // ── Sector data via Yahoo Finance quoteSummary ───────────────────────────────
 ipcMain.handle('fetch-sectors', async (event, tickers) => {
-  const entries = await Promise.all(tickers.map(async ticker => {
+  const entries = await mapLimit(tickers || [], 3, async ticker => {
     try {
       const r       = await yahooQuoteSummary(ticker, 'assetProfile');
       const profile = r?.assetProfile;
@@ -630,7 +701,7 @@ ipcMain.handle('fetch-sectors', async (event, tickers) => {
       return [ticker, { sector, logoUrl }];
     } catch (e) {}
     return [ticker, { sector: null, logoUrl: null }];
-  }));
+  });
   const result = {};
   for (const [t, obj] of entries) {
     if (obj.sector || obj.logoUrl) result[t] = obj;
@@ -691,6 +762,13 @@ function _cleanSecurityName(name) {
     .trim();
 }
 
+// NASDAQ writes share classes as BRK.B; Yahoo — and so every price lookup —
+// needs BRK-B. Picking BRK.B from the dropdown used to give a holding that
+// never received a price.
+function _yahooClassSymbol(t) {
+  return /^[A-Z]{1,5}\.[A-C]$/.test(t) ? t.replace('.', '-') : t;
+}
+
 // Both files are `header\nrows…\nFile Creation Time: …`
 function _parseSymbolFile(text, symbolCol, nameCol, etfCol, testCol) {
   const out = [];
@@ -702,7 +780,7 @@ function _parseSymbolFile(text, symbolCol, nameCol, etfCol, testCol) {
     if (f[testCol] === 'Y') continue;                       // test issues aren't tradable
     const t = (f[symbolCol] || '').trim();
     if (!t || /[^A-Z0-9.\-]/.test(t)) continue;
-    out.push({ t, n: _cleanSecurityName(f[nameCol]), c: f[etfCol] === 'Y' ? 'ETF/Fund' : 'Stock' });
+    out.push({ t: _yahooClassSymbol(t), n: _cleanSecurityName(f[nameCol]), c: f[etfCol] === 'Y' ? 'ETF/Fund' : 'Stock' });
   }
   return out;
 }
@@ -727,7 +805,9 @@ async function buildSymbolDirectory() {
 ipcMain.handle('get-symbol-directory', async () => {
   try {
     const cached = JSON.parse(fs.readFileSync(SYMBOLS_FILE, 'utf8'));
-    if (cached && Date.now() - cached.fetchedAt < SYMBOLS_TTL_MS && cached.list?.length) return cached.list;
+    // Mapped on read too, so a cache written before the BRK.B fix is corrected
+    if (cached && Date.now() - cached.fetchedAt < SYMBOLS_TTL_MS && cached.list?.length)
+      return cached.list.map(s => ({ ...s, t: _yahooClassSymbol(s.t) }));
   } catch(e) {}
   try {
     const list = await buildSymbolDirectory();
@@ -740,72 +820,69 @@ ipcMain.handle('get-symbol-directory', async () => {
   }
 });
 
-// ── Historical FX rate for a specific date ────────────────────────────────────
-// Returns how many units of `fromCurrency` = 1 EUR  (e.g. fromCurrency=USD → 1.09)
-ipcMain.handle('fetch-fx-rate', async (event, { date, fromCurrency }) => {
-  if (!fromCurrency || fromCurrency === 'EUR') return 1;
-  const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-  try {
-    const ticker  = `EUR${fromCurrency}=X`;
-    const d       = new Date(date + 'T12:00:00Z');
-    const period1 = Math.floor(d.getTime() / 1000) - 86400 * 4;
-    const period2 = Math.floor(d.getTime() / 1000) + 86400 * 4;
-    const url     = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&period1=${period1}&period2=${period2}`;
-    const res     = await fetch(url, { headers: { 'User-Agent': UA } });
-    const data    = await res.json();
-    const result  = data?.chart?.result?.[0];
-    if (!result) return null;
-    const timestamps = result.timestamp;
-    const closes     = result.indicators?.quote?.[0]?.close;
-    const targetTs   = Math.floor(d.getTime() / 1000);
-    let bestIdx = 0, bestDiff = Infinity;
-    timestamps.forEach((ts, i) => {
-      const diff = Math.abs(ts - targetTs);
-      if (diff < bestDiff && closes[i] != null) { bestDiff = diff; bestIdx = i; }
-    });
-    return closes[bestIdx] ?? null;
-  } catch(e) {
-    console.error('fetch-fx-rate error:', e);
-    return null;
-  }
-});
-
 // ── Historical ECB rates for a date range, every currency in one request ─────
-// Used by the holdings CSV import, which can carry dozens of lots spanning
-// years: one Yahoo call per lot would trip the rate limit, while the ECB's data
-// API returns the whole range as plain CSV — free, no key, no rate limit, and
-// the official rates Portuguese tax reporting uses. Returns
-// { CUR: { 'YYYY-MM-DD': unitsPerEUR } } for business days only; the renderer
-// walks back over weekends/holidays. `{ error }` on failure — never a guess.
+// Free, no key, no rate limit, and the official rates Portuguese tax reporting
+// uses. Returns { CUR: { 'YYYY-MM-DD': unitsPerEUR } } for business days only;
+// callers walk back over weekends/holidays. Throws on failure — never a guess.
 const _fxHistCache = new Map();
-ipcMain.handle('fetch-fx-history', async (event, { currencies, from, to }) => {
+async function ecbHistory(currencies, from, to) {
   const curs = [...new Set((currencies || []).filter(c => /^[A-Z]{3}$/.test(c) && c !== 'EUR'))].sort();
   if (!curs.length) return {};
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return { error: 'bad date range' };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) throw new Error('bad date range');
   const key = `${curs.join('+')}|${from}|${to}`;
   if (_fxHistCache.has(key)) return _fxHistCache.get(key);
-  try {
-    const url = `https://data-api.ecb.europa.eu/service/data/EXR/D.${curs.join('+')}.EUR.SP00.A`
-              + `?startPeriod=${from}&endPeriod=${to}&format=csvdata&detail=dataonly`;
-    const res = await fetch(url, { headers: { 'User-Agent': FX_UA, 'Accept': 'text/csv' } });
-    if (!res.ok) return { error: 'ECB HTTP ' + res.status };
-    // CRLF line endings — splitting on \n alone leaves "OBS_VALUE\r" in the header
-    const lines = (await res.text()).trim().split(/\r?\n/);
-    const head  = lines.shift().split(',');
-    const iCur = head.indexOf('CURRENCY'), iDate = head.indexOf('TIME_PERIOD'), iVal = head.indexOf('OBS_VALUE');
-    if (iCur < 0 || iDate < 0 || iVal < 0) return { error: 'ECB: unexpected format' };
-    const out = {};
-    for (const line of lines) {
-      const f = line.split(',');
-      const v = parseFloat(f[iVal]);
-      if (!(v > 0)) continue;
-      (out[f[iCur]] ||= {})[f[iDate]] = v;
-    }
-    _fxHistCache.set(key, out);
-    return out;
-  } catch (e) {
-    return { error: e.message || String(e) };
+  const url = `https://data-api.ecb.europa.eu/service/data/EXR/D.${curs.join('+')}.EUR.SP00.A`
+            + `?startPeriod=${from}&endPeriod=${to}&format=csvdata&detail=dataonly`;
+  const res = await fetch(url, { headers: { 'User-Agent': FX_UA, 'Accept': 'text/csv' } });
+  if (!res.ok) throw new Error('ECB HTTP ' + res.status);
+  // CRLF line endings — splitting on \n alone leaves "OBS_VALUE\r" in the header
+  const lines = (await res.text()).trim().split(/\r?\n/);
+  const head  = lines.shift().split(',');
+  const iCur = head.indexOf('CURRENCY'), iDate = head.indexOf('TIME_PERIOD'), iVal = head.indexOf('OBS_VALUE');
+  if (iCur < 0 || iDate < 0 || iVal < 0) throw new Error('ECB: unexpected format');
+  const out = {};
+  for (const line of lines) {
+    const f = line.split(',');
+    const v = parseFloat(f[iVal]);
+    if (!(v > 0)) continue;
+    (out[f[iCur]] ||= {})[f[iDate]] = v;
   }
+  _fxHistCache.set(key, out);
+  return out;
+}
+
+const _isoDaysBefore = (iso, n) => {
+  const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+};
+
+// Holdings CSV import and the XTB import: every lot's rate in one request
+ipcMain.handle('fetch-fx-history', async (event, { currencies, from, to }) => {
+  try { return await ecbHistory(currencies, from, to); }
+  catch (e) { return { error: e.message || String(e) }; }
+});
+
+// ── Historical FX rate for a single date (Add Holding) ────────────────────────
+// Units of `fromCurrency` per 1 EUR on `date` (USD → 1.09), the last published
+// rate on or before it. ECB first; Yahoo only if the ECB is unreachable; `null`
+// when neither answers, and the caller refuses rather than storing a foreign
+// price as if it were euros — which is what happened before.
+ipcMain.handle('fetch-fx-rate', async (event, { date, fromCurrency }) => {
+  if (!fromCurrency || fromCurrency === 'EUR') return 1;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return null;
+  try {
+    const map = (await ecbHistory([fromCurrency], _isoDaysBefore(date, 10), date))[fromCurrency] || {};
+    const best = Object.keys(map).filter(d => d <= date).sort().pop();
+    if (best) return map[best];
+  } catch (e) { console.error('ECB rate failed:', e.message); }
+  try {
+    const t = Math.floor(new Date(date + 'T12:00:00Z').getTime() / 1000);
+    const res = await yfetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(`EUR${fromCurrency}=X`)}?interval=1d&period1=${t - 86400 * 10}&period2=${t + 86400}`);
+    const r = (await res.json())?.chart?.result?.[0];
+    const ts = r?.timestamp || [], cl = r?.indicators?.quote?.[0]?.close || [];
+    for (let i = ts.length - 1; i >= 0; i--) if (cl[i] != null && ts[i] <= t + 43200) return cl[i];
+  } catch (e) {}
+  return null;
 });
 
 // ══════════════ YAHOO REQUEST DISCIPLINE ══════════════
@@ -820,9 +897,13 @@ ipcMain.handle('fetch-fx-history', async (event, { currencies, from, to }) => {
 class RateLimited extends Error {}
 let _yfCooldownUntil = 0;
 
-async function yfetch(url) {
+// Every Yahoo request goes through here — prices, history, dividends, company
+// data, search, the crumb. Before 1.0.43 only prices and search did, so the
+// history charts and dividend fetches kept hammering Yahoo while the price
+// refresh politely backed off, and still got refused.
+async function yfetch(url, headers = {}) {
   if (Date.now() < _yfCooldownUntil) throw new RateLimited('cooling down');
-  const res = await fetch(url, { headers: { 'User-Agent': FX_UA } });
+  const res = await fetch(url, { headers: { 'User-Agent': YAHOO_UA, ...headers } });
   if (res.status === 429) {
     _yfCooldownUntil = Date.now() + 90 * 1000; // stop asking for a while
     throw new RateLimited('HTTP 429');
@@ -871,7 +952,7 @@ async function _fxFromEcb() {
 
 // Fallback: Yahoo, EUR/USD only (all this app had before)
 async function _fxFromYahoo() {
-  const res = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/EURUSD%3DX?interval=1d&range=1d', { headers: { 'User-Agent': FX_UA } });
+  const res = await yfetch('https://query1.finance.yahoo.com/v8/finance/chart/EURUSD%3DX?interval=1d&range=1d');
   if (!res.ok) throw new Error('Yahoo FX HTTP ' + res.status);
   const rate = (await res.json())?.chart?.result?.[0]?.meta?.regularMarketPrice;
   if (!rate) throw new Error('Yahoo FX: no rate');
@@ -924,10 +1005,9 @@ ipcMain.handle('fetch-dividends', async (event, tickers) => {
   const ts2date = ts => (ts && ts > 0) ? new Date(ts * 1000).toISOString().slice(0, 10) : null;
   const rv = (obj, key) => { const v = obj?.[key]; if (v == null) return null; return (typeof v === 'object' && 'raw' in v) ? v.raw : v; };
 
-  const entries = await Promise.allSettled(
-    tickers.map(async ticker => {
+  const entries = await mapLimit(tickers || [], 3, async ticker => {
       try {
-        // Run v7/quote (auth-free) and quoteSummary in parallel
+        // Run v7/quote and quoteSummary in parallel
         const [v7, qsResult] = await Promise.allSettled([
           yahooV7Quote(ticker),
           yahooQuoteSummary(getResolvedTicker(ticker), 'summaryDetail,calendarEvents'),
@@ -964,21 +1044,18 @@ ipcMain.handle('fetch-dividends', async (event, tickers) => {
 
         if (!v7Data && !r && !dps) return [ticker, null]; // nothing came back at all
 
-        return [ticker, { dps, forwardYield, trailingYield, exDivDate, nextPayDate, nextEarningsDate, earningsDateEnd }];
+        // `dps` is in the listing's own currency (USD for AAPL) — the renderer
+        // converts it; it used to be shown with a € sign as if it were euros.
+        const currency = v7Data?.currency || null;
+        return [ticker, { dps, currency, forwardYield, trailingYield, exDivDate, nextPayDate, nextEarningsDate, earningsDateEnd }];
       } catch(e) {
-        console.error('[fetch-dividends] Error for', ticker, ':', e.message);
+        if (!(e instanceof RateLimited)) console.error('[fetch-dividends] Error for', ticker, ':', e.message);
         return [ticker, null];
       }
-    })
-  );
+  });
 
   const results = {};
-  for (const r of entries) {
-    if (r.status === 'fulfilled' && r.value?.[1]) {
-      const [ticker, data] = r.value;
-      results[ticker] = data;
-    }
-  }
+  for (const [ticker, data] of entries) if (data) results[ticker] = data;
   return results;
 });
 
@@ -1092,7 +1169,10 @@ ipcMain.handle('fetch-company-info', async (event, ticker) => {
       website:     ap.website   || null,
       employees:   ap.fullTimeEmployees || null,
       exchange:    v7?.fullExchangeName  || meta.fullExchangeName || meta.exchangeName || null,
-      currency:    v7?.financialCurrency || meta.currency || null,
+      // The currency the price is quoted in. Was financialCurrency first — the
+      // currency the company *reports* in — so NIO, quoted in USD but reporting
+      // in CNY, showed its dollar price labelled as yuan.
+      currency:    meta.currency || v7?.currency || null,
       logo:        null,
 
       currentPrice:   price,
@@ -1153,8 +1233,11 @@ ipcMain.handle('fetch-history', async (event, { tickers, interval, range }) => {
   const hit = _histCache.get(cacheKey);
   if (hit && Date.now() - hit.ts < HIST_TTL) return hit.data;
 
+  // A few at a time: the Overview asks for three ranges of every holding at
+  // once, which used to be ~50 simultaneous requests for 15 holdings.
   const results = {};
-  await Promise.all(tickers.map(async ticker => {
+  let refused = false;
+  await mapLimit(tickers || [], 3, async ticker => {
     try {
       // fetchV8Chart resolves exchange suffix (e.g. SXR8 → SXR8.DE, EDP → EDP.LS)
       const { result } = await fetchV8Chart(ticker, `interval=${interval}&range=${range}`);
@@ -1163,27 +1246,67 @@ ipcMain.handle('fetch-history', async (event, { tickers, interval, range }) => {
       const closes     = result.indicators?.quote?.[0]?.close;
       const currency   = result.meta?.currency;
       if (timestamps && closes) results[ticker] = { timestamps, closes, currency };
-    } catch(e) { console.error('fetch-history error', ticker, e); }
-  }));
+    } catch(e) {
+      if (e instanceof RateLimited) refused = true;
+      else console.error('fetch-history error', ticker, e);
+    }
+  });
 
-  _histCache.set(cacheKey, { data: results, ts: Date.now() });
+  // A partial answer from a rate-limited run must not be cached for 15 minutes
+  if (!refused) _histCache.set(cacheKey, { data: results, ts: Date.now() });
   return results;
+});
+
+// ── Stock splits ──────────────────────────────────────────────────────────────
+// Split events for each ticker since its first lot, plus Yahoo's split-adjusted
+// close on each lot date. The renderer compares a lot's recorded price with
+// that close to tell whether the lot was entered before the split (needs
+// adjusting) or already in post-split terms (as broker exports usually are).
+// Input: [{ ticker, from: 'YYYY-MM-DD', dates: ['YYYY-MM-DD', …] }]
+ipcMain.handle('fetch-splits', async (event, items) => {
+  const data = {};
+  let rateLimited = false;
+  const iso = ts => new Date(ts * 1000).toISOString().slice(0, 10);
+  await mapLimit(items || [], 3, async ({ ticker, from, dates }) => {
+    try {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '')) return;
+      const p1 = Math.floor(new Date(from + 'T00:00:00Z').getTime() / 1000) - 7 * 86400;
+      const p2 = Math.floor(Date.now() / 1000) + 86400;
+      const { result } = await fetchV8Chart(ticker, `interval=1d&period1=${p1}&period2=${p2}&events=split`);
+      if (!result) return;
+      const splits = Object.values(result.events?.splits || {})
+        .filter(s => s && s.date && s.numerator > 0 && s.denominator > 0 && s.numerator !== s.denominator)
+        .map(s => ({ date: iso(s.date), ratio: s.numerator / s.denominator }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      const bars = (result.timestamp || []).map((t, i) => [iso(t), result.indicators?.quote?.[0]?.close?.[i]])
+        .filter(b => b[1] != null);
+      const closeOn = {};
+      for (const d of dates || []) {
+        let c = null;
+        for (const [bd, bc] of bars) { if (bd > d) break; c = bc; }   // last close on/before the lot
+        if (c != null) closeOn[d] = c;
+      }
+      data[ticker] = { currency: result.meta?.currency || null, splits, closeOn };
+    } catch (e) {
+      if (e instanceof RateLimited) rateLimited = true;
+    }
+  });
+  return { data, rateLimited };
 });
 
 // ── Price fetching via Yahoo Finance v8 chart endpoint (no crumb/cookie needed) ─
 ipcMain.handle('fetch-prices', async (event, tickers) => {
-  const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-
   // 1. Live FX table (ECB → Yahoo → last known good → null; never a guess)
   const fx = await getFxRates();
 
-  // Helper: fetch a single Yahoo ticker symbol, return { price, dayChangePct } or null
+  // One symbol → { price, … }, { fxMissing } when the symbol exists but its
+  // currency has no rate, or null when Yahoo doesn't know the symbol. Throws
+  // RateLimited on 429 so the caller stops instead of probing suffixes.
   async function fetchYahooQuote(symbol) {
-    // Throws RateLimited on 429 so the caller can stop instead of probing suffixes
     const res  = await yfetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`
     );
-    const data = await res.json();
+    let data; try { data = await res.json(); } catch (e) { return null; }
     const meta = data?.chart?.result?.[0]?.meta;
     if (!meta?.regularMarketPrice) return null;
     let price = meta.regularMarketPrice;
@@ -1200,7 +1323,9 @@ ipcMain.handle('fetch-prices', async (event, tickers) => {
     // handled before (a GBP or CHF holding was passed through as if it were EUR).
     const currency = meta.currency || 'EUR';
     const eur = priceToEur(price, currency, fx);
-    if (eur == null) return null;   // rate unknown → leave the previous price alone
+    // Rate unknown → leave the previous price alone. Not `null`: that would read
+    // as "no such symbol" and send the lookup off probing exchange suffixes.
+    if (eur == null) return { fxMissing: true };
 
     return {
       price: Math.round(eur * 10000) / 10000,
@@ -1213,34 +1338,14 @@ ipcMain.handle('fetch-prices', async (event, tickers) => {
     };
   }
 
-  // Common European/other exchange suffixes to try when bare ticker fails
-  const EXCHANGE_SUFFIXES = ['.DE', '.LS', '.PA', '.AS', '.MI', '.MC', '.L', '.SW', '.ST', '.CO', '.OL', '.HE', '.BR'];
-
-  // 2. Fetch tickers a few at a time (not all at once — see RateLimited above)
+  // 2. Fetch tickers a few at a time (not all at once — see RateLimited above).
+  //    Suffix resolution is shared with every other Yahoo call and remembered
+  //    on disk, so a European holding is probed once ever, not once per launch.
   let rateLimited = false;
-  const entries = await mapLimit(tickers, 3, async ticker => {
+  const entries = await mapLimit(tickers || [], 3, async ticker => {
     try {
-      // A previously resolved symbol skips the suffix probe entirely
-      const known = _tickerResolutionCache.get(ticker);
-      if (known) {
-        const hit = await fetchYahooQuote(known);
-        if (hit) return [ticker, hit];
-      }
-
-      let result = await fetchYahooQuote(ticker);
-      if (result) return [ticker, result];
-
-      // No result and no exchange suffix — try the common European ones.
-      // Only reached on a genuine miss now, never on a rate-limit.
-      if (!ticker.includes('.')) {
-        for (const suffix of EXCHANGE_SUFFIXES) {
-          result = await fetchYahooQuote(ticker + suffix);
-          if (result) {
-            _tickerResolutionCache.set(ticker, ticker + suffix);
-            return [ticker, result]; // return under original ticker key
-          }
-        }
-      }
+      const { value } = await withResolution(ticker, fetchYahooQuote);
+      return [ticker, value && !value.fxMissing ? value : null];
     } catch (e) {
       if (e instanceof RateLimited) rateLimited = true;   // keep the previous price
       else console.error(`Price fetch error for ${ticker}:`, e);
@@ -1497,7 +1602,9 @@ function parsePayslipText(t) {
     ytdSSDeduction:   ptNum(t.match(/Ac\. Retenção SS:\s*([\d.,]+)/)?.[1]),
     ytdIRSDeduction:  ptNum(t.match(/Ac\. Retenção IRS:\s*([\d.,]+)/)?.[1]),
     department:       t.match(/Departamento:\s*(.+)/)?.[1]?.trim() || null,
-    _rawText:         t,  // kept for future debugging / re-parsing
+    // The full extracted text used to ride along as `_rawText` and was saved
+    // with the payslip into marduk-data.json on Google Drive — name, tax
+    // number, address and all. Nothing ever read it back.
   };
 }
 
@@ -1806,7 +1913,11 @@ ipcMain.handle('read-statement', async (event, droppedPath) => {
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
       if (rows.length > best.length) best = rows;
     }
-    return { fileName, rows: best.map(r => r.map(c => (c == null ? '' : String(c).trim()))) };
+    // A real date cell arrives as a Date, and String(Date) is "Tue Mar 05 2024
+    // 00:00:00 GMT+0000…", which no date parser downstream recognised — so an
+    // .xlsx with typed date cells imported zero rows. Hand over YYYY-MM-DD.
+    const cell = c => c == null ? '' : (c instanceof Date ? _localIso(c) : String(c).trim());
+    return { fileName, rows: best.map(r => r.map(cell)) };
   } catch (e) {
     return { fileName, rows: null, error: e.message };
   }
@@ -1822,13 +1933,9 @@ ipcMain.handle('import-xtb-excel', async () => {
   const filePath = filePaths[0];
 
   try {
-    let XLSX;
-    try { XLSX = require('xlsx'); } catch(e) {
-      // xlsx not installed — fall back to CSV parsing
-      const text = fs.readFileSync(filePath, 'utf8');
-      return parseXtbCsv(text);
-    }
-
+    // xlsx is a bundled dependency and reads .csv too — the hand-rolled CSV
+    // fallback for "xlsx not installed" could never run, and has been removed.
+    const XLSX = require('xlsx');
     const workbook = XLSX.readFile(filePath, { cellDates: true, raw: false });
     const allPositions = [];
 
@@ -1876,18 +1983,40 @@ function _xtbMatchCell(cell, aliases) {
   return aliases.some(a => c === a || c.includes(a));
 }
 
-function parseXtbDate(raw) {
-  if (!raw) return new Date().toISOString().slice(0, 10);
-  if (raw instanceof Date && !isNaN(raw)) return raw.toISOString().slice(0, 10);
-  const s = String(raw).trim();
-  // Try ISO / standard format
-  let d = new Date(s);
-  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-  // Try DD.MM.YYYY or DD/MM/YYYY
-  const m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/);
-  if (m) { d = new Date(+m[3], +m[2]-1, +m[1]); if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10); }
-  return new Date().toISOString().slice(0, 10);
+// YYYY-MM-DD in local time. toISOString() converts to UTC first, so a date
+// built at local midnight came out a day early whenever the clock was ahead of
+// UTC — every summer day in Portugal.
+function _localIso(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+function parseXtbDate(raw) {
+  if (!raw) return _localIso(new Date());
+  if (raw instanceof Date && !isNaN(raw)) return _localIso(raw);
+  const s = String(raw).trim();
+  // YYYY-MM-DD at the start — read the digits, don't round-trip through UTC
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // DD.MM.YYYY or DD/MM/YYYY
+  m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? _localIso(new Date()) : _localIso(d);
+}
+
+// XTB suffix → the currency its prices are in. CH/SE/DK/NO used to sit in the
+// EUR list and .UK/.PL fell through to USD, so those lots got a wrong cost basis.
+function _xtbCurrency(sym) {
+  const sfx = (sym.match(/\.([A-Z]+)$/i) || [])[1]?.toUpperCase();
+  const map = {
+    DE:'EUR', AT:'EUR', BE:'EUR', FR:'EUR', IT:'EUR', ES:'EUR', PT:'EUR', NL:'EUR', FI:'EUR',
+    AS:'EUR', LS:'EUR', PA:'EUR', MC:'EUR', MI:'EUR', HE:'EUR', BR:'EUR', VIE:'EUR', AMS:'EUR', LIS:'EUR',
+    UK:'GBP', L:'GBP', CH:'CHF', SW:'CHF', SE:'SEK', ST:'SEK', DK:'DKK', CO:'DKK', NO:'NOK', OL:'NOK',
+    PL:'PLN', CZ:'CZK', HU:'HUF', CA:'CAD', AU:'AUD', HK:'HKD', SG:'SGD',
+  };
+  return map[sfx] || 'USD';   // .US, no suffix, or unknown → USD
+}
+const _XTB_SUFFIX_RE = /\.(US|PL|DE|UK|FR|NL|IT|ES|SE|NO|DK|FI|AT|BE|CH|PT|HU|CZ|RO|CA|AU|HK|SG|L|AS|LS|PA|MC|MI|CO|ST|OL|HE|BR|SW|VIE|AMS|LIS)$/i;
 
 // Parses a standard position sheet (Open Positions / Closed History).
 // Returns [] silently if the sheet has no data rows — caller decides whether to throw.
@@ -1932,16 +2061,12 @@ function parseXtbRowsSafe(rows) {
       if (!hasNumeric && j > i + 1 && tickerRaw.length > 20) { i = j - 1; break; }
 
       // Detect currency from exchange suffix BEFORE stripping
-      const tickerUpper = tickerRaw.toUpperCase();
-      const currency = /\.(DE|AT|BE|FR|IT|ES|PT|NL|SE|NO|DK|FI|CH|AS|LS|PA|MC|MI|CO|ST|OL|HE|BR|VIE|AMS|LIS)$/i.test(tickerUpper) ? 'EUR'
-        : /\.L$/i.test(tickerUpper) ? 'GBP'
-        : 'USD'; // .US, no suffix, or unknown → assume USD
+      const currency = _xtbCurrency(tickerRaw);
 
       // Clean ticker: strip exchange suffixes (.US .PL .DE …)
-      const cleanTicker = tickerRaw
-        .replace(/\.(US|PL|DE|UK|FR|NL|IT|ES|SE|NO|DK|FI|AT|BE|CH|PT|HU|CZ|RO|CA|AU|HK|SG|L|AS|LS|PA|MC|MI|CO|ST|OL|HE|BR|VIE|AMS|LIS)$/i, '')
-        .toUpperCase().trim();
-      if (!cleanTicker || !/^[A-Z]/.test(cleanTicker)) continue;
+      const cleanTicker = tickerRaw.replace(_XTB_SUFFIX_RE, '').toUpperCase().trim();
+      // Symbol characters only — it ends up in the holdings table's HTML
+      if (!/^[A-Z][A-Z0-9.\-]{0,14}$/.test(cleanTicker)) continue;
 
       const rawType = colMap.type != null ? String(dataRow[colMap.type] ?? '').toUpperCase().trim() : 'BUY';
       const isSell  = rawType.includes('SELL') || rawType === '1' || rawType.includes('SHORT')
@@ -2005,14 +2130,10 @@ function parseXtbCashHistory(rows) {
       if (shares <= 0) continue;
 
       // Detect currency from exchange suffix BEFORE stripping
-      const currency = /\.(DE|AT|BE|FR|IT|ES|PT|NL|SE|NO|DK|FI|CH|AS|LS|PA|MC|MI|CO|ST|OL|HE|BR|VIE|AMS|LIS)$/i.test(symbol) ? 'EUR'
-        : /\.L$/i.test(symbol) ? 'GBP'
-        : 'USD'; // .US, no suffix, or unknown → assume USD
+      const currency = _xtbCurrency(symbol);
 
-      const cleanTicker = symbol
-        .replace(/\.(US|PL|DE|UK|FR|NL|IT|ES|SE|NO|DK|FI|AT|BE|CH|PT|L|AS|LS|PA|MC|MI|CO|ST|OL|HE|BR|VIE|AMS|LIS)$/i, '')
-        .toUpperCase().trim();
-      if (!cleanTicker || !/^[A-Z]/.test(cleanTicker)) continue;
+      const cleanTicker = symbol.replace(_XTB_SUFFIX_RE, '').toUpperCase().trim();
+      if (!/^[A-Z][A-Z0-9.\-]{0,14}$/.test(cleanTicker)) continue;
 
       positions.push({ ticker: cleanTicker, type: 'Buy', shares, price, date, currency });
     }
@@ -2020,28 +2141,4 @@ function parseXtbCashHistory(rows) {
   }
 
   return positions;
-}
-
-// Keep old name as alias so parseXtbCsv (below) still works
-const parseXtbRows = parseXtbRowsSafe;
-
-function parseXtbCsv(text) {
-  // Handle semicolon-delimited exports (common in Europe)
-  const firstLine = text.split(/\r?\n/)[0] || '';
-  const delim = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
-  const lines = text.split(/\r?\n/);
-  const rows = lines.map(l => {
-    // Simple CSV parser: handle quoted fields
-    const cells = [];
-    let cur = '', inQ = false;
-    for (let k = 0; k < l.length; k++) {
-      const ch = l[k];
-      if (ch === '"') { inQ = !inQ; }
-      else if (ch === delim && !inQ) { cells.push(cur.trim()); cur = ''; }
-      else { cur += ch; }
-    }
-    cells.push(cur.trim());
-    return cells;
-  });
-  return parseXtbRows(rows);
 }

@@ -47,11 +47,26 @@ function totalPortfolioStats() {
            totalRet, totalRetPct: cost ? totalRet/cost*100 : 0, count: allH.length };
 }
 
+// Set when the data file exists but couldn't be parsed (e.g. Google Drive was
+// mid-sync and handed over half a file). load() used to swallow that error and
+// carry on with an empty state — and the very next save() wrote the empty state
+// over your real data. While this is set, nothing is written.
+let _loadFailed = false;
+let _saveWarnedAt = 0;
+
 function save() {
+  if (_loadFailed) return;
   try {
     const json = JSON.stringify(state);
     if (window.electronAPI) {
-      window.electronAPI.saveData(json); // async, fire and forget
+      // Was fire-and-forget: a failed write (Drive folder gone, disk full) was
+      // invisible, so you kept working on changes that were never stored.
+      Promise.resolve(window.electronAPI.saveData(json)).then(ok => {
+        if (ok === false && Date.now() - _saveWarnedAt > 60000) {
+          _saveWarnedAt = Date.now();
+          showToast('⚠ Couldn’t save your data — check that the Google Drive folder is available', 8000);
+        }
+      }).catch(() => {});
     } else {
       localStorage.setItem('marduk_v1', json);
     }
@@ -61,21 +76,26 @@ function save() {
 // load() is called only from initApp() which is already inside unlockApp()
 // We make initApp async to handle the Electron case
 async function load() {
+  _loadFailed = false;
+  let d = null;
   try {
-    if (window.electronAPI) {
-      const d = await window.electronAPI.loadData();
-      if (d) state = JSON.parse(d);
-    } else {
-      const d = localStorage.getItem('marduk_v1');
-      if (d) state = JSON.parse(d);
-    }
-  } catch(e) {}
+    d = window.electronAPI ? await window.electronAPI.loadData() : localStorage.getItem('marduk_v1');
+  } catch(e) { return; }   // couldn't read at all → fresh start is the only option
+  if (!d) return;          // no file yet — a genuine first run
+  try {
+    state = JSON.parse(d);
+  } catch(e) {
+    _loadFailed = true;
+    mardukAlert('Your data file could not be read — it may still be syncing from Google Drive.\n\n' +
+      'Nothing will be saved until this is fixed, so your data is safe. Restart Marduk in a minute, ' +
+      'or restore yesterday\'s copy from Settings → Backups.', 'DATA FILE UNREADABLE');
+  }
 }
 
 const TICKER_DB = [
   {t:"AAPL",n:"Apple Inc.",c:"Stock"},{t:"MSFT",n:"Microsoft Corp.",c:"Stock"},{t:"NVDA",n:"NVIDIA Corp.",c:"Stock"},
   {t:"AMZN",n:"Amazon.com Inc.",c:"Stock"},{t:"GOOGL",n:"Alphabet Inc. Class A",c:"Stock"},{t:"GOOG",n:"Alphabet Inc. Class C",c:"Stock"},
-  {t:"META",n:"Meta Platforms",c:"Stock"},{t:"TSLA",n:"Tesla Inc.",c:"Stock"},{t:"BRK.B",n:"Berkshire Hathaway B",c:"Stock"},
+  {t:"META",n:"Meta Platforms",c:"Stock"},{t:"TSLA",n:"Tesla Inc.",c:"Stock"},{t:"BRK-B",n:"Berkshire Hathaway B",c:"Stock"},
   {t:"JPM",n:"JPMorgan Chase",c:"Stock"},{t:"V",n:"Visa Inc.",c:"Stock"},{t:"UNH",n:"UnitedHealth Group",c:"Stock"},
   {t:"XOM",n:"Exxon Mobil",c:"Stock"},{t:"LLY",n:"Eli Lilly",c:"Stock"},{t:"JNJ",n:"Johnson & Johnson",c:"Stock"},
   {t:"MA",n:"Mastercard",c:"Stock"},{t:"AVGO",n:"Broadcom Inc.",c:"Stock"},{t:"PG",n:"Procter & Gamble",c:"Stock"},
@@ -206,7 +226,6 @@ const TICKER_DB = [
   {t:"IUSA",n:"iShares Core S&P 500 UCITS ETF (Dist)",c:"ETF/Fund"},
   {t:"VGOV",n:"Vanguard UK Government Bond UCITS ETF",c:"ETF/Fund"},
   // ── Popular US ETFs not yet in DB ──
-  {t:"VOO",n:"Vanguard S&P 500 ETF",c:"ETF/Fund"},
   {t:"QQQM",n:"Invesco Nasdaq-100 ETF (smaller)",c:"ETF/Fund"},
   {t:"SPLG",n:"SPDR Portfolio S&P 500 ETF",c:"ETF/Fund"},
   {t:"SPDW",n:"SPDR Portfolio Developed World ex-US ETF",c:"ETF/Fund"},

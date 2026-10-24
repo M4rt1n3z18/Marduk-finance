@@ -1357,6 +1357,7 @@
           <button class="settings-item" onclick="closeActionsMenu();openHoldImport()" title="Import lots from a Yahoo Finance-format CSV">⬆&nbsp; Import CSV</button>
           <button class="settings-item" onclick="closeActionsMenu();importXtbExcel()" title="Import open positions from XTB Excel export">⬆&nbsp; XTB Import</button>
           <button class="settings-item" onclick="closeActionsMenu();exportPortfolioCSV()">↓&nbsp; Export CSV</button>
+          <button class="settings-item" onclick="closeActionsMenu();checkStockSplits(true)" title="Adjust holdings recorded before a stock split">⇅&nbsp; Check for stock splits</button>
           <div class="settings-divider"></div>
           <button class="settings-item" onclick="closeActionsMenu();renamePortfolio()">✎&nbsp; Rename portfolio</button>
           <button class="settings-item" onclick="closeActionsMenu();addPortfolio()">＋&nbsp; New portfolio</button>
@@ -2309,6 +2310,7 @@
 <script src="js/xtb.js"></script>
 <script src="js/bankimport.js"></script>
 <script src="js/holdimport.js"></script>
+<script src="js/splits.js"></script>
 <script src="js/dialog.js"></script>
 <script src="js/changelog.js"></script>
 <script src="js/calendar.js"></script>

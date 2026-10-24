@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchDividendHistory: (tickers) => ipcRenderer.invoke('fetch-dividend-history', tickers),
   fetchFxRate:    (params)  => ipcRenderer.invoke('fetch-fx-rate', params),
   fetchFxHistory: (params)  => ipcRenderer.invoke('fetch-fx-history', params),
+  fetchSplits:    (items)   => ipcRenderer.invoke('fetch-splits', items),
 
   // Ticker search
   searchTickers: (query) => ipcRenderer.invoke('search-tickers', query),
@@ -52,12 +53,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // File.path works on Electron 29; webUtils is the replacement from 30 onward.
   // Exposed so drag-and-drop keeps working across an Electron upgrade.
   getPathForFile: (file) => { try { return require('electron').webUtils.getPathForFile(file); } catch(e) { return null; } },
-
-  // Logos (company favicons via Clearbit, from Yahoo assetProfile)
-  // Note: logos are now bundled into fetch-sectors response
-
-  // Info
-  getDataPath: () => ipcRenderer.invoke('get-data-path'),
 
   // App version
   getVersion: () => ipcRenderer.invoke('get-version'),

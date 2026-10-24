@@ -282,6 +282,10 @@ async function processParsedPayslip(data) {
     state.payslips = state.payslips.filter(p => p.period !== data.period);
   }
   data.id = uid();
+  // The file's location on this computer is only needed for the preview — it
+  // must not be synced to Google Drive with the payslip.
+  delete data._filePath;
+  delete data._rawText;
   state.payslips.push(data);
   state.payslips.sort((a, b) => a.period.localeCompare(b.period));
   const budgetInfo = autoLogPayslipSalary(data);
@@ -306,7 +310,7 @@ function autoLogPayslipSalary(payslip) {
   const budgetMonthKey = getExpenseMonthKey(nextMonthDate.getFullYear(), nextMonthDate.getMonth());
   const budgetLabel    = nextMonthDate.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
   // Estimated received date = last day of the period month
-  const lastDay        = new Date(pYear, pMonth, 0).toISOString().slice(0, 10);
+  const lastDay        = localIso(new Date(pYear, pMonth, 0));
   if (!state.salaries) state.salaries = [];
   const idx   = state.salaries.findIndex(s => s.month === budgetMonthKey);
   const entry = { month: budgetMonthKey, amount: payslip.netSalary, date: lastDay, receivedDate: lastDay };
@@ -347,7 +351,8 @@ function initSalaryDropZone() {
     const file = e.dataTransfer.files[0];
     if (!file) return;
     if (!file.name.toLowerCase().endsWith('.pdf')) { mardukAlert('Please drop a PDF file.'); return; }
-    const filePath = file.path;   // Electron adds .path to File objects
+    // File.path is Electron ≤29; webUtils replaces it from 30 on
+    const filePath = file.path || window.electronAPI?.getPathForFile?.(file);
     if (!filePath) { mardukAlert('Could not read file path. Please use the Import button instead.'); return; }
     try {
       const raw = await window.electronAPI?.parsePayslipFromPath(filePath);

@@ -46,7 +46,7 @@ function impNum(raw) {
 // DD-MM-YYYY / DD/MM/YYYY / YYYY-MM-DD, plus Excel serials and real Dates
 function impDate(raw) {
   if (!raw) return null;
-  if (raw instanceof Date && !isNaN(raw)) return raw.toISOString().slice(0, 10);
+  if (raw instanceof Date && !isNaN(raw)) return localIso(raw);
   const s = String(raw).trim();
   let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
@@ -222,7 +222,9 @@ function impBuildRows(body, map) {
   const rows = [];
   for (const r of body) {
     const date = impDate(r[map.date]);
-    const desc = String(r[map.desc] ?? '').trim();
+    // Angle brackets dropped: this text is stored as the expense description and
+    // shown as HTML on several screens. No bank needs them in a merchant name.
+    const desc = String(r[map.desc] ?? '').replace(/[<>]/g, '').trim();
     let amount = null;
     if (map.amount >= 0) amount = impNum(r[map.amount]);
     else {
@@ -286,7 +288,7 @@ function impRenderMapping(header) {
   if (!card || !wrap) return;
   card.style.display = '';
   const opts = (sel) => header.map((h, i) =>
-    `<option value="${i}"${i === sel ? ' selected' : ''}>${h || `Column ${i + 1}`}</option>`).join('');
+    `<option value="${i}"${i === sel ? ' selected' : ''}>${esc(h) || `Column ${i + 1}`}</option>`).join('');
   const fields = [['date','Date'], ['desc','Description'], ['amount','Amount'],
                   ['debit','Debit (if split)'], ['credit','Credit (if split)']];
   wrap.innerHTML = fields.map(([k, label]) => `
@@ -416,8 +418,10 @@ function impCommit() {
       continue;
     }
     if (r.cat === IMP_INVEST) {
-      // Money moved to the broker is an allocation, not spending
-      const pid = (state.portfolios || [])[0]?.id;
+      // Money moved to the broker is an allocation, not spending. Same target as
+      // — Cash —: the portfolio you are viewing (this went to the first one in
+      // the list, whichever you had selected).
+      const pid = cashPort?.id;
       if (pid) {
         if (!state.allocations) state.allocations = [];
         state.allocations.push({
@@ -498,7 +502,7 @@ function renderImportView() {
       ? '<p class="muted" style="font-size:12px;">No imports yet.</p>'
       : `<table class="data-table"><thead><tr><th>File</th><th>When</th><th style="text-align:right;">Added</th><th></th></tr></thead><tbody>${
           b.map(x => `<tr>
-            <td>${x.file}</td>
+            <td>${esc(x.file)}</td>
             <td class="muted">${new Date(x.at).toLocaleString('en-GB', {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
             <td style="text-align:right;">${x.expenses} expense${x.expenses === 1 ? '' : 's'}${x.allocations ? ` · ${x.allocations} alloc` : ''}</td>
             <td style="text-align:right;"><button class="btn-ghost" data-impundo="${x.id}" style="font-size:11px;padding:4px 10px;">Undo</button></td>
@@ -514,7 +518,7 @@ function renderImportView() {
       ? '<p class="muted" style="font-size:12px;">Nothing learned yet. Categories you assign during an import are remembered here.</p>'
       : `<table class="data-table"><thead><tr><th>Merchant</th><th>Category</th><th></th></tr></thead><tbody>${
           keys.map(k => `<tr>
-            <td>${k}</td><td>${impRules()[k]}</td>
+            <td>${esc(k)}</td><td>${esc(impRules()[k])}</td>
             <td style="text-align:right;"><button class="btn-ghost" data-imprule="${encodeURIComponent(k)}" style="font-size:11px;padding:4px 10px;">Forget</button></td>
           </tr>`).join('')}</tbody></table>`;
     rules.querySelectorAll('button[data-imprule]').forEach(btn =>

@@ -20,6 +20,7 @@ Personal finance dashboard built with Electron. Syncs data via Google Drive. Dis
 | `js/salary.js` | Payslip modal (DataSnipper-style) — PDF rendering, click-to-fill, zoom controls, salary state + charts |
 | `js/bankimport.js` | Bank statement import — local spreadsheet parsing, column mapping, merchant learning, duplicate detection, undoable batches |
 | `js/holdimport.js` | Holdings CSV import (Yahoo Finance format) — local parsing, ECB historical FX, duplicate flags, one-step undo; also the Add Holding panel toggle |
+| `js/splits.js` | Stock-split detection and confirm-first adjustment of lots and holdings |
 
 ---
 
@@ -69,7 +70,9 @@ When re-rendering a list (e.g. `renderExpenses()`), wire buttons via `addEventLi
 
 - **Auto-lock**: 10 min inactivity → `lockApp()`. Implemented in `js/app.js` with `setInterval` + activity listeners.
 - **Brute-force protection**: 5 failed password attempts → 30s lockout. `_failedAttempts` / `_lockoutUntil` in `js/app.js`.
-- **First-run UX**: `initLockScreen()` IIFE detects no saved password → shows "Create Password" instead of "Enter Password". IDs: `#lock-title`, `#lock-btn`.
+- **First-run UX**: `initLock()` detects no saved password → shows "Create Your Password" instead of "Enter Password". IDs: `#lock-title`, `#lock-btn`.
+- **Exactly one Enter listener** per lock field (the `INIT` block in `app.js`). A second pair once lived in a separate IIFE, so each Enter ran `handleLock()` twice: double unlock (two price refreshes, two AI summary calls), wrong passwords counted twice, a false "passwords don't match" on first setup.
+- **Forgot password** uses `mardukConfirm` — `window.prompt()` is not implemented in Electron, so the old reset silently did nothing.
 
 ---
 
@@ -83,6 +86,8 @@ Two different strategies — **macOS cannot use electron-updater** (gets stuck a
 | **Windows / Linux** | `electron-updater` with `autoDownload: true` |
 
 **macOS quarantine self-heal**: runs `xattr -cr <app bundle>` on every launch so the "damaged" error never appears.
+
+**macOS updater guards** — `checkForUpdatesMac()` shares one in-flight run (the 4-hourly timer and Settings → Check for updates could download the same DMG into the same file at once); a DMG already downloaded this session is reused instead of fetched again every 4h; old `MARDUK-*.dmg` files are deleted from the temp folder at launch; `hdiutil`/`cp` failures send `update-error` and keep the app running (they used to exit anyway and reopen the old version, which offered the same update again).
 
 **macOS restart after update** — `app.relaunch()` **cannot** be used here. It re-spawns `process.execPath`, which points inside the bundle `cp -Rf` has just overwritten, so the app quit and never came back. Instead a detached `/bin/sh -c 'sleep 2; open -a /Applications/MARDUK.app'` is spawned with `.unref()` before `app.exit(0)` — it outlives the process and goes through LaunchServices, which also refreshes the bundle record.
 
@@ -124,11 +129,11 @@ All calls happen in `main.js` (Node process) to avoid CORS. Three layers:
 
 | API | Auth | Used for |
 |-----|------|---------|
-| `v8/finance/chart` | None | Prices, OHLC history, dividends (events), FX rates |
-| `v7/finance/quote` | None | Market cap, P/E, beta, dividends, moving averages |
+| `v8/finance/chart` | None | Prices, OHLC history, dividends and splits (events), FX rates |
+| `v7/finance/quote` | Crumb + cookie (401 without, since 2025) | Market cap, P/E, beta, dividends, moving averages |
 | `v10/finance/quoteSummary` | Crumb + cookie | Analyst consensus, company description, earnings dates |
 
-**EU ticker resolution**: `fetchV8Chart()` and `yahooV7Quote()` try the bare ticker first, then 16 EU exchange suffixes (`.DE`, `.LS`, `.PA`, etc.). Successful form is cached in `_tickerResolutionCache`.
+**Ticker resolution** — one shared path, `withResolution(ticker, fetchOne)`, used by `fetchV8Chart()` and `fetch-prices`. `symbolCandidates()` decides what to try: the remembered symbol; for US share classes `BRK.B` → `BRK-B` first (Yahoo's spelling; NASDAQ's directory and brokers use the dot — `_yahooClassSymbol()` also rewrites the directory); a symbol that already carries `.`/`-`/`=`/`^` as-is; otherwise bare + 16 EU suffixes (`.DE`, `.LS`, … `.WA`). Resolutions are **persisted** to `userData/marduk-tickers.json` (they used to be memory-only, so every launch re-probed every European holding). A ticker nothing resolves goes in `_unresolvable` for 6h — one request per refresh instead of seventeen. A remembered symbol that stops answering is forgotten and probed once afresh. `yahooV7Quote()` makes **one** request on the resolved symbol, with the crumb — it used to probe 16 suffixes × 2 hosts without one, i.e. 34 refused requests per unresolved ticker.
 
 **Crumb**: fetched by visiting Yahoo Finance homepage → extracting session cookies → hitting `/v1/test/getcrumb`. Cached 1 hour, auto-refreshed on 401.
 
@@ -145,7 +150,11 @@ Every foreign holding's EUR value depends on this, so it must never guess.
 - `fetch-prices` returns a `_fx` key (`{source, date, stale, ageMs}`) alongside the tickers. It has no `.price`, so the renderer's `if (data && data.price)` loop skips it. `actions.js` stores it in `_fxStatus`; a stale rate turns `#live-dot` gold and shows `FX stale`, outranking the market-phase display.
 - Holdings additionally store `currentPriceNative`, `priceCurrency`, `fxRateUsed` — additive audit trail, so a suspect value can be diagnosed instead of guessed at. `currentPrice` remains EUR, so no consumer changed. *(Storing native prices and converting at render time via one helper is the eventual correct design; it touches ~20 call sites.)*
 
-**Yahoo request discipline** (`main.js`) — Yahoo rate-limits hard, and silent 429s were the real cause of "prices are wrong": stale values that looked current. `yfetch()` throws `RateLimited` on HTTP 429 and sets a 90s cooldown; `mapLimit(items, 3, fn)` caps concurrency. **A 429 must never fall through to the exchange-suffix probe** — it isn't "ticker not found". Before: 15 holdings × 14 attempts ≈ 210 near-simultaneous requests, which caused the very 429s it then misread. After: 1 request when Yahoo is refusing, plus a `rateLimited` flag in `_fx` so the Refresh button can say *"Rate limited — try later"* instead of quietly keeping old numbers. `search-tickers` returns **`null`** when rate-limited vs `[]` for a genuine miss, and caches hits in `_searchCache`.
+**Yahoo request discipline** (`main.js`) — Yahoo rate-limits hard, and silent 429s were the real cause of "prices are wrong": stale values that looked current. **Every Yahoo request goes through `yfetch(url, headers)`** — prices, history, dividends, splits, company data, search, the crumb (until 1.0.43 only prices and search did, so the charts and dividend fetches kept hammering Yahoo while the price refresh backed off). It throws `RateLimited` on HTTP 429 and sets a 90s cooldown during which it throws without sending anything. Every per-ticker IPC handler uses `mapLimit(items, 3, fn)` — the Overview alone asks for three history ranges of every holding at once. **A 429 must never fall through to the exchange-suffix probe** — it isn't "ticker not found". `fetchYahooQuote` returns `{fxMissing}` (not `null`) when the symbol exists but its currency has no rate, for the same reason. `fetch-history` doesn't cache a partial answer from a rate-limited run. The `rateLimited` flag in `_fx` lets the Refresh button say *"Rate limited — try later"*. `search-tickers` returns **`null`** when rate-limited vs `[]` for a genuine miss, and caches hits in `_searchCache`.
+
+**Cost-basis FX** — `ecbHistory(currencies, from, to)` is one ECB data-API request (CSV, CRLF line endings) for any set of currencies over any range. `fetch-fx-rate` (Add Holding) uses it for the last published rate on/before the date, Yahoo only if the ECB is down, else `null` — and **Add Holding refuses** without a rate (it used to store the dollar price as euros). The XTB import fetches all its rates in one `fetch-fx-history` call *before* changing anything and stops if any lot lacks a rate (it used to fall back to a hardcoded 1.08/0.86 per failed lot, and Full Replace had already cleared the old data by then).
+
+**Renderer conversions** — `nativeToEur(amount, currency)` (`actions.js`): today's ECB rate, `GBp` via the pound, `null` when there's no rate — never pass a foreign amount through as euros. `histCloseToEur(close, currency, eurUsdThen)` for the history charts (`app.js`, `charts2.js`, `returns.js`): USD at that day's EUR/USD, others at today's rate; these charts used to add pound and franc holdings in as euros, with a hardcoded 1.08 for missing USD points. **`dividendPerShare` is stored in EUR** (converted in `autoFetchPortfolioMetadata`, with `dividendPerShareNative` + `dividendCurrency` kept); it was Yahoo's native figure shown with a € sign. The company modal's position values use the holding's EUR price, and its price label uses `meta.currency` (it used `financialCurrency`, so NIO's dollar price was labelled CNY).
 
 **Renderer FX** — `FX_RATES` in `actions.js` (display currency, cash, dividends) was a *second* hardcoded table frozen at USD 1.08. `syncFxRates()` now overwrites it in place from IPC `get-fx-rates` on startup and after every refresh; the literal values are seeds only. Mutate, never reassign — every consumer holds the same object reference.
 
@@ -240,7 +249,7 @@ Never send `temperature`/`top_p`/`top_k` or `thinking.budget_tokens` — all fou
 
 ## Settings Menu & Theme
 
-Header "Settings" dropdown (`#settings-menu` in `index.html`, logic in `js/app.js`): Export / Import / Backups / AI Settings, plus a Theme submenu and a footer showing version + data path. Icon is an inline SVG eight-pointed Babylonian star (two rotated squares). Closes on outside click and Escape.
+Header "Settings" dropdown (`#settings-menu` in `index.html`, logic in `js/app.js`): Export / Import / Backups / AI Settings, plus a Theme submenu and a footer showing the version. Icon is an inline SVG eight-pointed Babylonian star (two rotated squares). Closes on outside click and Escape.
 
 **Theme**: three modes persisted in `localStorage['marduk_theme_mode']` — `light` | `dark` | `system` (default `dark`). `applyTheme()` resolves the mode (system follows `prefers-color-scheme` with a live listener) and rebuilds all charts. The old header toggle + `toggleTheme()` were removed.
 
@@ -314,6 +323,24 @@ Portfolio → Holdings → **Import CSV** (also in the Actions menu). Reads the 
 
 The **Add Holding form is folded** into `#add-holding-panel` behind `+ Add holding` on the holdings card's header line; `openAddHolding()` / `toggleAddHolding()`. `quickSell()` opens it first.
 
+## Stock Splits (`js/splits.js`)
+
+Lots are stored as entered, so a holding bought before a split kept its old share count and price while Yahoo's quote moved to the new terms (a 10-for-1 split read as −90%, and dividends were credited on a tenth of the shares). `checkStockSplits(manual)` runs 12s after unlock at most once a day (`localStorage['marduk_split_check']`) and from Actions → Check for stock splits.
+
+- IPC `fetch-splits` returns, per ticker, Yahoo's split events since the first lot and the **split-adjusted close on each lot date**.
+- `_splitFactorFor()` compares each lot's recorded price (native, or converted from EUR at today's rate) with that close × the ratios of the last *k* later splits, for every *k*. Best match within ±28% (`|ln| ≤ 0.25`) wins: factor 1 = already in post-split terms (broker exports usually are), >1 = needs adjusting, no match = left alone. Comparing prices makes it **idempotent** — an adjusted lot matches the adjusted close and is never offered again.
+- Nothing changes until the user confirms per holding (`mardukConfirm`, shows old → new shares and per-share cost; total cost unchanged). Lots get `shares × f`, `price ÷ f`, `priceOriginal ÷ f` and a "split-adjusted ×f" note; the holding's average cost keeps the position's total cost. A holding with no lots is treated as one lot on its `buyDate`. Pre-split `dividendLog` entries are dropped and `syncDividendLog(true)` re-credits them on the corrected share count.
+- Declining stores `state.splitDismissed["<portfolioId>|<ticker>|<lastSplitDate>"]`; the daily run skips it, the manual run asks again.
+
+## Data Safety
+
+- **Unreadable data file** — `load()` sets `_loadFailed` when the file exists but won't parse (Drive mid-sync); `save()` then writes nothing and a dialog explains. It used to carry on with an empty state, and the next save overwrote the real data. Restoring a backup or importing a file clears the flag.
+- **Failed saves** surface a toast (throttled to one a minute); `saveData` was fire-and-forget.
+- **Payslips** are stored without `_rawText` (the full extracted text — name, tax number, address) or `_filePath`; both used to sync to Google Drive and nothing read them. `initApp()` strips them from existing data.
+- **Outside text in innerHTML** goes through `esc()` (`utils.js`): Yahoo names/descriptions, bank-statement lines (also stripped of `<>` at import), file names. Tickers are validated to symbol characters at every entry point (Add Holding, CSV import, XTB import).
+- **Dates** — use `localIso()` for "today" / local dates, never `toISOString().slice(0,10)` on a local date: that converts to UTC and gave yesterday's date between midnight and 1am in a Portuguese summer (and XTB dates a day early). `toISOString()` is fine only for dates built in UTC.
+- **Dialogs are queued** (`dialog.js`) — a second `mardukConfirm`/`mardukAlert` waits for the first instead of orphaning its promise.
+
 ## Layout width
 
 `main` runs to 1640px (was 1200px) with 32px side padding matching the header, and only centres beyond that. `.chart-wrap` grows to 250px tall above 1500px wide so line charts don't flatten.
@@ -354,6 +381,7 @@ The Portfolio tab is split into 5 sub-views — only one visible at a time (`.ps
 - `unallocatedInvestment` — `{ portfolioId: eur }` invested beyond allocations
 - `aiSummaries` — `{ "YYYY-MM": { text, generatedAt } }` cached monthly AI summaries
 - `lastHoldingImport` — one-step undo snapshot for the holdings CSV import (see Holdings CSV Import)
+- `splitDismissed` — `{ "<portfolioId>|<ticker>|<splitDate>": true }` split adjustments the user declined
 
 ---
 

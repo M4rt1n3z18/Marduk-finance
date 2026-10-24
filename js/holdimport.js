@@ -172,6 +172,8 @@ function hiBuildRows(text, port) {
 
     if (sym.startsWith('$$'))         { r.skip = 'Cash entry — not imported'; return; }
     if (/^\^|=[XF]$/.test(sym))       { r.skip = 'Index or currency — not a holding'; return; }
+    // Symbol characters only: the ticker ends up in the holdings table's HTML
+    if (!/^[A-Z0-9][A-Z0-9.\-]{0,19}$/.test(sym)) { r.err = 'Not a valid symbol'; return; }
     const qRaw = get('qty'), pRaw = get('price'), dRaw = get('date');
     if (!qRaw && !pRaw && !dRaw)      { r.skip = 'No lot — watchlist only'; return; }
 

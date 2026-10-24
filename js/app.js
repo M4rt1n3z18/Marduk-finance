@@ -40,8 +40,12 @@ function applyTheme(rebuildCharts = true) {
     try {
       buildSpendingChart(); buildAllocChart(); buildCatSpendChart();
       buildPortDonut(); buildPnlBar(); buildPortHistoryChart();
-      buildNwHistoryChart(); buildSavRateChart(); buildIncomeHistoryChart();
-      buildExpCatChart(state.expenses.filter(e => e.date && e.date.startsWith(selectedExpenseMonth||'')));
+      buildNwHistoryChart(); buildSavRateChart(); buildIncomeHistoryChart(); buildNwHistoryTabChart();
+      // renderExpenses() redraws both expense charts from the same budget-month
+      // filter the page uses. This used to filter by calendar month instead, so
+      // with a paycheck day set, changing theme redrew the donut with different
+      // numbers from the ones beside it.
+      renderExpenses();
       buildSalaryCharts();
     } catch(e) {}
   }, 50);
@@ -352,13 +356,11 @@ function lockApp() {
 }
 
 async function resetPassword() {
-  const answer = prompt('To reset your password (data will be kept), type RESET and click OK:');
-  if (answer === null) return; // cancelled
-  if (answer.trim().toUpperCase() !== 'RESET') {
-    document.getElementById('lock-hint').textContent = 'Password reset cancelled.';
-    document.getElementById('lock-hint').className = 'lock-hint err';
-    return;
-  }
+  // Was window.prompt(), which Electron doesn't implement — it returned null,
+  // so "Forgot password" silently did nothing.
+  const yes = await mardukConfirm('Reset your password?\n\nYour data is kept — only the password is removed, ' +
+    'and you choose a new one straight away.', 'RESET PASSWORD');
+  if (!yes) return;
   await clearPw();
   // Data is kept — only the password is cleared
   location.reload();
@@ -372,7 +374,8 @@ async function initLock() {
   if (!hasPassword) {
     document.getElementById('lock-title').textContent = 'Create Your Password';
     document.getElementById('lock-btn').textContent = 'Continue';
-    document.getElementById('lock-hint').textContent = 'Choose a password with letters and numbers.';
+    document.getElementById('lock-hint').textContent = 'First time here — choose a password to protect your data.';
+    document.getElementById('lock-hint').className = 'lock-hint';
   } else {
     document.getElementById('lock-title').textContent = 'Enter Password';
     document.getElementById('lock-btn').textContent = 'Unlock';
@@ -383,8 +386,8 @@ async function initLock() {
 }
 
 async function initApp() {
-  setDateField('e-date', now.toISOString().slice(0,10));
-  setDateField('h-date', now.toISOString().slice(0,10));
+  setDateField('e-date', localIso());
+  setDateField('h-date', localIso());
   await load();
   // Migration guards for old saves
   if (!state.salaries) state.salaries = [];
@@ -402,6 +405,14 @@ async function initApp() {
   if (!state.unallocatedInvestment) state.unallocatedInvestment = {};
   if (!state.aiSummaries) state.aiSummaries = {};
   if (!state.dividendLog) state.dividendLog = [];
+
+  // Payslips used to be stored with the parser's full extracted text and the
+  // PDF's path on this computer — both synced to Google Drive, neither ever read
+  // back. Drop them from anything already saved.
+  if ((state.payslips || []).some(p => '_rawText' in p || '_filePath' in p)) {
+    state.payslips.forEach(p => { delete p._rawText; delete p._filePath; });
+    save();
+  }
 
   // Migrate old flat holdings/transactions/portHistory → portfolios array
   if (!state.portfolios || !state.portfolios.length) {
@@ -451,7 +462,7 @@ async function initApp() {
 
   syncCats();
   snapshotNetWorth();
-  setDateField('al-date', now.toISOString().slice(0,10));
+  setDateField('al-date', localIso());
   initAiCategorize(); // AI/history-based category suggestions on the expense form
   renderAll();
   checkRecurring();
@@ -472,10 +483,16 @@ async function initApp() {
       if (changed) { renderReceivedDividends(); renderPortfolio(); }
     });
   }, 6000);
+
+  // Background: stock splits since your lots were recorded (daily; asks first)
+  setTimeout(() => checkStockSplits(false), 12000);
 }
 
 // ══════════════ INIT ══════════════
-// Attach Enter key listeners once only (prevents accumulation on each lockApp() call)
+// Attach Enter key listeners once only (prevents accumulation on each lockApp() call).
+// A second pair used to be added by a separate lock-screen IIFE, so every Enter
+// ran handleLock() twice: two unlocks (double price fetch, double AI summary),
+// a wrong password counted twice, and "passwords don't match" on first setup.
 document.getElementById('lock-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleLock(); });
 document.getElementById('lock-confirm').addEventListener('keydown', e => { if (e.key === 'Enter') handleLock(); });
 
@@ -749,7 +766,7 @@ function renderGoals() {
 
 // ══════════════ PORTFOLIO HISTORY ══════════════
 function snapshotPortfolio() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localIso();
   for (const port of (state.portfolios || [])) {
     if (!(port.holdings||[]).length) continue;
     const val = port.holdings.reduce((s,h) => s + (h.currentPrice||h.buyPrice)*h.shares, 0);
@@ -870,15 +887,14 @@ async function buildPortHistoryChart() {
   const portfolioValues = sortedTs.map(ts => {
     let total = cash;
     let hasAny = false;
-    const eurUsd = nearestClose(fxTimeline, ts) || 1.08;
+    const eurUsd = nearestClose(fxTimeline, ts);
     for (const h of holdings) {
       const tl = tickerTimelines[h.ticker];
       if (!tl) continue;
       const close = nearestClose(tl, ts);
       if (close == null) continue;
       hasAny = true;
-      const currency = histData[h.ticker]?.currency;
-      total += h.shares * (currency === 'USD' ? close / eurUsd : close);
+      total += h.shares * histCloseToEur(close, histData[h.ticker]?.currency, eurUsd);
     }
     return hasAny ? Math.round(total * 100) / 100 : null;
   });
@@ -904,10 +920,8 @@ async function buildPortHistoryChart() {
         if (portfolioValues[i] === null) return null;
         const bmClose = nearestClose(bmTimeline, ts);
         if (bmClose == null || !bmFirst) return null;
-        const eurUsd = nearestClose(fxTimeline, ts) || 1.08;
-        const bmEur  = bmCurrency === 'USD' ? bmClose / eurUsd : bmClose;
-        const bmFirstEur = bmCurrency === 'USD'
-          ? bmFirst / (nearestClose(fxTimeline, firstTs) || 1.08) : bmFirst;
+        const bmEur      = histCloseToEur(bmClose, bmCurrency, nearestClose(fxTimeline, ts));
+        const bmFirstEur = histCloseToEur(bmFirst, bmCurrency, nearestClose(fxTimeline, firstTs));
         return bmFirstEur ? Math.round(firstPortVal * (bmEur / bmFirstEur) * 100) / 100 : null;
       });
 
@@ -1088,7 +1102,7 @@ async function generateMonthlySummary(force = false) {
     // previously every failure came back as null and looked like "not generated yet"
     if (result && typeof result === 'object' && result.error) {
       if (textEl) textEl.innerHTML =
-        `<span style="color:var(--down);">Couldn't write the summary: ${result.error}</span>`;
+        `<span style="color:var(--down);">Couldn't write the summary: ${esc(result.error)}</span>`;
       if (btn) btn.disabled = false;
       return;
     }
@@ -1162,38 +1176,6 @@ async function renderAiSummaryCard() {
   if (!version) return;
   const lock = document.getElementById('lock-version');
   if (lock) lock.textContent = `v${version}`;
-})();
-
-// ── Lock screen init ──────────────────────────────────────────────────────────
-(async function initLockScreen() {
-  // Focus the input immediately
-  const input = document.getElementById('lock-input');
-  if (input) {
-    input.focus();
-    // Allow Enter key to submit
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') handleLock(); });
-  }
-  const confirm = document.getElementById('lock-confirm');
-  if (confirm) confirm.addEventListener('keydown', e => { if (e.key === 'Enter') handleLock(); });
-
-  // Detect first run — if no password exists, switch UI to "Create" mode
-  try {
-    const pw = await getPw();
-    if (!pw) {
-      document.getElementById('lock-title').textContent = 'Create Password';
-      document.getElementById('lock-btn').textContent   = 'Set Password';
-      const hint = document.getElementById('lock-hint');
-      hint.textContent  = 'First time here — choose a password to protect your data.';
-      hint.className    = 'lock-hint';
-    }
-  } catch(e) {
-    // If getPw fails, still show create-password UI so user isn't stuck
-    document.getElementById('lock-title').textContent = 'Create Password';
-    document.getElementById('lock-btn').textContent   = 'Set Password';
-    const hint = document.getElementById('lock-hint');
-    hint.textContent = 'First time here — choose a password to protect your data.';
-    hint.className   = 'lock-hint';
-  }
 })();
 
 // ── Auto-updater UI ───────────────────────────────────────────────────────────

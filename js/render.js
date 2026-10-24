@@ -57,6 +57,7 @@ async function openCompanyModal(ticker) {
     info = {
       ticker, shortName: ticker, longName: ticker,
       sector: holding.sector || null, industry: null, description: null,
+      currency: 'EUR',                       // the holding's own figures are in euros
       currentPrice: holding.currentPrice || null,
       dps: holding.dividendPerShare || 0,
       exDivDate: holding.exDivDate || null,
@@ -99,12 +100,12 @@ async function openCompanyModal(ticker) {
   })();
   const logoHtml = `
     <img class="cmod-logo" src="https://financialmodelingprep.com/image-stock/${encodeURIComponent(ticker)}.png"
-      alt="${ticker}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+      alt="${ticker}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
     <div class="cmod-logo-fb" style="background:${bg};display:none;">${initial}</div>`;
 
   // Badges
   const badges = [info.sector, info.industry, info.exchange].filter(Boolean)
-    .map(b => `<span class="cmod-badge">${b}</span>`).join('');
+    .map(b => `<span class="cmod-badge">${esc(b)}</span>`).join('');
 
   // Price header: price + day change
   const priceCur   = info.currency || 'USD';
@@ -181,17 +182,21 @@ async function openCompanyModal(ticker) {
           </div>` : ''}
         </div>` : '';
 
-  // Position
+  // Position — all in euros. The market value used Yahoo's native price
+  // (dollars for a US stock) against a euro cost, so the gain shown here was off
+  // by the exchange rate and never matched the holdings table.
   const myShares  = holding.shares || 0;
   const myAvg     = holding.buyPrice || 0;
   const myCost    = myShares * myAvg;
-  const myVal     = myShares * (info.currentPrice || holding.currentPrice || myAvg);
+  const pxEur     = holding.currentPrice || nativeToEur(info.currentPrice, info.currency) || myAvg;
+  const myVal     = myShares * pxEur;
   const myGain    = myVal - myCost;
   const myGainPct = myCost ? myGain / myCost * 100 : 0;
+  const myDivEur  = (nativeToEur(info.dps || 0, info.currency) || 0) * myShares;
   const posHtml   = myShares > 0 ? `
     <div class="cmod-panel">
       <div class="cmod-section-title">Your Position</div>
-      <div class="cmod-field"><span class="cmod-field-label">Shares</span><span class="cmod-field-val">${myShares}</span></div>
+      <div class="cmod-field"><span class="cmod-field-label">Shares</span><span class="cmod-field-val">${fmtShares(myShares)}</span></div>
       <div class="cmod-field"><span class="cmod-field-label">Avg Cost</span><span class="cmod-field-val">€${myAvg.toFixed(2)}/sh</span></div>
       <div class="cmod-field"><span class="cmod-field-label">Total Cost</span><span class="cmod-field-val">€${myCost.toFixed(2)}</span></div>
       <div class="cmod-field"><span class="cmod-field-label">Market Value</span><span class="cmod-field-val">€${myVal.toFixed(2)}</span></div>
@@ -199,17 +204,17 @@ async function openCompanyModal(ticker) {
         <span class="cmod-field-val" style="color:${myGain>=0?'var(--up)':'var(--down)'};">
           ${myGain>=0?'+':''}€${myGain.toFixed(2)} (${myGainPct.toFixed(2)}%)
         </span></div>
-      ${(info.dps||0)>0 ? `<div class="cmod-field"><span class="cmod-field-label">Annual Dividends</span><span class="cmod-field-val up-text">€${((info.dps||0)*myShares).toFixed(2)}</span></div>` : ''}
+      ${myDivEur > 0 ? `<div class="cmod-field"><span class="cmod-field-label">Annual Dividends</span><span class="cmod-field-val up-text">€${myDivEur.toFixed(2)}</span></div>` : ''}
     </div>` : '';
 
   // Description / About
   const descHtml = info.description ? `
     <div class="cmod-panel">
       <div class="cmod-section-title">About</div>
-      <div class="cmod-desc" id="cmod-desc-text" onclick="this.classList.toggle('expanded')" title="Click to expand">${info.description}</div>
+      <div class="cmod-desc" id="cmod-desc-text" onclick="this.classList.toggle('expanded')" title="Click to expand">${esc(info.description)}</div>
       <div style="font-size:11px;color:var(--text3);margin-top:6px;">
         ${info.employees ? info.employees.toLocaleString() + ' employees · ' : ''}
-        ${info.website ? `<a href="#" onclick="event.preventDefault()" style="color:var(--gold-dim);">${info.website.replace(/^https?:\/\//,'')}</a>` : ''}
+        ${info.website ? `<a href="#" onclick="event.preventDefault()" style="color:var(--gold-dim);">${esc(info.website.replace(/^https?:\/\//,''))}</a>` : ''}
       </div>
     </div>` : '';
 
@@ -219,7 +224,7 @@ async function openCompanyModal(ticker) {
       ${logoHtml}
       <div style="flex:1;min-width:0;">
         <div class="cmod-ticker">${ticker}</div>
-        <div class="cmod-name">${info.longName && info.longName !== ticker ? info.longName : ''}</div>
+        <div class="cmod-name">${info.longName && info.longName !== ticker ? esc(info.longName) : ''}</div>
         <div class="cmod-badges">${badges}</div>
       </div>
       <button class="cmod-close" onclick="_closeCompanyModal()" title="Close">✕</button>
@@ -631,7 +636,10 @@ function logSalary() {
 
   // Salary received on the 2nd-to-last business day of month X is the budget for month X+1
   // So we attribute it to the NEXT month
-  const receivedDate = new Date(date);
+  // Noon local: a bare "YYYY-MM-DD" parses as UTC midnight, which west of
+  // Greenwich is still the previous day — a salary logged on the 1st landed in
+  // the wrong budget month.
+  const receivedDate = new Date(date + 'T12:00:00');
   const nextMonth = new Date(receivedDate.getFullYear(), receivedDate.getMonth() + 1, 1);
   const month = getExpenseMonthKey(nextMonth.getFullYear(), nextMonth.getMonth());
 
@@ -737,16 +745,30 @@ function buildExpCatChart(expenses) {
   }
 }
 
-function buildExpDailyChart(expenses, year, month) {
+// First and last calendar day of budget month `monthKey` — the same span
+// expenseBelongsToMonth() counts.
+function budgetMonthRange(monthKey) {
+  const [y, m] = monthKey.split('-').map(Number);
+  const pdThis = boundaryDayFor(monthKey);
+  const pdNext = boundaryDayFor(_nextMonthKey(monthKey));
+  const start = pdThis ? new Date(y, m - 2, Math.min(pdThis, new Date(y, m - 1, 0).getDate())) : new Date(y, m - 1, 1);
+  const end   = pdNext ? new Date(y, m - 1, Math.max(1, pdNext - 1)) : new Date(y, m, 0);
+  return [start, end];
+}
+
+function buildExpDailyChart(expenses, monthKey) {
   const el = document.getElementById('chart-exp-daily');
   if (!el || !el.offsetParent) return;
   destroyChart('exp-daily');
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const labels = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const data = labels.map(d => {
-    const dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    return expenses.filter(e => e.date === dateStr).reduce((s, e) => s + Number(e.amount), 0);
-  });
+  // Days of the *budget* month. This drew the calendar month only, so with a
+  // paycheck day set, spending from the previous month's tail — which the
+  // totals above do count — was missing from the chart.
+  const [start, end] = budgetMonthRange(monthKey);
+  const days = [];
+  for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) days.push(localIso(d));
+  const spans = days.length && days[0].slice(5, 7) !== days[days.length - 1].slice(5, 7);
+  const labels = days.map(ds => spans ? `${+ds.slice(8)}/${+ds.slice(5, 7)}` : +ds.slice(8));
+  const data = days.map(ds => expenses.filter(e => e.date === ds).reduce((s, e) => s + Number(e.amount), 0));
   charts['exp-daily'] = new Chart(el.getContext('2d'), {
     type: 'bar',
     data: { labels, datasets: [{ data, backgroundColor: data.map(v => v > 0 ? 'rgba(201,168,76,0.7)' : 'rgba(201,168,76,0.1)'), borderRadius: 3, borderSkipped: false }] },
@@ -865,8 +887,8 @@ function renderExpenses() {
     const ci = CATS.indexOf(e.cat);
     const dotColor = ci >= 0 ? CAT_COLORS[ci] : 'var(--text3)';
     return `<tr>
-      <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};margin-right:8px;"></span>${e.desc}${e.recurring ? ` <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;" title="Recurring"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5"/></svg>` : ''}</td>
-      <td class="muted">${e.cat}</td>
+      <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};margin-right:8px;"></span>${esc(e.desc)}${e.recurring ? ` <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;" title="Recurring"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5"/></svg>` : ''}</td>
+      <td class="muted">${esc(e.cat)}</td>
       <td class="muted">${e.date}</td>
       <td style="font-weight:600;">${eur(e.amount)}</td>
       <td><button class="del-btn" onclick="delExpense('${e.id}')">✕</button></td>
@@ -936,7 +958,7 @@ function renderExpenses() {
 
   // Charts
   buildExpCatChart(monthExpenses);
-  buildExpDailyChart(monthExpenses, year, month);
+  buildExpDailyChart(monthExpenses, selectedExpenseMonth);
 }
 
 // ══════════════ INVESTMENT ALLOCATIONS — UI ══════════════
@@ -952,7 +974,7 @@ function renderAllocations() {
 
   // Default date = today (only if not already picked)
   const dateInput = document.getElementById('al-date');
-  if (dateInput && !dateInput.dataset.raw) setDateField('al-date', now.toISOString().slice(0, 10));
+  if (dateInput && !dateInput.dataset.raw) setDateField('al-date', localIso());
 
   // Allocated this month
   const monthTotal = allocationTotalForMonth(selectedExpenseMonth || getExpenseMonthKey(now.getFullYear(), now.getMonth()));
@@ -1162,7 +1184,7 @@ function renderBudget() {
   // Salary + extra for selected budget month
   const salaryEntry = (state.salaries||[]).find(s => s.month === selectedBudgetMonth);
   const salaryAmt = salaryEntry ? salaryEntry.amount : 0;
-  const extraEntries = state.extraIncomes.filter(x => x.month === selectedBudgetMonth);
+  const extraEntries = (state.extraIncomes || []).filter(x => x.month === selectedBudgetMonth);
   const extraAmt = extraEntries.reduce((s, x) => s + Number(x.amount), 0);
   const totalIncome = salaryAmt + extraAmt;
 
@@ -1186,13 +1208,13 @@ function renderBudget() {
 
   // Pre-fill extra date
   const extraDateInput = document.getElementById('e-extra-date');
-  if (!extraDateInput.dataset.raw) setDateField('e-extra-date', now.toISOString().slice(0,10));
+  if (!extraDateInput.dataset.raw) setDateField('e-extra-date', localIso());
 
   // Extra income list
   document.getElementById('e-extra-list').innerHTML = extraEntries.length ? extraEntries.sort((a,b) => new Date(b.date)-new Date(a.date)).map(x =>
     `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--border);">
       <span style="font-size:12px;color:var(--text2);">${x.date}</span>
-      <span style="flex:1;font-size:13px;">${x.desc}</span>
+      <span style="flex:1;font-size:13px;">${esc(x.desc)}</span>
       <span class="up-text" style="font-weight:600;">${eur(x.amount)}</span>
       <button class="del-btn" onclick="delExtra('${x.id}')">✕</button>
     </div>`
