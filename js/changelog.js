@@ -9,6 +9,15 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.45',
+    title: 'Portfolio options beside the name',
+    items: [
+      'Each portfolio has a \u22ef button next to its name: rename it, choose the currency its values are shown in, create a new portfolio or delete it.',
+      'The explanations on the Risk page open properly when you hover the \u24d8 icons.',
+      'The import window is simpler.',
+    ],
+  },
+  {
     v: '1.0.44',
     title: 'Risk view, and one holdings template',
     items: [

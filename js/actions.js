@@ -511,9 +511,10 @@ async function refreshPrices(silent = false) {
     // silently keeping old prices is what made this look like wrong data.
     btn.textContent = _fxStatus && _fxStatus.rateLimited ? '↻ Rate limited — try later' : '↻ No prices fetched';
     btn.style.color = 'var(--down)';
-    setTimeout(() => { btn.textContent = '↻ Refresh Prices'; btn.style.color = ''; }, 5000);
+    setTimeout(() => { btn.textContent = '↻ Refresh prices'; btn.style.color = ''; }, 5000);
   } else {
-    btn.textContent = `↻ ${ts}`;
+    // Was just "↻ 14:23" — a bare time in a menu reads like nothing at all
+    btn.textContent = `↻ Refresh prices · updated ${ts}`;
     btn.style.color = '';
   }
   btn.disabled = false;

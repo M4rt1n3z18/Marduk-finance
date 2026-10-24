@@ -158,10 +158,22 @@ function closeActionsMenu() {
   if (menu) menu.classList.remove('open');
 }
 
+// ── ⋯ menu beside the portfolio name (rename, display currency, new, delete) ──
+function togglePortMenu(e) {
+  if (e) e.stopPropagation();
+  document.getElementById('port-menu').classList.toggle('open');
+}
+
+function closePortMenu() {
+  const menu = document.getElementById('port-menu');
+  if (menu) menu.classList.remove('open');
+}
+
 // Close open dropdowns on any outside click
 document.addEventListener('click', e => {
   if (!e.target.closest('#settings-wrap')) closeSettingsMenu();
   if (!e.target.closest('#actions-wrap')) closeActionsMenu();
+  if (!e.target.closest('#port-menu-wrap')) closePortMenu();
 });
 
 // ══════════════ LOCK SCREEN ══════════════
@@ -503,6 +515,7 @@ document.addEventListener('keydown', e => {
     if (overlay && overlay.classList.contains('open')) { overlay.classList.remove('open'); }
     closeSettingsMenu();
     closeActionsMenu();
+    closePortMenu();
   }
 });
 

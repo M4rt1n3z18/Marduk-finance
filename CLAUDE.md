@@ -289,7 +289,7 @@ Tabs: `overview`, `portfolio`, `expenses`, `budget`, `networth`, `goals`, `salar
 
 **Company modal** (`openCompanyModal` in `render.js`): price chart has a range selector (1D/1W/1M/6M/YTD/1Y/5Y — `cmodSetRange`/`_cmodDrawPriceChart`, `_CMOD_RANGE_CFG`); Market Data boxes and the Earnings/Analyst panels render only when data exists (no "—" placeholders). Holdings logo fallback uses `nextElementSibling` (a `nextSibling` text-node bug once hid the colored-initial circles).
 
-**Visual conventions**: `font-variant-numeric: tabular-nums` is set on `body` (aligned number columns). No raw emojis in UI — every icon is an inline gold SVG (`stroke="currentColor"`, viewBox 24). Reusable `.info-tip` hover tooltip component for card-title explanations. Every nav button carries an inline SVG icon (stroke `currentColor`, Babylonian motifs: ziggurat, coin stack, tablet, scales, sun-dial circle, target, barley).
+**Tooltips in stat cards** — `.stat-card` draws its gold top line as a background layer so a card holding an `.info-tip` can drop `overflow:hidden` (`.stat-card:has(.info-tip)`), which had clipped the tooltip to an empty sliver; stat-card tooltips open downward. **Visual conventions**: `font-variant-numeric: tabular-nums` is set on `body` (aligned number columns). No raw emojis in UI — every icon is an inline gold SVG (`stroke="currentColor"`, viewBox 24). Reusable `.info-tip` hover tooltip component for card-title explanations. Every nav button carries an inline SVG icon (stroke `currentColor`, Babylonian motifs: ziggurat, coin stack, tablet, scales, sun-dial circle, target, barley).
 
 ## Bank Statement Import (`js/bankimport.js`)
 
@@ -373,7 +373,8 @@ The Portfolio tab is split into 6 sub-views — only one visible at a time (`.ps
 
 - Hovering the **Portfolio nav button** shows a dropdown (`.nav-drop`, CSS `:hover`) linking to each sub-view via `navToPortfolioSub(name)`. The open rule is `:hover, :has(:focus-visible)` — never `:focus-within`, which leaves the menu pinned open after a mouse click because the clicked button keeps focus.
 - The portfolio switcher bar stays global above the sub-views — switching portfolio keeps the current sub-view.
-- Portfolio management actions (Refresh Prices `#refresh-btn`, Import CSV, Export CSV, Check for stock splits, Rename, New, Delete `#del-port-btn`) live in an **Actions dropdown** (`#actions-menu`, reuses `.settings-menu` classes) in the portfolio bar. `refreshPrices()` still updates `#refresh-btn`'s label even though it is now a menu item.
+- Data actions (Refresh prices `#refresh-btn`, Import CSV, Export CSV, Check for stock splits) live in an **Actions dropdown** (`#actions-menu`, reuses `.settings-menu` classes) in the portfolio bar.
+- **Per-portfolio options sit beside its name** (Yahoo-style ⋯ button, `#port-menu`, `togglePortMenu`/`closePortMenu` in `app.js`): Rename, **Show values in** (display currency — replaced the separate currency `<select>`; the active one is ticked by `renderPortfolioTabs()`), New portfolio, Delete `#del-port-btn` (hidden with one portfolio). The portfolio `.sec-header` carries `position:relative; z-index:30` because `.tab.active > *` animates (`fadeUp`), which makes every direct child of a tab its own stacking layer in DOM order — without it the menu opened under the cards below. `refreshPrices()` still updates `#refresh-btn`'s label even though it is now a menu item.
 - Chart builders already guard on `el.offsetParent`, so hidden sub-views skip canvas work; `showPortfolioSub` rebuilds only the section that became visible.
 
 **State shape** (top-level keys in `marduk-data.json`):

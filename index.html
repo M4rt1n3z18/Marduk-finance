@@ -223,8 +223,17 @@
 
   /* ── Stat cards ── */
   .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 24px; }
-  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; position: relative; overflow: hidden; }
-  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--gold), transparent); }
+  /* The gold top line is a background layer, so it follows the rounded corners
+     without overflow:hidden — which clipped the explanation tooltips (info-tip)
+     inside these cards to an empty sliver. Cards without a tooltip still clip. */
+  .stat-card {
+    background: linear-gradient(90deg, var(--gold), transparent) top / 100% 2px no-repeat, var(--bg2);
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; position: relative; overflow: hidden;
+  }
+  .stat-card:has(.info-tip) { overflow: visible; }
+  /* Stat cards sit at the top of a view — open their tooltips downward, over the
+     card, instead of up into the header (which is a layer above them) */
+  .stat-card .info-tip .tip-body { bottom: auto; top: calc(100% + 9px); }
   .stat-label { font-size: 10px; letter-spacing: 2px; color: var(--text2); text-transform: uppercase; font-family: 'Cinzel', serif; margin-bottom: 10px; }
   .stat-val { font-size: 26px; font-weight: 600; letter-spacing: -1px; color: var(--text); margin-bottom: 4px; }
   .stat-sub { font-size: 12px; color: var(--text2); }
@@ -530,6 +539,15 @@
     position: relative; z-index: 50; /* keep the Actions dropdown above the cards below */
   }
   .portfolio-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  /* ⋯ beside the portfolio name — opens that portfolio's own options */
+  .port-menu-btn {
+    width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid var(--gold-dim); color: var(--gold); cursor: pointer; transition: background .15s;
+  }
+  .port-menu-btn:hover { background: rgba(201,168,76,0.12); }
+  .port-menu { left: 0; right: auto; min-width: 220px; }
+  .port-menu-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text3); padding: 6px 12px 4px; }
+  .port-ccy-sym { display: inline-block; min-width: 22px; color: var(--gold); font-weight: 600; }
   .portfolio-tab {
     padding: 7px 18px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--bg3); color: var(--text2); cursor: pointer;
@@ -967,18 +985,16 @@
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:1040px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
     <div style="padding:22px 26px 14px;border-bottom:1px solid var(--border);">
       <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);">IMPORT HOLDINGS</div>
-      <div style="font-size:12px;color:var(--text3);margin-top:5px;">Into <strong id="hi-port-name" style="color:var(--text2);"></strong> · Marduk template only · read on this computer, never uploaded</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:5px;">Into <strong id="hi-port-name" style="color:var(--text2);"></strong></div>
     </div>
     <div style="padding:18px 26px;overflow-y:auto;flex:1;">
       <div id="hi-pick">
         <div id="hi-drop" style="border:1.5px dashed var(--border);border-radius:12px;padding:30px;text-align:center;cursor:pointer;transition:border-color .2s;">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--gold);opacity:.8;"><path d="M12 3.5v10M8.5 10 12 13.5 15.5 10M4.5 16v3a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-3"/></svg>
-          <div style="font-size:13px;font-weight:600;margin-top:8px;">Drop a CSV here, or click to choose</div>
-          <div class="muted" style="font-size:11px;margin-top:3px;">First row: <strong>Symbol, Trade Date, Purchase Price, Quantity, Status</strong> · Status is Open or Closed</div>
+          <div style="font-size:13px;font-weight:600;margin-top:8px;">Drop the Marduk template here, or click to choose</div>
         </div>
         <input type="file" id="hi-file" accept=".csv,text/csv" style="display:none;">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:12px;color:var(--text3);">
-          <span>Only the Marduk template is accepted. Prices are read in each stock's own currency (USD for AAPL, EUR for VWCE.DE) and converted at the ECB rate on the trade date; Closed rows are skipped.</span>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
           <button class="btn-ghost" onclick="hiDownloadTemplate()" style="font-size:11px;padding:6px 12px;white-space:nowrap;">↓ Download template</button>
         </div>
       </div>
@@ -1348,15 +1364,6 @@
   <div class="portfolio-bar">
     <div class="portfolio-tabs" id="portfolio-tabs"></div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <select id="port-currency-sel" onchange="setPortCurrency(this.value)"
-        style="padding:7px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;outline:none;cursor:pointer;"
-        title="Display currency for this portfolio">
-        <option value="EUR">€ EUR</option>
-        <option value="USD">$ USD</option>
-        <option value="GBP">£ GBP</option>
-        <option value="CHF">₣ CHF</option>
-        <option value="BRL">R$ BRL</option>
-      </select>
       <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);" title="Next automatic price refresh">
         <span id="live-dot" style="color:var(--up);font-size:9px;">●</span>
         <span id="live-countdown" style="font-variant-numeric:tabular-nums;min-width:42px;">—</span>
@@ -1368,21 +1375,43 @@
           Actions <span style="font-size:9px;opacity:.7;">▾</span>
         </button>
         <div class="settings-menu" id="actions-menu">
-          <button class="settings-item" id="refresh-btn" onclick="refreshPrices()">↻&nbsp; Refresh Prices</button>
-          <button class="settings-item" onclick="closeActionsMenu();openHoldImport()" title="Import lots from a Yahoo Finance-format CSV">⬆&nbsp; Import CSV</button>
+          <button class="settings-item" id="refresh-btn" onclick="refreshPrices()">↻&nbsp; Refresh prices</button>
+          <button class="settings-item" onclick="closeActionsMenu();openHoldImport()" title="Import lots from the Marduk template">⬆&nbsp; Import CSV</button>
           <button class="settings-item" onclick="closeActionsMenu();exportPortfolioCSV()">↓&nbsp; Export CSV</button>
           <button class="settings-item" onclick="closeActionsMenu();checkStockSplits(true)" title="Adjust holdings recorded before a stock split">⇅&nbsp; Check for stock splits</button>
-          <div class="settings-divider"></div>
-          <button class="settings-item" onclick="closeActionsMenu();renamePortfolio()">✎&nbsp; Rename portfolio</button>
-          <button class="settings-item" onclick="closeActionsMenu();addPortfolio()">＋&nbsp; New portfolio</button>
-          <button class="settings-item" id="del-port-btn" style="color:var(--down);" onclick="closeActionsMenu();deletePortfolio()">✕&nbsp; Delete portfolio</button>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="sec-header" style="margin-bottom:10px;">
-    <div><div class="sec-title" id="port-sec-title">Portfolio</div><div class="sec-sub" id="crumb-portfolio">Overview</div></div>
+  <!-- Raised: every direct child of a tab is its own layer (fadeUp animation),
+       so without this the ⋯ menu opened underneath the cards below it -->
+  <div class="sec-header" style="margin-bottom:10px;position:relative;z-index:30;">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="sec-title" id="port-sec-title">Portfolio</div>
+        <!-- This portfolio's own options, beside its name (rename, display currency, new, delete) -->
+        <div class="settings-wrap" id="port-menu-wrap">
+          <button class="port-menu-btn" onclick="togglePortMenu(event)" title="Portfolio options" aria-label="Portfolio options">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>
+          </button>
+          <div class="settings-menu port-menu" id="port-menu">
+            <button class="settings-item" onclick="closePortMenu();renamePortfolio()">✎&nbsp; Rename</button>
+            <div class="settings-divider"></div>
+            <div class="port-menu-label">Show values in</div>
+            <button class="settings-item" data-ccy="EUR" onclick="closePortMenu();setPortCurrency('EUR')"><span class="port-ccy-sym">€</span>Euro<span class="theme-check">✓</span></button>
+            <button class="settings-item" data-ccy="USD" onclick="closePortMenu();setPortCurrency('USD')"><span class="port-ccy-sym">$</span>US dollar<span class="theme-check">✓</span></button>
+            <button class="settings-item" data-ccy="GBP" onclick="closePortMenu();setPortCurrency('GBP')"><span class="port-ccy-sym">£</span>British pound<span class="theme-check">✓</span></button>
+            <button class="settings-item" data-ccy="CHF" onclick="closePortMenu();setPortCurrency('CHF')"><span class="port-ccy-sym">₣</span>Swiss franc<span class="theme-check">✓</span></button>
+            <button class="settings-item" data-ccy="BRL" onclick="closePortMenu();setPortCurrency('BRL')"><span class="port-ccy-sym">R$</span>Brazilian real<span class="theme-check">✓</span></button>
+            <div class="settings-divider"></div>
+            <button class="settings-item" onclick="closePortMenu();addPortfolio()">＋&nbsp; New portfolio</button>
+            <button class="settings-item" id="del-port-btn" style="color:var(--down);" onclick="closePortMenu();deletePortfolio()">✕&nbsp; Delete</button>
+          </div>
+        </div>
+      </div>
+      <div class="sec-sub" id="crumb-portfolio">Overview</div>
+    </div>
   </div>
 
 

@@ -143,9 +143,8 @@ function hiBuildRows(text, port) {
   const want = HI_TEMPLATE.map(h => h.toLowerCase());
   const hasStatus = header.length === 5;
   if (!(header.length === 4 || hasStatus) || header.some((h, i) => h !== want[i])) {
-    const found = rows[0].map(c => String(c).trim()).filter(Boolean).join(', ') || 'nothing';
-    return { error: `This file isn't in the Marduk template, so it can't be imported. The first row must be exactly: ` +
-      `${HI_TEMPLATE.join(', ')} (Status is optional). Found: ${found}. Download the template and copy your lots into it.` };
+    return { error: `Not the Marduk template — the first row must be: ${HI_TEMPLATE.join(', ')}. ` +
+      'Download the template and copy your lots into it.' };
   }
 
   const today = _hiIso(new Date());

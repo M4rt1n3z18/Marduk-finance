@@ -360,7 +360,7 @@ function renderPortfolioTabs() {
   const tabs = document.getElementById('portfolio-tabs');
   if (!tabs) return;
   tabs.innerHTML = (state.portfolios || []).map(p =>
-    `<button class="portfolio-tab${p.id === state.activePortfolioId ? ' active' : ''}" onclick="switchPortfolio('${p.id}')">${p.name}</button>`
+    `<button class="portfolio-tab${p.id === state.activePortfolioId ? ' active' : ''}" onclick="switchPortfolio('${p.id}')">${esc(p.name)}</button>`
   ).join('');
   // Keep the section title in sync
   const titleEl = document.getElementById('port-sec-title');
@@ -368,12 +368,12 @@ function renderPortfolioTabs() {
   // Hide delete button when only one portfolio
   const delBtn = document.getElementById('del-port-btn');
   if (delBtn) delBtn.style.display = (state.portfolios||[]).length <= 1 ? 'none' : '';
+  // Tick this portfolio's display currency in its ⋯ menu
+  document.querySelectorAll('#port-menu [data-ccy]').forEach(b => b.classList.toggle('active', b.dataset.ccy === portCurrency()));
 }
 
 function renderPortfolio() {
   renderPortfolioTabs();
-  const curSel = document.getElementById('port-currency-sel');
-  if (curSel) curSel.value = portCurrency();
   const ps = portfolioStats();
   document.getElementById('p-value').textContent = eurPort(ps.val);
   document.getElementById('p-cost').textContent = eurPort(ps.cost);
