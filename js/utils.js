@@ -4,7 +4,7 @@ let acSearchTimer = null;
 
 // Full directory of US-listed securities (~13k), fetched from NASDAQ Trader by
 // the main process and cached on disk for a week. This is what makes search work
-// for *any* ticker rather than only the ~314 in TICKER_DB or the ones you own —
+// for *any* ticker rather than only the ~300 in TICKER_DB or the ones you own —
 // and it works offline, so a Yahoo rate-limit no longer empties the dropdown.
 let SYMBOL_DIR = [];
 

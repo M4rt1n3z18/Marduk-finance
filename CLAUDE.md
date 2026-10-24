@@ -137,7 +137,9 @@ All calls happen in `main.js` (Node process) to avoid CORS. Three layers:
 
 **Ticker resolution** — one shared path, `withResolution(ticker, fetchOne)`, used by `fetchV8Chart()` and `fetch-prices`. `symbolCandidates()` decides what to try: the remembered symbol; for US share classes `BRK.B` → `BRK-B` first (Yahoo's spelling; NASDAQ's directory and brokers use the dot — `_yahooClassSymbol()` also rewrites the directory); a symbol that already carries `.`/`-`/`=`/`^` as-is; otherwise bare + 16 EU suffixes (`.DE`, `.LS`, … `.WA`). Resolutions are **persisted** to `userData/marduk-tickers.json` (they used to be memory-only, so every launch re-probed every European holding). A ticker nothing resolves goes in `_unresolvable` for 6h — one request per refresh instead of seventeen. A remembered symbol that stops answering is forgotten and probed once afresh. `yahooV7Quote()` makes **one** request on the resolved symbol, with the crumb — it used to probe 16 suffixes × 2 hosts without one, i.e. 34 refused requests per unresolved ticker.
 
-**Crumb**: fetched by visiting Yahoo Finance homepage → extracting session cookies → hitting `/v1/test/getcrumb`. Cached 1 hour, auto-refreshed on 401.
+**Crumb**: session cookie from `fc.yahoo.com` (a tiny 404 carrying the `A3` cookie; the finance.yahoo.com homepage is the fallback) → `/v1/test/getcrumb`. Cached 1 hour, auto-refreshed on 401. The homepage alone stopped working: its response headers exceed Node's 16 KB limit, so `fetch()` threw `UND_ERR_HEADERS_OVERFLOW` before any cookie was read.
+
+**User-Agent — keep `YAHOO_UA = 'Mozilla/5.0'`.** Yahoo answers HTTP 429 to a full desktop-Chrome User-Agent that arrives without a browser's cookies (verified 2026-10-24 on search, chart, getcrumb and quoteSummary: Chrome string → 429 every time; bare `Mozilla/5.0` or no UA → 200, same machine, same moment). Until 1.0.46 the constant held the Chrome string, so every refresh reported "Rate limited" with nothing actually rate-limited. If 429s return across the board, test the UA first (`node` + `fetch` with each UA) before blaming request volume.
 
 ---
 
@@ -164,7 +166,7 @@ Every foreign holding's EUR value depends on this, so it must never guess.
 
 **Ticker autocomplete** — three local layers before any network call, so search works offline and a Yahoo rate-limit can't empty the dropdown:
 1. `ownedTickerEntries()` (`utils.js`) — everything you hold, incl. non-US listings (`.DE`/`.LS`) the US directory lacks
-2. `TICKER_DB` (~314 curated large caps, `state.js`)
+2. `TICKER_DB` (~300 curated large caps, `state.js`) — audited 1.0.46: every bare symbol is in NASDAQ Trader's list with a matching name and ETF flag, every other symbol answers on Yahoo's chart endpoint. **A bare symbol is a US lookup first**, so a European listing without its suffix can price an unrelated US security (ROG was Rogers Corp, not Roche; BTC/ETH were Grayscale ETFs; LINK, XRP, EQQQ, IQQQ, IEAG, IBGL likewise). Non-US entries always carry the Yahoo suffix (`.AS`, `.DE`, `.L`, `.SW`…), crypto always `-USD`.
 3. `SYMBOL_DIR` — **~12.7k US-listed symbols** from NASDAQ Trader's public `nasdaqlisted.txt` + `otherlisted.txt` (free, no key, no rate limit). Built by `buildSymbolDirectory()` in `main.js`, cached to `userData/marduk-symbols.json` for 7 days, loaded via IPC `get-symbol-directory`. Test issues filtered; ETF column → asset class; `_cleanSecurityName()` trims "- Common Stock"/ADR boilerplate.
 
 Ranking is exact symbol → prefix → name substring, so typing `NIO` doesn't bury NIO. A `null` from `search-tickers` (rate-limited, vs `[]` for a real miss) renders a *"live search unavailable"* note.

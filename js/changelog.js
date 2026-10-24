@@ -9,6 +9,16 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.46',
+    title: 'Prices and search are back',
+    items: [
+      'Prices, charts and ticker search load again — Yahoo Finance had started turning Marduk away, which showed up as “Rate limited”.',
+      'Company details, analyst views and earnings dates load again too.',
+      'Ticker suggestions are corrected: Roche, Bitcoin, Ethereum, XRP, Chainlink and several European ETFs now point to the right security, and renamed tickers are current (Block is XYZ, Polygon is POL).',
+      'European ETFs in the suggestions carry their exchange (e.g. VUSA.AS, VHYL.AS), and ERNX.DE is included.',
+    ],
+  },
+  {
     v: '1.0.45',
     title: 'Portfolio options beside the name',
     items: [

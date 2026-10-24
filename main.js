@@ -440,28 +440,45 @@ ipcMain.handle('clear-ai-key', () => {
 // ── Yahoo Finance shared infrastructure ───────────────────────────────────────
 // Yahoo's v10/quoteSummary endpoint now requires a crumb token obtained via their
 // consent flow. We fetch it once, cache it for 1 hour, and auto-refresh on 401.
-const YAHOO_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+//
+// Yahoo answers HTTP 429 to a full desktop-Chrome User-Agent that arrives without
+// a browser's cookies — it reads as a scraper posing as Chrome. Checked
+// 2026-10-24: search, chart, getcrumb and quoteSummary all refused the Chrome
+// string this constant used to hold, and all answered a bare one, from the same
+// machine at the same moment. Every refresh was reported as "Rate limited" while
+// nothing was actually being rate-limited.
+const YAHOO_UA = 'Mozilla/5.0';
 let _yahooMeta = { crumb: null, cookies: null, fetchedAt: 0 };
 
 async function ensureYahooCrumb(force = false) {
   const HOUR = 3_600_000;
   if (!force && _yahooMeta.crumb && Date.now() - _yahooMeta.fetchedAt < HOUR) return;
   try {
-    // Step 1: visit Yahoo Finance homepage to receive session cookies.
-    // Include Accept-Language: en-US to avoid being served a GDPR consent page
-    // (which wouldn't set the needed session cookie).
-    const r1 = await yfetch('https://finance.yahoo.com/', {
-      'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Accept-Encoding': 'gzip, deflate, br',
-    });
+    // Step 1: session cookies. fc.yahoo.com answers a tiny 404 that carries the
+    // A3 cookie. The finance.yahoo.com homepage sends response headers larger
+    // than Node's 16 KB limit, so fetch() threw before a cookie was read and
+    // company data, analyst consensus and earnings dates went without a crumb.
+    // The homepage stays as the fallback. Accept-Language: en-US avoids being
+    // served a GDPR consent page (which wouldn't set the needed cookie).
     let cookieStr = '';
-    if (typeof r1.headers.getSetCookie === 'function') {
-      // Node 18+ / undici: returns an array of Set-Cookie values
-      cookieStr = r1.headers.getSetCookie().map(c => c.split(';')[0]).join('; ');
-    } else {
-      const raw = r1.headers.get('set-cookie') || '';
-      cookieStr = raw.split(/,(?=\s*\w+=)/).map(c => c.trim().split(';')[0]).join('; ');
+    for (const src of ['https://fc.yahoo.com/', 'https://finance.yahoo.com/']) {
+      try {
+        const r1 = await yfetch(src, {
+          'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+        });
+        if (typeof r1.headers.getSetCookie === 'function') {
+          // Node 18+ / undici: returns an array of Set-Cookie values
+          cookieStr = r1.headers.getSetCookie().map(c => c.split(';')[0]).join('; ');
+        } else {
+          const raw = r1.headers.get('set-cookie') || '';
+          cookieStr = raw.split(/,(?=\s*\w+=)/).map(c => c.trim().split(';')[0]).join('; ');
+        }
+        if (cookieStr) break;
+      } catch (e) {
+        if (e instanceof RateLimited) throw e;
+        console.warn('[Yahoo] Cookie source failed:', src, e.cause?.code || e.message);
+      }
     }
     // Step 2: exchange cookies for a crumb token
     const r2 = await yfetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
@@ -741,7 +758,7 @@ ipcMain.handle('search-tickers', async (event, query) => {
 });
 
 // ══════════════ SYMBOL DIRECTORY ══════════════
-// The renderer's built-in TICKER_DB holds ~314 large caps, so most real
+// The renderer's built-in TICKER_DB holds ~300 large caps, so most real
 // portfolios contain symbols it has never heard of — and when Yahoo's live
 // search is rate-limited, autocomplete had nothing to fall back on and looked
 // like "Marduk doesn't know this ticker".
