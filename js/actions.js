@@ -204,62 +204,20 @@ function addExpense() {
   const date = getDateRaw('e-date') || localIso();
   const recurring = document.getElementById('e-recurring').checked;
   if (!desc || isNaN(amount) || amount <= 0) return;
-  const exp = { id:uid(), desc, amount, cat, date, recurring };
-  applyLoanPayment(exp);
-  state.expenses.push(exp);
+  state.expenses.push({ id:uid(), desc, amount, cat, date, recurring });
+  // Auto-reduce any credit liability whose keyword matches this expense description
+  const descLower = desc.toLowerCase();
+  state.liabilities.forEach(l => {
+    if (l.isCredit && l.linkedKeyword && descLower.includes(l.linkedKeyword.toLowerCase())) {
+      l.value = parseFloat(Math.max(0, l.value - amount).toFixed(2));
+    }
+  });
   document.getElementById('e-desc').value=''; document.getElementById('e-amount').value='';
   document.getElementById('e-recurring').checked = false;
   save(); renderAll(); checkRecurring();
 }
 
-function delExpense(id) {
-  revertLoanPayment(state.expenses.find(e => e.id === id));
-  state.expenses = state.expenses.filter(e=>e.id!==id); save(); renderAll();
-}
-
-// ── Loans ────────────────────────────────────────────────────────────────────
-// An instalment is part interest, part principal, and only the principal
-// lowers what you owe. The whole instalment used to come off the balance, so
-// debt shrank too fast and net worth read too high; "months left" was simply
-// balance ÷ instalment (a €150k mortgage at 3.5% paying €650 showed ~231
-// months instead of ~384). Both need the loan's annual rate (TAN). Without
-// one, a payment still counts in full and the Net Worth tab asks for the rate.
-function loanMonthlyRate(l) { return +l.rate > 0 ? +l.rate / 100 / 12 : 0; }
-
-// Standard annuity: n = −ln(1 − r·B/P) / ln(1 + r). null = no instalment to go
-// on; Infinity = the instalment doesn't even cover the monthly interest.
-function loanMonthsLeft(l) {
-  const B = +l.value, P = +l.instalment, r = loanMonthlyRate(l);
-  if (!(B > 0)) return 0;
-  if (!(P > 0)) return null;
-  if (!r) return Math.ceil(B / P);
-  if (P <= B * r) return Infinity;
-  return Math.ceil(-Math.log(1 - r * B / P) / Math.log(1 + r));
-}
-
-function loanPayoffDate(l) {
-  const n = loanMonthsLeft(l);
-  return n == null || !isFinite(n) ? null : new Date(now.getFullYear(), now.getMonth() + n, 1);
-}
-
-// Takes a matching instalment's principal off its loan and records how much on
-// the expense, so deleting it or undoing an import restores the balance
-// exactly. One payment pays one loan — the first whose keyword matches.
-function applyLoanPayment(exp) {
-  const d = String(exp.desc || '').toLowerCase();
-  const l = (state.liabilities || []).find(x => x.isCredit && x.linkedKeyword && d.includes(x.linkedKeyword.toLowerCase()));
-  if (!l || !(l.value > 0)) return;
-  const interest = Math.min(exp.amount, parseFloat((l.value * loanMonthlyRate(l)).toFixed(2)));
-  const principal = parseFloat(Math.min(l.value, exp.amount - interest).toFixed(2));
-  l.value = parseFloat((l.value - principal).toFixed(2));
-  exp.loanPayment = { id: l.id, principal, interest };
-}
-
-function revertLoanPayment(exp) {
-  const p = exp && exp.loanPayment;
-  const l = p && (state.liabilities || []).find(x => x.id === p.id);
-  if (l) l.value = parseFloat((l.value + p.principal).toFixed(2));
-}
+function delExpense(id) { state.expenses = state.expenses.filter(e=>e.id!==id); save(); renderAll(); }
 
 function addAsset() {
   const name = document.getElementById('a-name').value.trim();
@@ -287,12 +245,10 @@ function addLiab() {
   if (isCredit) {
     const orig = parseFloat(document.getElementById('l-orig').value) || value;
     const instalment = parseFloat(document.getElementById('l-instalment').value) || 0;
-    const rate = Math.max(0, parseFloat(document.getElementById('l-rate').value) || 0);
     const keyword = document.getElementById('l-keyword').value.trim();
-    Object.assign(liab, { isCredit: true, originalValue: orig, instalment, rate, linkedKeyword: keyword });
+    Object.assign(liab, { isCredit: true, originalValue: orig, instalment, linkedKeyword: keyword });
     document.getElementById('l-orig').value = '';
     document.getElementById('l-instalment').value = '';
-    document.getElementById('l-rate').value = '';
     document.getElementById('l-keyword').value = '';
   }
   state.liabilities.push(liab);
@@ -309,13 +265,6 @@ function updateLiabBalance(id, val) {
   const l = state.liabilities.find(l => l.id === id);
   if (!l) return;
   l.value = Math.max(0, parseFloat(val) || 0);
-  save(); renderNetWorth();
-}
-
-function updateLiabRate(id, val) {
-  const l = state.liabilities.find(l => l.id === id);
-  if (!l) return;
-  l.rate = Math.max(0, parseFloat(val) || 0);
   save(); renderNetWorth();
 }
 
@@ -481,10 +430,8 @@ function dismissRecurring(sourceId) {
 function addOneRecurring(sourceId) {
   const src = state.expenses.find(e=>e.id===sourceId);
   if (!src) return;
-  const exp = { id:uid(), desc:src.desc, amount:src.amount, cat:src.cat, date:localIso(), recurring:true };
-  applyLoanPayment(exp);
-  state.expenses.push(exp);
-  save(); renderAll(); checkRecurring();
+  state.expenses.push({ id:uid(), desc:src.desc, amount:src.amount, cat:src.cat, date:localIso(), recurring:true });
+  save(); renderExpenses(); renderOverview(); checkRecurring();
 }
 
 function addAllRecurring() {
@@ -497,9 +444,7 @@ function addAllRecurring() {
   const dismissed = (state.dismissedRecurring || {})[monthKey] || [];
   unique.forEach(r => {
     if (!thisMonthExpenses.find(e=>e.desc===r.desc&&e.recurring) && !dismissed.includes(r.id)) {
-      const exp = { id:uid(), desc:r.desc, amount:r.amount, cat:r.cat, date:localIso(), recurring:true };
-      applyLoanPayment(exp);
-      state.expenses.push(exp);
+      state.expenses.push({ id:uid(), desc:r.desc, amount:r.amount, cat:r.cat, date:localIso(), recurring:true });
     }
   });
   save(); renderAll(); checkRecurring();
