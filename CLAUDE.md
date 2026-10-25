@@ -12,6 +12,7 @@ Personal finance dashboard built with Electron. Syncs data via Google Drive. Dis
 | File | Role |
 |------|------|
 | `main.js` | Electron main process — IPC handlers, Yahoo Finance fetching, payslip parser, bank-statement reader, auto-updater |
+| `updater-mac.js` | macOS update helpers (plain Node, testable without Electron): release lookup by repo id, redirect-following JSON fetch, install of whatever app a DMG holds |
 | `preload.js` | contextBridge — exposes `window.electronAPI` to renderer; `contextIsolation:true`, `nodeIntegration:false` |
 | `index.html` | Single-page app shell — all HTML, CSS, Chart.js 4.4.1, PDF.js 3.11.174 (CDN) |
 | `js/app.js` | Tab routing, theme toggle, lock screen, auto-lock, brute-force protection, updater UI, version display |
@@ -88,6 +89,8 @@ Two different strategies — **macOS cannot use electron-updater** (gets stuck a
 | **Windows / Linux** | `electron-updater` with `autoDownload: true` |
 
 **macOS quarantine self-heal**: runs `xattr -cr <app bundle>` on every launch so the "damaged" error never appears.
+
+**Rename-proof updater (1.0.48, the bridge to Nexora)** — `updater-mac.js`. The app and its repo are being renamed (Marduk → Nexora), and the 1.0.46 updater could survive neither: it looked releases up by repo *name* with a raw `https.get` that ignored redirects (a renamed repo answers 301 + JSON, so the check found no `tag_name` and stayed silent forever), and it installed only a DMG containing `MARDUK.app`. Now releases come from `api.github.com/repositories/<GITHUB_REPO_ID>/releases/latest` — the numeric id never changes — with the name as a redirect-following fallback, and `installApp()` copies whatever `.app` the DMG holds next to the running bundle; if the name changed, the old bundle is moved to the Trash (never deleted outright; if the move fails it just stays) and the relaunch opens the new bundle. **Never rename the GitHub repo while installs older than 1.0.48 are still in use** — they can't follow it.
 
 **macOS updater guards** — `checkForUpdatesMac()` shares one in-flight run (the 4-hourly timer and Settings → Check for updates could download the same DMG into the same file at once); a DMG already downloaded this session is reused instead of fetched again every 4h; old `MARDUK-*.dmg` files are deleted from the temp folder at launch; `hdiutil`/`cp` failures send `update-error` and keep the app running (they used to exit anyway and reopen the old version, which offered the same update again).
 
@@ -402,6 +405,6 @@ The Portfolio tab is split into 6 sub-views — only one visible at a time (`.ps
 
 - **PDF.js CDN** — loaded from cdnjs in `index.html`. Requires internet on first load. No offline fallback.
 - **Payslip parsing requires Python + pdfplumber** — must be installed on the user's machine. The parser tries 10 Python binary locations but cannot install Python itself.
-- **macOS auto-update installs to `/Applications/MARDUK.app`** — hardcoded path. Will fail if the app is run from another location.
+- **macOS auto-update installs next to the running bundle** (whatever its folder), under the name the DMG's app has.
 - **Spotlight duplicates** — `dist/mac` and `dist/mac-arm64` folders left by electron-builder get indexed. Cleaned up by the release script (which now empties `dist/` after publishing) and the `.metadata_never_index` file.
 - **`contextIsolation: true`** — renderer code cannot use Node APIs directly. Everything goes through `window.electronAPI`.

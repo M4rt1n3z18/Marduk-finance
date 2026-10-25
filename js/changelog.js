@@ -9,6 +9,14 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '1.0.48',
+    title: 'Ready for the next big update',
+    items: [
+      'The next major version arrives with a new name and a new look — Marduk will install it automatically, like every other update.',
+      'When it does, the new app opens in place of the old one. Your data stays exactly where it is.',
+    ],
+  },
+  {
     v: '1.0.46',
     title: 'Prices and search are back',
     items: [

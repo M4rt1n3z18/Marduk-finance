@@ -21,6 +21,8 @@ if (process.platform === 'darwin') {
 
 const GITHUB_OWNER = 'M4rt1n3z18';
 const GITHUB_REPO  = 'Marduk-finance';
+const GITHUB_REPO_ID = 1253690538;   // never changes, even when the repository is renamed
+const macUpdate = require('./updater-mac');
 
 // ── macOS custom updater ──────────────────────────────────────────────────────
 // One check at a time. The 4-hourly timer and Settings → Check for updates
@@ -34,19 +36,10 @@ function checkForUpdatesMac() {
 
 async function _checkForUpdatesMac() {
   try {
-    const https = require('https');
-
-    // 1. Ask GitHub for the latest release
-    const release = await new Promise((resolve, reject) => {
-      https.get({
-        hostname: 'api.github.com',
-        path: `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
-        headers: { 'User-Agent': 'MARDUK-App' }
-      }, res => {
-        let d = ''; res.on('data', c => d += c);
-        res.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } });
-        res.on('error', reject);
-      }).on('error', reject);
+    // 1. Ask GitHub for the latest release — by repository id, so a renamed
+    //    repository keeps answering (by name it returned "Moved Permanently")
+    const release = await macUpdate.latestRelease({
+      repoId: GITHUB_REPO_ID, owner: GITHUB_OWNER, repo: GITHUB_REPO, headers: { 'User-Agent': 'MARDUK-App' },
     });
 
     const latest = (release.tag_name || '').replace('v', '');
@@ -151,24 +144,23 @@ ipcMain.handle('install-update', async () => {
     try {
       const mountOut = spawnSync('hdiutil', ['attach', global._pendingDmg, '-nobrowse'], { encoding: 'utf8' });
       const mountPoint = (mountOut.stdout || '').trim().split('\n').pop().split('\t').pop().trim();
-      if (mountOut.status !== 0 || !mountPoint || !fs.existsSync(`${mountPoint}/MARDUK.app`)) {
+      // Any app in the DMG, not only `MARDUK.app` — the next version arrives under a new name
+      if (mountOut.status !== 0 || !mountPoint || !fs.existsSync(mountPoint) || !macUpdate.findApp(mountPoint)) {
+        if (mountOut.status === 0 && mountPoint) spawnSync('hdiutil', ['detach', mountPoint, '-quiet'], { timeout: 10000 });
         fs.unlink(global._pendingDmg, () => {});
         global._pendingDmg = null;               // force a fresh download next check
         return fail('Could not open the downloaded update — it will download again on the next check.');
       }
 
-      // Install over the bundle we are actually running from, not a hardcoded
+      // Install next to the bundle we are actually running from, not a hardcoded
       // /Applications path — otherwise an app kept anywhere else updates a
-      // different copy (or none) and then reopens the wrong one.
-      const bundle = process.execPath.split('/Contents/')[0];
-      const parent = path.dirname(bundle);
-
-      const cp = spawnSync('cp', ['-Rf', `${mountPoint}/MARDUK.app`, `${parent}/`], { timeout: 30000 });
-      spawnSync('xattr', ['-cr', bundle],                                    { timeout:  5000 });
-      spawnSync('hdiutil', ['detach', mountPoint, '-quiet'],                  { timeout: 10000 });
-      if (cp.status !== 0) {
-        return fail(`Could not replace the app in ${parent} — check that folder is writable, or install the update manually.`);
-      }
+      // different copy (or none) and then reopens the wrong one. A renamed app
+      // lands beside it and the old one goes to the Trash.
+      const current = process.execPath.split('/Contents/')[0];
+      const result = macUpdate.installApp({ volume: mountPoint, currentBundle: current });
+      spawnSync('hdiutil', ['detach', mountPoint, '-quiet'], { timeout: 10000 });
+      if (result.error) return fail(result.error);
+      const bundle = result.newBundle;
 
       // `app.relaunch()` cannot work here: it re-spawns process.execPath, which
       // points inside the bundle `cp -Rf` just overwrote. The old executable is

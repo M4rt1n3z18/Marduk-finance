@@ -1,6 +1,6 @@
 {
   "name": "marduk",
-  "version": "1.0.46",
+  "version": "1.0.48",
   "description": "MARDUK — Wealth of Babylon. Personal finance dashboard.",
   "main": "main.js",
   "author": "Pedro",
@@ -29,6 +29,7 @@
     "productName": "MARDUK",
     "files": [
       "main.js",
+      "updater-mac.js",
       "preload.js",
       "index.html",
       "js/**",
