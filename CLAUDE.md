@@ -119,7 +119,9 @@ GH_TOKEN=$(gh auth token) npm run release
 git push
 ```
 
-`npm run release` builds for mac + win + linux, publishes to GitHub Releases, then cleans up local build folders. `releaseType: "release"` in `package.json` ensures releases are published (not drafts).
+`npm run release` builds for mac + win + linux, publishes to GitHub Releases, then empties `dist/` (everything except `.metadata_never_index` and the `.icon-*` caches) — only after a successful publish, so a failed upload leaves the files for a retry. It used to remove just the unpacked app folders, so every release left ~500 MB of installers behind: by 1.0.47 `dist/` held 8.4 GB of builds back to 1.0.32, and Google Drive was backing them up because the project lived in `~/Downloads`. `releaseType: "release"` in `package.json` ensures releases are published (not drafts).
+
+The project lives in **`~/Developer/marduk-app`** (moved from `~/Downloads` on 2026-10-25): Google Drive for desktop backs up Desktop, Documents and Downloads on this Mac, which uploaded `dist/` and `node_modules` with every build.
 
 Friends download the app once from GitHub Releases. After that, the in-app updater handles everything.
 
@@ -401,5 +403,5 @@ The Portfolio tab is split into 6 sub-views — only one visible at a time (`.ps
 - **PDF.js CDN** — loaded from cdnjs in `index.html`. Requires internet on first load. No offline fallback.
 - **Payslip parsing requires Python + pdfplumber** — must be installed on the user's machine. The parser tries 10 Python binary locations but cannot install Python itself.
 - **macOS auto-update installs to `/Applications/MARDUK.app`** — hardcoded path. Will fail if the app is run from another location.
-- **Spotlight duplicates** — `dist/mac` and `dist/mac-arm64` folders left by electron-builder get indexed. Cleaned up by the release script and `.metadata_never_index` file.
+- **Spotlight duplicates** — `dist/mac` and `dist/mac-arm64` folders left by electron-builder get indexed. Cleaned up by the release script (which now empties `dist/` after publishing) and the `.metadata_never_index` file.
 - **`contextIsolation: true`** — renderer code cannot use Node APIs directly. Everything goes through `window.electronAPI`.
