@@ -3,6 +3,13 @@
 // app's own rendering code (js/*.js), which it extends rather than replaces.
 // It grew up as the 2.0 design preview and was moved into the app for 2.0.
 (function () {
+  // Settings saved by Marduk (theme, auto-lock, last version seen, split check) carry over:
+  // the local folder was copied by main.js, and here the keys take their new names.
+  try {
+    for (const k of ['theme_mode', 'autolock_min', 'last_seen_version', 'split_check'])
+      if (localStorage.getItem('nexora_' + k) == null && localStorage.getItem('marduk_' + k) != null)
+        localStorage.setItem('nexora_' + k, localStorage.getItem('marduk_' + k));
+  } catch (e) {}
   const MODERN = true;   // the redesign is the only look; the flag stays for the code paths it guards
   const today = new Date();
   const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

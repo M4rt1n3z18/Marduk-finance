@@ -1,4 +1,4 @@
-// deploy.js — builds MARDUK and installs it directly into /Applications
+// deploy.js — installs the built Nexora straight into /Applications (development shortcut)
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -21,8 +21,8 @@ console.log('💿  Mounted at', mountPoint);
 
 try {
   // Copy app to /Applications, replacing old version
-  execSync(`cp -Rf "${mountPoint}/MARDUK.app" /Applications/`);
-  console.log('✅  MARDUK.app updated in /Applications!');
+  execSync(`cp -Rf "${mountPoint}/Nexora.app" /Applications/`);
+  console.log('✅  Nexora.app updated in /Applications!');
 } catch (err) {
   console.error('❌  Copy failed:', err.message);
 } finally {

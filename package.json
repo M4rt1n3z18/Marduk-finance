@@ -1,7 +1,7 @@
 {
-  "name": "marduk",
-  "version": "1.0.48",
-  "description": "MARDUK — Wealth of Babylon. Personal finance dashboard.",
+  "name": "nexora",
+  "version": "2.0.0",
+  "description": "Nexora — personal finance: spending, budgets, investments, salary and goals.",
   "main": "main.js",
   "author": "Pedro",
   "license": "MIT",
@@ -25,11 +25,13 @@
     "electron-builder": "^24.0.0"
   },
   "build": {
-    "appId": "com.pedro.marduk",
-    "productName": "MARDUK",
+    "appId": "com.pedro.nexora",
+    "productName": "Nexora",
     "files": [
       "main.js",
       "updater-mac.js",
+      "carry-over.js",
+      "css/**",
       "preload.js",
       "index.html",
       "js/**",
@@ -39,7 +41,7 @@
     "publish": {
       "provider": "github",
       "owner": "M4rt1n3z18",
-      "repo": "Marduk-finance",
+      "repo": "Nexora-finance",
       "releaseType": "release"
     },
     "mac": {
@@ -74,10 +76,11 @@
     },
     "nsis": {
       "oneClick": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "guid": "f1d542f1-83ce-5590-a9e0-ce3074a817fe"
     },
     "portable": {
-      "artifactName": "MARDUK.exe"
+      "artifactName": "Nexora.exe"
     }
   }
 }

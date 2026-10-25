@@ -1001,16 +1001,6 @@ async function renderAiSummaryCard() {
   }
 }
 
-// ── App version display (lock screen; the Settings footer shows it in-app) ────
-(async function showVersion() {
-  const version = window.electronAPI?.getVersion
-    ? await window.electronAPI.getVersion()
-    : null;
-  if (!version) return;
-  const lock = document.getElementById('lock-version');
-  if (lock) lock.textContent = `v${version}`;
-})();
-
 // ── Auto-updater UI ───────────────────────────────────────────────────────────
 (function initUpdater() {
   if (!window.electronAPI) return;

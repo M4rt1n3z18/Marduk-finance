@@ -4,7 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Nexora — Personal Finance</title>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Karla:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
@@ -812,6 +813,7 @@
   .ps-field-row.ps-active input,
   .ps-field-row.ps-active select { border-color:var(--gold) !important; box-shadow:0 0 0 2px rgba(201,168,76,0.2); }
 </style>
+<link rel="stylesheet" href="css/nexora.css" />
 </head>
 <body data-theme="dark">
 
@@ -2353,6 +2355,10 @@
 <!-- Autocomplete dropdown overlay -->
 <div class="autocomplete-drop" id="ac-drop"></div>
 
+<script src="js/nexora/i18n.js"></script>
+<script src="js/nexora/holidays.js"></script>
+<script src="js/nexora/seasons.js"></script>
+<script src="js/nexora/shell.js"></script>
 <script src="js/state.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/charts.js"></script>

@@ -9,29 +9,9 @@ const os = require('os');
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
 
-// ── Nexora was called Marduk until 2.0 ────────────────────────────────────────
-// The local folder (the old password file, AI key, backups, caches, settings)
-// was "<appData>/marduk" — Electron names it after package.json "name" — and is
-// now "<appData>/nexora". On the first start the old folder is *copied* across,
-// never moved, so nothing disappears; caches and lock files are left behind.
-(function carryOverLocalFolder() {
-  try {
-    const next = app.getPath('userData'), marker = path.join(next, '.carried-over-from-marduk');
-    if (fs.existsSync(marker)) return;
-    const old = path.join(app.getPath('appData'), 'marduk');
-    if (old !== next && fs.existsSync(old)) {
-      const skip = /^(Cache|Code Cache|GPUCache|DawnCache|DawnGraphiteCache|DawnWebGPUCache|blob_storage|Singleton.*|update-relaunch\.log)$/;
-      fs.cpSync(old, next, { recursive: true, force: false, errorOnExist: false, filter: src => !skip.test(path.basename(src)) });
-      // its own files take their new names (the copy keeps the old ones too, until it's gone)
-      for (const f of ['ai-key.bin', 'tickers.json', 'symbols.json', 'fx.json']) {
-        const from = path.join(next, 'marduk-' + f), to = path.join(next, 'nexora-' + f);
-        if (fs.existsSync(from) && !fs.existsSync(to)) fs.renameSync(from, to);
-      }
-    }
-    fs.mkdirSync(next, { recursive: true });
-    fs.writeFileSync(marker, new Date().toISOString());
-  } catch (e) { console.error('Carrying over the Marduk folder (non-fatal):', e.message); }
-})();
+// ── Nexora was called Marduk until 2.0: carry its local folder over (copied, never moved)
+try { require('./carry-over').carryOver(path.join(app.getPath('appData'), 'marduk'), app.getPath('userData')); }
+catch (e) { console.error('Carrying over the Marduk folder (non-fatal):', e.message); }
 
 // ── macOS quarantine self-heal ────────────────────────────────────────────────
 // Clears the quarantine flag on every launch so macOS never shows

@@ -10,6 +10,22 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '2.0.0',
+    title: 'Marduk is now Nexora',
+    items: [
+      'A new name, a new look and a new icon.',
+      'Your data is encrypted with your password before it\u2019s saved \u2014 Google Drive only ever holds a locked file.',
+      'Profiles: everyone on this computer can have their own, each with a recovery key in case a password is forgotten.',
+      'My profile, in the avatar menu, holds your name, avatar, password, recovery key and preferences.',
+      'Nexora speaks English, Portuguese and Chinese \u2014 choose in My profile \u2192 Preferences.',
+      'Arrange your Overview: move, resize or hide cards with Customize.',
+      'Budget months can start on any business day counted from the end of the month, skipping your country\u2019s public holidays.',
+      'Clearer Salary, Budget, Net Worth and FIRE pages, a side panel for each holding, and more measures on the Risk page.',
+      'Loans count their interest, so payments and the payoff date are right.',
+      'Seasonal touches for Christmas, Halloween, New Year and your country\u2019s festivities \u2014 and in December and January, a look back at your year.',
+    ],
+  },
+  {
     v: '1.0.48',
     title: 'Ready for the next big update',
     items: [

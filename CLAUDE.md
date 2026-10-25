@@ -1,8 +1,10 @@
-# MARDUK — Codebase Reference
+# Nexora — Codebase Reference
 
-Personal finance dashboard built with Electron. Syncs data via Google Drive. Distributes updates via GitHub Releases.
+Personal finance dashboard built with Electron. Each profile's data is encrypted in the renderer and synced as one file via Google Drive. Distributes updates via GitHub Releases.
 
-**Repo:** `M4rt1n3z18/Marduk-finance` (public)  
+**Nexora was called Marduk until 2.0** — same app, same repository (renamed from `Marduk-finance`; GitHub id `1253690538`). Names that still say `marduk` are the 1.x files 2.0 reads once to upgrade (see Upgrade from Marduk).
+
+**Repo:** `M4rt1n3z18/Nexora-finance` (public)  
 **Current version:** see `package.json` → `"version"`
 
 ---
@@ -13,9 +15,15 @@ Personal finance dashboard built with Electron. Syncs data via Google Drive. Dis
 |------|------|
 | `main.js` | Electron main process — IPC handlers, Yahoo Finance fetching, payslip parser, bank-statement reader, auto-updater |
 | `updater-mac.js` | macOS update helpers (plain Node, testable without Electron): release lookup by repo id, redirect-following JSON fetch, install of whatever app a DMG holds |
+| `carry-over.js` | First start of 2.0: copies the Marduk local folder (`<appData>/marduk`) into Nexora's (`<appData>/nexora`), renaming its own files; never moves or deletes |
 | `preload.js` | contextBridge — exposes `window.electronAPI` to renderer; `contextIsolation:true`, `nodeIntegration:false` |
-| `index.html` | Single-page app shell — all HTML, CSS, Chart.js 4.4.1, PDF.js 3.11.174 (CDN) |
-| `js/app.js` | Tab routing, theme toggle, lock screen, auto-lock, brute-force protection, updater UI, version display |
+| `index.html` | Single-page app — all HTML, the original CSS, Chart.js 4.4.1, PDF.js 3.11.174 (CDN); loads `css/nexora.css` and `js/nexora/*` |
+| `css/nexora.css` | The 2.0 look, layered over the original stylesheet (loaded after it, so it wins) |
+| `js/nexora/shell.js` | The 2.0 interface layer: profiles + encryption + start screens, My profile, setup, dashboard customiser, Salary/Budget/Net Worth/FIRE/Risk redesigns, holding side panel, loans with interest, language engine, seasons hooks, Year Wrap data — on top of the app's own render code, which it wraps rather than replaces |
+| `js/nexora/i18n.js` | Portuguese (PT-PT, "tu") and Chinese text, matched against the app's English as it renders |
+| `js/nexora/holidays.js` | Countries, national public holidays (Easter-based, lunar table to 2032, UK/US substitute days), the seasonal calendar |
+| `js/nexora/seasons.js` | Seasonal decorations and particle effects, the Year Wrap story |
+| `js/app.js` | Tab routing, theme, auto-lock timer, `lockApp`/`unlockApp` (the shell wraps them), updater UI |
 | `js/render.js` | All rendering — overview charts, portfolio table, cash table, expenses list + pagination, budget, net worth |
 | `js/actions.js` | State mutations — add/edit/delete assets, transactions, expenses, budget entries, goals, recurring expenses |
 | `js/salary.js` | Payslip modal (DataSnipper-style) — PDF rendering, click-to-fill, zoom controls, salary state + charts |
@@ -31,19 +39,20 @@ Personal finance dashboard built with Electron. Syncs data via Google Drive. Dis
 
 ```
 index.html
-  └── loads js/app.js, js/render.js, js/actions.js, js/salary.js (in that order)
+  └── loads js/nexora/{i18n,holidays,seasons,shell}.js, then js/state.js, utils, charts, render, actions, salary, app, …
 
 Renderer ──window.electronAPI──► preload.js ──ipcRenderer──► main.js
-                                                               ├── Google Drive (marduk-data.json)
-                                                               ├── userData/marduk-pw.bin (local only)
-                                                               └── Yahoo Finance APIs
+  shell.js encrypts/decrypts                                   ├── Google Drive/Nexora/profiles.json   (names, avatars, settings — no finances)
+  (Web Crypto, AES-256-GCM)                                    ├── Google Drive/Nexora/<id>.nexora     (one encrypted file per profile)
+                                                               ├── userData/backups/                   (daily encrypted copies, 10 per profile)
+                                                               └── Yahoo Finance, ECB APIs
 ```
 
 ### Data flow
-- **State** is a single JS object in memory (renderer side), loaded via `electronAPI.loadData()` on startup.
-- **Persistence**: `save()` in `actions.js` serializes state → `electronAPI.saveData(json)` → `main.js` writes to `marduk-data.json` in the user's Google Drive folder.
-- **Google Drive path**: `findGoogleDriveFolder()` in `main.js` uses `os.homedir()` — dynamic, works on any user's machine regardless of username.
-- **Password**: SHA-256 hashed via `crypto.subtle.digest`, stored in `userData/marduk-pw.bin` — never in Google Drive.
+- **State** is a single JS object in memory (renderer side). `load()` in `state.js` takes it from `window.NexoraVault.json()` — the decrypted file of the profile that was just unlocked.
+- **Persistence**: `save()` in `state.js` → `NexoraVault.save(json)` → the shell encrypts with the profile's data key → `electronAPI.profileWrite(id, file)` → `main.js` writes atomically (temp file + rename). `profile-write` refuses anything that isn't `format: 'nexora-encrypted'`, so nothing readable can reach Drive.
+- **Google Drive path**: `findGoogleDriveFolder()` in `main.js` uses `os.homedir()`; files live in its `Nexora/` subfolder (in `userData/Nexora` when there's no Drive).
+- **No password is stored anywhere.** See Profiles & encryption.
 
 ---
 
@@ -71,13 +80,55 @@ When re-rendering a list (e.g. `renderExpenses()`), wire buttons via `addEventLi
 
 ## Security
 
-- **Auto-lock**: 10 min inactivity → `lockApp()`. Implemented in `js/app.js` with `setInterval` + activity listeners.
-- **Brute-force protection**: 5 failed password attempts → 30s lockout. `_failedAttempts` / `_lockoutUntil` in `js/app.js`.
-- **First-run UX**: `initLock()` detects no saved password → shows "Create Your Password" instead of "Enter Password". IDs: `#lock-title`, `#lock-btn`.
-- **Exactly one Enter listener** per lock field (the `INIT` block in `app.js`). A second pair once lived in a separate IIFE, so each Enter ran `handleLock()` twice: double unlock (two price refreshes, two AI summary calls), wrong passwords counted twice, a false "passwords don't match" on first setup.
-- **Forgot password** uses `mardukConfirm` — `window.prompt()` is not implemented in Electron, so the old reset silently did nothing.
+- **Profiles & encryption** — see the section below. Wrong passwords: 5 tries, then pauses that double (30 s → 15 min), kept per profile in `localStorage['nexora_lock_<id>']`.
+- **Auto-lock**: inactivity → `lockApp()` (configurable, `localStorage['nexora_autolock_min']`). The shell's wrapper drops the data key from memory and shows the profile's lock screen.
+- **One copy at a time**: `app.requestSingleInstanceLock()` — 1.x had none, so a second window could save over the first's changes.
 
 ---
+
+## Profiles & encryption (2.0, `js/nexora/shell.js` + `main.js`)
+
+Each profile's data file is encrypted with its own random **data key** (AES-256-GCM). That key is stored twice, *wrapped*: once by the password and once by the **recovery key** (24 characters, 120 bits, `XXXX-…`), each through PBKDF2-SHA256 at 600 000 rounds. Either one opens the file; a wrong one simply fails to unwrap, so there is no password hash to attack. Changing the password or making a new recovery key only re-wraps the data key (`rekey()`); the data itself isn't touched. Backups of a profile use the same data key, so they open in the unlocked session.
+
+- **File**: `Nexora/<id>.nexora` = `{format:'nexora-encrypted', version:1, kdf, keys:{password, recovery}, iv, data}`.
+- **Profile list**: `Nexora/profiles.json` = `{format:'nexora-profiles', profiles:[{id, name, email, color, avatar, prefs, createdAt, lastLogin, rkCreatedAt}]}` — readable on purpose, so the log-in screen can show it; never finances. Read once at start-up (`loadAccounts`), written back on each change. **If it exists but can't be parsed (Drive mid-sync), the shell shows "can't be read right now" and writes nothing** — a half-synced file must never be replaced by a list missing profiles.
+- **One save queue** (`enqueue`): saves, password changes and new recovery keys run in order, so a re-keyed file can't be overwritten by a save holding the old keys.
+- **New profile**: the encrypted file is written first, the list entry after — the list never points at a missing file. A new profile starts from the app's empty state (`FRESH_STATE`, captured before any profile loads).
+- **Which profile is signed in** is per computer: `localStorage['nexora_current']`.
+- **Deleting a profile** moves its file to the local backups (`nexora-<id>-removed-<day>.nexora`).
+- **IPC**: `profiles-read/-write`, `profile-read/-write/-remove`, `list-backups(id)`, `read-backup(name)`. `window.NexoraVault` = `{json, save, listBackups, readBackup}` is what `state.js` and the Backups window use.
+
+## Upgrade from Marduk (2.0)
+
+1.x kept `marduk-data.json` **unencrypted** in the Drive folder and a SHA-256 hash of the password in `userData/marduk-pw.bin`. On the first start of 2.0:
+
+1. `carry-over.js` copies `<appData>/marduk` → `<appData>/nexora` (marker `.carried-over-from-marduk`; caches/locks skipped; `marduk-ai-key.bin`, `-tickers`, `-symbols`, `-fx` take `nexora-` names; existing files never overwritten). The shell copies `marduk_*` localStorage keys to `nexora_*`.
+2. No profiles + `legacy-status.data` → the **upgrade screen**: the Marduk password is checked against the hash (`legacyPasswordOk`: hex SHA-256, or base64 from the oldest versions; lockouts as for log-in). Without a stored hash, the user chooses a new password instead.
+3. Name/email → `createProfile` with the legacy JSON; preferences come from the data (`prefsFromLegacy`: `paycheckDay` → payday rule, income type). **A preference never set leaves the data alone** (`applyPrefs`) — otherwise an upgraded profile's budget months would silently become calendar months.
+4. The new file is read back and decrypted like a log-in; **only an exact match** calls `legacy-retire`, which copies `marduk-data.json` to `backups/marduk-data-before-nexora-<day>.json`, removes it from Drive and moves `marduk-pw.bin` to the backups. A mismatch removes the new profile and leaves Marduk's files untouched.
+5. Recovery key screen → into the app; the changelog shows the 2.0 entry.
+
+Tested on a copy of real data (126 expenses, 15 holdings, 60 transactions…): counts identical, backup byte-identical, the encrypted file free of readable data, restart / password change / new recovery key / reset with the key / restoring both kinds of backup all working.
+
+**Windows**: `nsis.guid` is Marduk's GUID (`f1d542f1-…`, derived from the old appId), so the Nexora installer upgrades the Marduk install in place instead of installing beside it. Not tested on Windows yet.
+
+## The shell (`js/nexora/shell.js`)
+
+It started as the 2.0 design preview (a browser page that ran the real `index.html` with demo data) and was moved into the app. It **wraps** the app's functions at load (`renderNetWorth`, `renderBudget`, `renderOverview`, `renderSalary`, `renderFire`, `buildRiskView`, `computeRisk`, `showTab`, `lockApp`, `openCompanyModal`, `secondToLastBusinessDay`, …) and adds UI through a MutationObserver (`decorate()`: tiled icons, drawn icons instead of text glyphs, Marduk's hard-coded gold re-coloured at load by `degoldStyles`/`degoldInline`). New code should keep that split: the app's own files compute, the shell presents. CSS classes and ids are `nx-`.
+
+- **Chart.js** is wrapped (`window.Chart`): colours mapped to the theme, gradients, rounded bars, donut centre labels, translated labels.
+- **Payday rule**: "business day no. N from the end" (`bizDay`; 1 = last). The app's `secondToLastBusinessDay` is replaced at load by `nthLastBusinessDay(year, month, N, country)`, which skips the profile country's public holidays (`holidays.js`).
+- **Loans** (`installLoanLogic`): payments split into interest and principal; payoff date from the annuity formula.
+
+## Languages (`js/nexora/i18n.js`)
+
+English (US), Português (PT-PT, "tu") and 中文. The start screens use the shell's `STR`; everything else is translated **by matching the app's English text as it renders** (MutationObserver on the document; originals kept in a WeakMap; `[data-no-tr]` and user data excluded). Patterns cover dates, durations and sentences built from numbers. A new English string in the app needs an entry in `i18n.js` to be translated. Moving strings into keys is the eventual design.
+
+## Seasons, holidays and the Year Wrap
+
+`holidays.js`: 10 countries (PT, ES, FR, DE, IT, GB, CH, US, BR, CN), national public holidays, and `seasonFor(date, country)` — New Year, Christmas, Halloween, Carnival, Santos Populares, Festa Junina, Thanksgiving, 4th of July, Bastille Day, Bonfire Night, Spring Festival, Mid-Autumn. Country defaults from the computer's time zone; set in My profile → Preferences, as is the Seasonal themes switch.
+
+`seasons.js`: decorations stay at the edges (header strip, logo mark, card corners, start-screen scene); movement only on the start screens and ~10 s on the day's first open; nothing moves with reduced motion. The **Year Wrap** (`wrapData` in the shell, `openWrap` here) is offered only in December (year so far) and January (the year just ended).
 
 ## Auto-Updater
 
@@ -90,17 +141,17 @@ Two different strategies — **macOS cannot use electron-updater** (gets stuck a
 
 **macOS quarantine self-heal**: runs `xattr -cr <app bundle>` on every launch so the "damaged" error never appears.
 
-**Rename-proof updater (1.0.48, the bridge to Nexora)** — `updater-mac.js`. The app and its repo are being renamed (Marduk → Nexora), and the 1.0.46 updater could survive neither: it looked releases up by repo *name* with a raw `https.get` that ignored redirects (a renamed repo answers 301 + JSON, so the check found no `tag_name` and stayed silent forever), and it installed only a DMG containing `MARDUK.app`. Now releases come from `api.github.com/repositories/<GITHUB_REPO_ID>/releases/latest` — the numeric id never changes — with the name as a redirect-following fallback, and `installApp()` copies whatever `.app` the DMG holds next to the running bundle; if the name changed, the old bundle is moved to the Trash (never deleted outright; if the move fails it just stays) and the relaunch opens the new bundle. **Never rename the GitHub repo while installs older than 1.0.48 are still in use** — they can't follow it.
+**Rename-proof updater (1.0.48, the bridge to Nexora)** — `updater-mac.js`. The app and its repo were renamed (Marduk → Nexora) in 2.0, and the 1.0.46 updater could survive neither: it looked releases up by repo *name* with a raw `https.get` that ignored redirects (a renamed repo answers 301 + JSON, so the check found no `tag_name` and stayed silent forever), and it installed only a DMG containing `MARDUK.app`. Now releases come from `api.github.com/repositories/<GITHUB_REPO_ID>/releases/latest` — the numeric id never changes — with the name as a redirect-following fallback, and `installApp()` copies whatever `.app` the DMG holds next to the running bundle; if the name changed, the old bundle is moved to the Trash (never deleted outright; if the move fails it just stays) and the relaunch opens the new bundle. **Never rename the GitHub repo while installs older than 1.0.48 are still in use** — they can't follow it.
 
-**macOS updater guards** — `checkForUpdatesMac()` shares one in-flight run (the 4-hourly timer and Settings → Check for updates could download the same DMG into the same file at once); a DMG already downloaded this session is reused instead of fetched again every 4h; old `MARDUK-*.dmg` files are deleted from the temp folder at launch; `hdiutil`/`cp` failures send `update-error` and keep the app running (they used to exit anyway and reopen the old version, which offered the same update again).
+**macOS updater guards** — `checkForUpdatesMac()` shares one in-flight run (the 4-hourly timer and Settings → Check for updates could download the same DMG into the same file at once); a DMG already downloaded this session is reused instead of fetched again every 4h; old `MARDUK-*.dmg`/`Nexora-*.dmg` files are deleted from the temp folder at launch; `hdiutil`/`cp` failures send `update-error` and keep the app running (they used to exit anyway and reopen the old version, which offered the same update again).
 
-**macOS restart after update** — `app.relaunch()` **cannot** be used here. It re-spawns `process.execPath`, which points inside the bundle `cp -Rf` has just overwritten, so the app quit and never came back. Instead a detached `/bin/sh -c 'sleep 2; open -a /Applications/MARDUK.app'` is spawned with `.unref()` before `app.exit(0)` — it outlives the process and goes through LaunchServices, which also refreshes the bundle record.
+**macOS restart after update** — `app.relaunch()` **cannot** be used here. It re-spawns `process.execPath`, which points inside the bundle `cp -Rf` has just overwritten, so the app quit and never came back. Instead a detached `/bin/sh -c 'sleep 2; open -a <the new bundle>'` is spawned with `.unref()` before `app.exit(0)` — it outlives the process and goes through LaunchServices, which also refreshes the bundle record.
 
 ## Changelog (`js/changelog.js`)
 
 `CHANGELOG` is an array of `{v, title, items[]}`, newest first, written in end-user language: **only what is new**, never a recap of the old behaviour (no function names, no "refactored"). **`v` on the top entry must match `package.json`** — bump both together.
 
-`maybeShowChangelog()` runs after unlock: compares `app.getVersion()` with `localStorage['marduk_last_seen_version']` and shows `#changelog-modal` once per version. `changelogSince()` compares versions **numerically** via `_vcmp` — index arithmetic in the list got this wrong for anyone updating from a version not listed, and a string sort puts `1.0.9` after `1.0.20`. No stored key = show only the current entry (an existing user updating into this feature, not a fresh install). Also reachable any time from Settings → Changelog.
+`maybeShowChangelog()` runs after unlock: compares `app.getVersion()` with `localStorage['nexora_last_seen_version']` (carried over from `marduk_last_seen_version`, so an upgrade from 1.0.48 shows the 2.0 entry) and shows `#changelog-modal` once per version. `changelogSince()` compares versions **numerically** via `_vcmp` — index arithmetic in the list got this wrong for anyone updating from a version not listed, and a string sort puts `1.0.9` after `1.0.20`. No stored key = show only the current entry (an existing user updating into this feature, not a fresh install). Also reachable any time from Settings → Changelog.
 
 **IPC events** (main → renderer):
 - `update-available` (version string)
@@ -110,7 +161,7 @@ Two different strategies — **macOS cannot use electron-updater** (gets stuck a
 **IPC command** (renderer → main):
 - `install-update`
 
-**Update banner**: shown between header and main content in `index.html`. Gold progress bar. "Restart & Install" button appears when download completes.
+**Update banner**: shown between header and main content in `index.html`. "Restart & Install" button appears when download completes.
 
 ---
 
@@ -124,7 +175,7 @@ git push
 
 `npm run release` builds for mac + win + linux, publishes to GitHub Releases, then empties `dist/` (everything except `.metadata_never_index` and the `.icon-*` caches) — only after a successful publish, so a failed upload leaves the files for a retry. It used to remove just the unpacked app folders, so every release left ~500 MB of installers behind: by 1.0.47 `dist/` held 8.4 GB of builds back to 1.0.32, and Google Drive was backing them up because the project lived in `~/Downloads`. `releaseType: "release"` in `package.json` ensures releases are published (not drafts).
 
-The project lives in **`~/Developer/marduk-app`** (moved from `~/Downloads` on 2026-10-25): Google Drive for desktop backs up Desktop, Documents and Downloads on this Mac, which uploaded `dist/` and `node_modules` with every build.
+The project lives in **`~/Developer`** (moved from `~/Downloads` on 2026-10-25): Google Drive for desktop backs up Desktop, Documents and Downloads on this Mac, which uploaded `dist/` and `node_modules` with every build. 2.0 was built in a git worktree at `~/Developer/nexora-app`.
 
 Friends download the app once from GitHub Releases. After that, the in-app updater handles everything.
 
@@ -140,7 +191,7 @@ All calls happen in `main.js` (Node process) to avoid CORS. Three layers:
 | `v7/finance/quote` | Crumb + cookie (401 without, since 2025) | Market cap, P/E, beta, dividends, moving averages |
 | `v10/finance/quoteSummary` | Crumb + cookie | Analyst consensus, company description, earnings dates |
 
-**Ticker resolution** — one shared path, `withResolution(ticker, fetchOne)`, used by `fetchV8Chart()` and `fetch-prices`. `symbolCandidates()` decides what to try: the remembered symbol; for US share classes `BRK.B` → `BRK-B` first (Yahoo's spelling; NASDAQ's directory and brokers use the dot — `_yahooClassSymbol()` also rewrites the directory); a symbol that already carries `.`/`-`/`=`/`^` as-is; otherwise bare + 16 EU suffixes (`.DE`, `.LS`, … `.WA`). Resolutions are **persisted** to `userData/marduk-tickers.json` (they used to be memory-only, so every launch re-probed every European holding). A ticker nothing resolves goes in `_unresolvable` for 6h — one request per refresh instead of seventeen. A remembered symbol that stops answering is forgotten and probed once afresh. `yahooV7Quote()` makes **one** request on the resolved symbol, with the crumb — it used to probe 16 suffixes × 2 hosts without one, i.e. 34 refused requests per unresolved ticker.
+**Ticker resolution** — one shared path, `withResolution(ticker, fetchOne)`, used by `fetchV8Chart()` and `fetch-prices`. `symbolCandidates()` decides what to try: the remembered symbol; for US share classes `BRK.B` → `BRK-B` first (Yahoo's spelling; NASDAQ's directory and brokers use the dot — `_yahooClassSymbol()` also rewrites the directory); a symbol that already carries `.`/`-`/`=`/`^` as-is; otherwise bare + 16 EU suffixes (`.DE`, `.LS`, … `.WA`). Resolutions are **persisted** to `userData/nexora-tickers.json` (they used to be memory-only, so every launch re-probed every European holding). A ticker nothing resolves goes in `_unresolvable` for 6h — one request per refresh instead of seventeen. A remembered symbol that stops answering is forgotten and probed once afresh. `yahooV7Quote()` makes **one** request on the resolved symbol, with the crumb — it used to probe 16 suffixes × 2 hosts without one, i.e. 34 refused requests per unresolved ticker.
 
 **Crumb**: session cookie from `fc.yahoo.com` (a tiny 404 carrying the `A3` cookie; the finance.yahoo.com homepage is the fallback) → `/v1/test/getcrumb`. Cached 1 hour, auto-refreshed on 401. The homepage alone stopped working: its response headers exceed Node's 16 KB limit, so `fetch()` threw `UND_ERR_HEADERS_OVERFLOW` before any cookie was read.
 
@@ -152,7 +203,7 @@ All calls happen in `main.js` (Node process) to avoid CORS. Three layers:
 
 Every foreign holding's EUR value depends on this, so it must never guess.
 
-**Source chain** (`getFxRates()`): ECB daily XML → Yahoo `EURUSD=X` → last known good from `userData/marduk-fx.json` → **`null`**. `priceToEur(price, currency, fx)` returns `null` when the rate is unknown, and `fetchYahooQuote` then returns `null` so the holding keeps its previous price. **Never substitute a hardcoded rate** — the original bug was `let eurUsd = 1.08` silently surviving a Yahoo 429, overvaluing every USD position by ~6% with nothing on screen to indicate it.
+**Source chain** (`getFxRates()`): ECB daily XML → Yahoo `EURUSD=X` → last known good from `userData/nexora-fx.json` → **`null`**. `priceToEur(price, currency, fx)` returns `null` when the rate is unknown, and `fetchYahooQuote` then returns `null` so the holding keeps its previous price. **Never substitute a hardcoded rate** — the original bug was `let eurUsd = 1.08` silently surviving a Yahoo 429, overvaluing every USD position by ~6% with nothing on screen to indicate it.
 
 - ECB is primary: free, no key, no rate limit, all ~30 currencies in one request, and the official rates Portuguese tax reporting uses. Cached 12h (`FX_TTL_MS`; the ECB publishes once daily ~16:00 CET).
 - `priceToEur` handles **`GBp`** (LSE quotes in pence → `/100/GBP`). Before this, only `USD` was converted and anything else passed through as if it were EUR.
@@ -172,7 +223,7 @@ Every foreign holding's EUR value depends on this, so it must never guess.
 **Ticker autocomplete** — three local layers before any network call, so search works offline and a Yahoo rate-limit can't empty the dropdown:
 1. `ownedTickerEntries()` (`utils.js`) — everything you hold, incl. non-US listings (`.DE`/`.LS`) the US directory lacks
 2. `TICKER_DB` (~300 curated large caps, `state.js`) — audited 1.0.46: every bare symbol is in NASDAQ Trader's list with a matching name and ETF flag, every other symbol answers on Yahoo's chart endpoint. **A bare symbol is a US lookup first**, so a European listing without its suffix can price an unrelated US security (ROG was Rogers Corp, not Roche; BTC/ETH were Grayscale ETFs; LINK, XRP, EQQQ, IQQQ, IEAG, IBGL likewise). Non-US entries always carry the Yahoo suffix (`.AS`, `.DE`, `.L`, `.SW`…), crypto always `-USD`.
-3. `SYMBOL_DIR` — **~12.7k US-listed symbols** from NASDAQ Trader's public `nasdaqlisted.txt` + `otherlisted.txt` (free, no key, no rate limit). Built by `buildSymbolDirectory()` in `main.js`, cached to `userData/marduk-symbols.json` for 7 days, loaded via IPC `get-symbol-directory`. Test issues filtered; ETF column → asset class; `_cleanSecurityName()` trims "- Common Stock"/ADR boilerplate.
+3. `SYMBOL_DIR` — **~12.7k US-listed symbols** from NASDAQ Trader's public `nasdaqlisted.txt` + `otherlisted.txt` (free, no key, no rate limit). Built by `buildSymbolDirectory()` in `main.js`, cached to `userData/nexora-symbols.json` for 7 days, loaded via IPC `get-symbol-directory`. Test issues filtered; ETF column → asset class; `_cleanSecurityName()` trims "- Common Stock"/ADR boilerplate.
 
 Ranking is exact symbol → prefix → name substring, so typing `NIO` doesn't bury NIO. A `null` from `search-tickers` (rate-limited, vs `[]` for a real miss) renders a *"live search unavailable"* note.
 
@@ -189,7 +240,7 @@ Ranking is exact symbol → prefix → name substring, so typing `NIO` doesn't b
 ### AI parsing (`main.js` → `parsePayslipAI`)
 - Uses `@anthropic-ai/sdk`, model `claude-opus-5`, base64 PDF document block + structured outputs (`output_config.format` with `PAYSLIP_SCHEMA`), `max_tokens: 4096`
 - Does **not** require Python — reads the PDF directly (vision)
-- API key stored in `userData/marduk-ai-key.bin` (local only, like the password). IPC: `get-ai-key-status` (masked), `set-ai-key`, `clear-ai-key`
+- API key stored in `userData/nexora-ai-key.bin` (local only, never synced). IPC: `get-ai-key-status` (masked), `set-ai-key`, `clear-ai-key`
 - UI: "✨ AI Settings" button in salary tab → `#ai-settings-modal`; `#ps-ai-badge` shows "Parsed with AI" in the payslip modal (`_aiParsed` flag)
 - Sets `baseComp = baseSalary || grossSalary` and `hoursExemption = 0` for chart compatibility
 
@@ -221,7 +272,7 @@ Module-level variables: `_psActiveRow`, `_psPdf`, `_psScale = 1.2`
 
 ## XTB Importer — removed in 1.0.44
 
-Holdings come in through the Marduk CSV template only (see Holdings CSV Import). The XTB importer read broker sheets whose layout Marduk didn't control — its closed-positions sheet could be counted as open buys. Holdings imported by it before 1.0.44 keep `importedFromXtb: true` and bare tickers (`VWCE`); nothing reads the flag any more. `js/xtb.js` is now `js/portfolios.js` (CSV export + portfolio create/rename/delete). `xlsx` stays a dependency for bank statements.
+Holdings come in through the Nexora CSV template only (see Holdings CSV Import). The XTB importer read broker sheets whose layout Marduk didn't control — its closed-positions sheet could be counted as open buys. Holdings imported by it before 1.0.44 keep `importedFromXtb: true` and bare tickers (`VWCE`); nothing reads the flag any more. `js/xtb.js` is now `js/portfolios.js` (CSV export + portfolio create/rename/delete). `xlsx` stays a dependency for bank statements.
 
 ---
 
@@ -254,11 +305,11 @@ Never send `temperature`/`top_p`/`top_k` or `thinking.budget_tokens` — all fou
 
 Header "Settings" dropdown (`#settings-menu` in `index.html`, logic in `js/app.js`): Export / Import / Backups / AI Settings, plus a Theme submenu and a footer showing the version. Icon is an inline SVG eight-pointed Babylonian star (two rotated squares). Closes on outside click and Escape.
 
-**Theme**: three modes persisted in `localStorage['marduk_theme_mode']` — `light` | `dark` | `system` (default `dark`). `applyTheme()` resolves the mode (system follows `prefers-color-scheme` with a live listener) and rebuilds all charts. The old header toggle + `toggleTheme()` were removed.
+**Theme**: three modes persisted in `localStorage['nexora_theme_mode']` — `light` | `dark` | `system` (default `dark`). `applyTheme()` resolves the mode (system follows `prefers-color-scheme` with a live listener) and rebuilds all charts. The old header toggle + `toggleTheme()` were removed.
 
 ## Backups
 
-`rotateBackup()` in `main.js` — before the first save of each day, copies the previous `marduk-data.json` to `userData/backups/marduk-data-YYYY-MM-DD.json` (last 10 kept, local disk only). IPC: `list-backups`, `read-backup` (name-pattern validated). UI: "⛃ Backups" header button → `#backups-modal` → `restoreBackup()` in `actions.js` (replaces state, follows the `importData()` pattern).
+`rotateBackup(id)` in `main.js` — before the first save of each day, copies the profile's previous encrypted file to `userData/backups/nexora-<id>-YYYY-MM-DD.nexora` (last 10 per profile, local disk only, still encrypted). Marduk's daily backups (`marduk-data-YYYY-MM-DD.json`, unencrypted) and the upgrade's `marduk-data-before-nexora-<day>.json` stay listed as "from Marduk". IPC: `list-backups(id)`, `read-backup(name)` (name-pattern validated). UI: My profile → Data → Backups → `#backups-modal` → `restoreBackup()` in `actions.js`, which reads through `NexoraVault.readBackup` (decrypts this profile's backups; passes Marduk's through).
 
 ## True Returns & Automatic Dividend Log (`js/returns.js`)
 
@@ -278,7 +329,7 @@ Header "Settings" dropdown (`#settings-menu` in `index.html`, logic in `js/app.j
 
 ## QoL settings
 
-- **Auto-lock** configurable in Settings (5/10/30 min/Never), `localStorage['marduk_autolock_min']`, `getAutolockMode()` in `js/app.js`.
+- **Auto-lock** configurable in My profile → Security (5/10/30 min/Never), `localStorage['nexora_autolock_min']`, `getAutolockMode()` in `js/app.js`.
 - **Change password** modal (`#changepw-modal`, `submitChangePw()`) — verifies current (incl. legacy base64), min 4 chars.
 - **Update re-check**: `main.js` re-runs the update check every 4h, not just at launch.
 
@@ -308,15 +359,15 @@ Expenses tab → **Import**. Spreadsheet in, categorised expenses out, **entirel
 - **Merchant normalisation** — `impMerchant()` strips transaction-type prefixes (`COMPRAS C.DEB`, `Trf`, `Pagamento`…), embedded dates and reference/card/masked digits. **`Mbway` is deliberately kept** — CGD writes `Trf Mbway 961XXX587`, and stripping both leaves nothing. Descriptions are bank-truncated (~22 chars), so `impGuessCategory()` matches on longest common prefix ≥5 chars.
 - **Learning** — `state.merchantRules` (merchant → category) grows from every confirmed import; then your own expense history; then AI for genuinely new merchants. Visible and deletable in the Learned Categories card, because a rule learned wrong must not be invisible.
 - **Duplicates — two checks, because one isn't enough.** `impFingerprint()` = `date|cents|merchant[:24]`, stored per expense as `importFp`, catches a re-uploaded or overlapping statement. But it can *never* match an expense typed by hand — you wrote "Grocery run", the bank says "COMPRAS C.DEB CONTINENTE 1234 LIS" — which is the likeliest case when back-filling months you already tracked. So `existingByDateAmount()` adds a looser `date|cents` index; matches are flagged *"possibly already logged as …"* and unticked. Both default to unticked: double-counting is worse than re-ticking a row, and the reason is always shown.
-- **Themed dialogs** (`js/dialog.js`) — `mardukAlert()` / `mardukConfirm()` replace native `alert()`/`confirm()`, which rendered as a system-blue macOS box. `confirm()` returns a boolean synchronously and a modal cannot, so **`mardukConfirm()` returns a Promise and every call site must `await` it** — that is why those callers are `async`. Falls back to the native dialogs if `#dlg-modal` is absent.
+- **Themed dialogs** (`js/dialog.js`) — `nexoraAlert()` / `nexoraConfirm()` replace native `alert()`/`confirm()`, which rendered as a system-blue macOS box. `confirm()` returns a boolean synchronously and a modal cannot, so **`mardukConfirm()` returns a Promise and every call site must `await` it** — that is why those callers are `async`. Falls back to the native dialogs if `#dlg-modal` is absent.
 - **Credits** default to `— Ignore —`; `— Extra Income —` writes to `state.extraIncomes` (same shape as `logExtra()`, plus `importBatch`) so it lands in the Budget tab's income and savings rate rather than becoming a negative expense; `— Investment —` writes an **allocation** rather than an expense, closing the loop with the Investment Allocations engine.
 - **Undo** — every row carries `importBatch`; `state.importBatches` (last 20) lists imports and `impUndoBatch()` removes the whole batch. A bulk write into financial data needs a bulk undo.
 
 ## Holdings CSV Import (`js/holdimport.js`)
 
-Portfolio → Holdings → **Import CSV** (also in the Actions menu). **Only the Marduk template is accepted** (the user's explicit requirement, 1.0.44): the first row must be exactly `Symbol,Trade Date,Purchase Price,Quantity,Status` (`HI_TEMPLATE`, case-insensitive, in that order; trailing empty cells ignored). `Status` is optional so the original four-column file still works (all rows Open). Anything else — Yahoo's export, broker sheets, renamed/reordered/extra columns, a header not on row 1 — is rejected with the expected header and a pointer to the template download. Parsed in the renderer with `FileReader`; the file never leaves the machine.
+Portfolio → Holdings → **Import CSV** (also in the Actions menu). **Only the Nexora template is accepted** (the user's explicit requirement, 1.0.44): the first row must be exactly `Symbol,Trade Date,Purchase Price,Quantity,Status` (`HI_TEMPLATE`, case-insensitive, in that order; trailing empty cells ignored). `Status` is optional so the original four-column file still works (all rows Open). Anything else — Yahoo's export, broker sheets, renamed/reordered/extra columns, a header not on row 1 — is rejected with the expected header and a pointer to the template download. Parsed in the renderer with `FileReader`; the file never leaves the machine.
 
-- **Status**: `Open` (or `Opened`) imports; `Closed` is listed as "Closed — not imported" (Marduk tracks current holdings; a sold lot counted as held is the mistake a closed-positions sheet invites); anything else is a row error.
+- **Status**: `Open` (or `Opened`) imports; `Closed` is listed as "Closed — not imported" (Nexora tracks current holdings; a sold lot counted as held is the mistake a closed-positions sheet invites); anything else is a row error.
 - **Columns strict, formatting tolerant**: the template re-saved by a Portuguese Excel (`;` delimiter → decimals via `impNum`, `D/M/YYYY` dates read day-first and flagged when ambiguous) is the same template. Dates otherwise `YYYY-MM-DD`.
 - **Currency**: Purchase Price is read in the symbol's *own* trading currency. Resolved per row: manual override → "Prices are in" selector → the existing holding's `priceCurrency` (what Yahoo actually quotes it in) → exchange suffix (`HI_SUFFIX_CCY`; no suffix = USD, `.L` = GBp, flagged "check GBp vs USD" because some London lines quote in USD). `GBp` converts via GBP ÷ 100.
 - **FX**: IPC `fetch-fx-history` makes **one ECB data-API request** for every currency and the whole date range (`D.USD+GBP….EUR.SP00.A`, CSV, **CRLF line endings**). Weekend/holiday trades walk back to the last published rate. No rate → the row can't be imported; never a guess. No Yahoo calls per row — prices arrive with the refresh that runs after an import creates new holdings.
@@ -343,7 +394,7 @@ Lots are stored as entered, so a holding bought before a split kept its old shar
 
 - IPC `fetch-splits` returns, per ticker, Yahoo's split events since the first lot and the **split-adjusted close on each lot date**.
 - `_splitFactorFor()` compares each lot's recorded price (native, or converted from EUR at today's rate) with that close × the ratios of the last *k* later splits, for every *k*. Best match within ±28% (`|ln| ≤ 0.25`) wins: factor 1 = already in post-split terms (broker exports usually are), >1 = needs adjusting, no match = left alone. Comparing prices makes it **idempotent** — an adjusted lot matches the adjusted close and is never offered again.
-- Nothing changes until the user confirms per holding (`mardukConfirm`, shows old → new shares and per-share cost; total cost unchanged). Lots get `shares × f`, `price ÷ f`, `priceOriginal ÷ f` and a "split-adjusted ×f" note; the holding's average cost keeps the position's total cost. A holding with no lots is treated as one lot on its `buyDate`. Pre-split `dividendLog` entries are dropped and `syncDividendLog(true)` re-credits them on the corrected share count.
+- Nothing changes until the user confirms per holding (`nexoraConfirm`, shows old → new shares and per-share cost; total cost unchanged). Lots get `shares × f`, `price ÷ f`, `priceOriginal ÷ f` and a "split-adjusted ×f" note; the holding's average cost keeps the position's total cost. A holding with no lots is treated as one lot on its `buyDate`. Pre-split `dividendLog` entries are dropped and `syncDividendLog(true)` re-credits them on the corrected share count.
 - Declining stores `state.splitDismissed["<portfolioId>|<ticker>|<lastSplitDate>"]`; the daily run skips it, the manual run asks again.
 
 ## Data Safety
@@ -353,7 +404,7 @@ Lots are stored as entered, so a holding bought before a split kept its old shar
 - **Payslips** are stored without `_rawText` (the full extracted text — name, tax number, address) or `_filePath`; both used to sync to Google Drive and nothing read them. `initApp()` strips them from existing data.
 - **Outside text in innerHTML** goes through `esc()` (`utils.js`): Yahoo names/descriptions, bank-statement lines (also stripped of `<>` at import), file names. Tickers are validated to symbol characters at every entry point (Add Holding, CSV import, XTB import).
 - **Dates** — use `localIso()` for "today" / local dates, never `toISOString().slice(0,10)` on a local date: that converts to UTC and gave yesterday's date between midnight and 1am in a Portuguese summer (and XTB dates a day early). `toISOString()` is fine only for dates built in UTC.
-- **Dialogs are queued** (`dialog.js`) — a second `mardukConfirm`/`mardukAlert` waits for the first instead of orphaning its promise.
+- **Dialogs are queued** (`dialog.js`) — a second `nexoraConfirm`/`nexoraAlert` waits for the first instead of orphaning its promise.
 
 ## Layout width
 
@@ -384,7 +435,7 @@ The Portfolio tab is split into 6 sub-views — only one visible at a time (`.ps
 - **Per-portfolio options sit beside its name** (Yahoo-style ⋯ button, `#port-menu`, `togglePortMenu`/`closePortMenu` in `app.js`): Rename, **Show values in** (display currency — replaced the separate currency `<select>`; the active one is ticked by `renderPortfolioTabs()`), New portfolio, Delete `#del-port-btn` (hidden with one portfolio). The portfolio `.sec-header` carries `position:relative; z-index:30` because `.tab.active > *` animates (`fadeUp`), which makes every direct child of a tab its own stacking layer in DOM order — without it the menu opened under the cards below. `refreshPrices()` still updates `#refresh-btn`'s label even though it is now a menu item.
 - Chart builders already guard on `el.offsetParent`, so hidden sub-views skip canvas work; `showPortfolioSub` rebuilds only the section that became visible.
 
-**State shape** (top-level keys in `marduk-data.json`):
+**State shape** (top-level keys of the decrypted profile data):
 - `assets` — portfolio holdings
 - `transactions` — buy/sell history
 - `expenses` — expense log
