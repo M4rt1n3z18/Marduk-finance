@@ -1036,19 +1036,19 @@ p.nx-me-hint { margin: 6px 0 0; display: flex; gap: 5px; flex-wrap: wrap; }
 @keyframes nxWrapLine { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes nxWrapSpin { to { transform: rotate(360deg); } }
 
-/* Props in the empty bottom-right corner of the Overview's stat cards: carved pumpkins, a tree, presents */
-body:is([data-kit="halloween"], [data-kit="snow"]) #tab-overview .stat-card:is(:first-child, :last-child) { position: relative; }
-body[data-kit="halloween"] #tab-overview .stat-card:first-child::before,
-body[data-kit="snow"] #tab-overview .stat-card:first-child::after {
+/* Props in the empty bottom-right corner of the first and last stat card of each tab's (and sub-view's) first row of figures */
+body:is([data-kit="halloween"], [data-kit="snow"]) .tab .stats-grid:nth-child(1 of .stats-grid) > .stat-card:is(:first-child, :last-child) { position: relative; }
+body[data-kit="halloween"] .tab .stats-grid:nth-child(1 of .stats-grid) > .stat-card:first-child::before,
+body[data-kit="snow"] .tab .stats-grid:nth-child(1 of .stats-grid) > .stat-card:first-child::after {
   content: ''; position: absolute; right: 14px; bottom: 10px; width: 34px; height: 30px; pointer-events: none; background: var(--nx-prop-a) no-repeat center bottom / contain;
 }
-body[data-kit="snow"] #tab-overview .stat-card:first-child::after { width: 30px; height: 40px; }
-body[data-kit="halloween"] #tab-overview .stat-card:last-child::before,
-body[data-kit="snow"] #tab-overview .stat-card:last-child::after {
+body[data-kit="snow"] .tab .stats-grid:nth-child(1 of .stats-grid) > .stat-card:first-child::after { width: 30px; height: 40px; }
+body[data-kit="halloween"] .tab .stats-grid:nth-child(1 of .stats-grid) > .stat-card:last-child::before,
+body[data-kit="snow"] .tab .stats-grid:nth-child(1 of .stats-grid) > .stat-card:last-child::after {
   content: ''; position: absolute; right: 14px; bottom: 10px; width: 56px; height: 30px; pointer-events: none; background: var(--nx-prop-b) no-repeat center bottom / contain;
 }
 /* on narrow cards the prop would meet the figure — leave it out */
-@media (max-width: 1100px) { body[data-kit="halloween"] #tab-overview .stat-card:is(:first-child, :last-child)::before, body[data-kit="snow"] #tab-overview .stat-card:is(:first-child, :last-child)::after { display: none; } }
+@media (max-width: 1100px) { body[data-kit="halloween"] .tab .stats-grid:nth-child(1 of .stats-grid) > .stat-card:is(:first-child, :last-child)::before, body[data-kit="snow"] .tab .stats-grid:nth-child(1 of .stats-grid) > .stat-card:is(:first-child, :last-child)::after { display: none; } }
 /* start screen scenes, bottom right, clear of the footer text */
 .nx-bd-scene { position: absolute; right: 34px; bottom: 26px; display: flex; align-items: flex-end; gap: 2px; }
 .nx-bd-scene > span { display: block; line-height: 0; }
@@ -1130,3 +1130,26 @@ body [style*="text-transform:uppercase"], body [style*="text-transform: uppercas
 #live-dot { font-size: 0 !important; width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; vertical-align: middle; }
 .del-btn svg { display: block; }
 button > .nx-mi:last-child:not(:first-child) { margin-left: 4px; margin-right: 0; }
+
+/* ══ 2.0.1 adjustments ══ */
+/* Top Positions: ticker, value and share in aligned columns */
+.top-pos { margin-bottom: 13px; }
+.top-pos:last-child { margin-bottom: 0; }
+.top-pos-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 60px; align-items: center; gap: 12px; margin-bottom: 7px; }
+.top-pos-ticker { font-size: 13px; font-weight: 650; color: var(--gold-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body[data-theme="light"] .top-pos-ticker { color: var(--gold); }
+.top-pos-val { font-size: 13.5px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.top-pos-pct { justify-self: end; min-width: 54px; text-align: right; font-size: 12px; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums;
+  background: var(--bg3); border-radius: 6px; padding: 3px 7px; }
+/* A chart with nothing to draw says so */
+.chart-empty { height: 100%; min-height: 120px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--text3); }
+/* Avatars: rounded squares, like the rest of the app */
+.nx-avatar { border-radius: 30% !important; }
+.nx-avatar-btn { border-radius: 10px !important; }
+.nx-swatches button { border-radius: 8px; }
+.nx-emblems button { border-radius: 11px; }
+/* The Initials / Symbol / Photo bar hugs its buttons, so it doesn't change width with what's below */
+.nx-av-edit > .nx-seg { align-self: flex-start; }
+/* A small seasonal mark beside every tab's title (the Overview has it beside the logo) */
+body[data-kit] .sec-title::after { content: ''; display: inline-block; width: 24px; height: 24px; margin-left: 10px; vertical-align: -4px;
+  background: var(--nx-sea-mark) no-repeat center / contain; pointer-events: none; }

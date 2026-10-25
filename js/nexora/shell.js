@@ -750,7 +750,7 @@
     { id: 'spending', title: 'Spending — last 6 months', find: () => cardOf('chart-spending'), size: 8 },
     { id: 'alloc', title: 'Allocation by class', find: () => cardOf('chart-alloc'), size: 4 },
     { id: 'toppos', title: 'Top positions', find: () => cardOf('top-positions'), size: 6 },
-    { id: 'catspend', title: 'Spending by category', find: () => cardOf('chart-catspend'), size: 6 },
+    { id: 'catspend', title: 'Top categories', find: () => cardOf('chart-catspend'), size: 6 },
     { id: 'recent', title: 'Recent transactions', find: () => cardOf('ov-recent-body'), size: 12, sizes: [6, 8, 12] },
     { id: 'nw', title: 'Net worth history', find: () => cardOf('chart-nw-history'), size: 8 },
     { id: 'savrate', title: 'Savings rate history', find: () => cardOf('chart-savrate'), size: 4 },
@@ -1865,7 +1865,7 @@
           ${meAvTab === 'emblem' ? `<div class="nx-me-label">Symbol</div><div class="nx-emblems">${Object.entries(EMBLEMS).map(([k, d]) => `<button type="button" data-emblem="${k}" title="${k}" class="${a.avatar?.kind === 'emblem' && a.avatar.emblem === k ? 'on' : ''}" style="background:${avatarBg(a)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg></button>`).join('')}</div>` : ''}
           ${meAvTab === 'photo' ? `<div class="nx-av-photo"><div><button type="button" class="btn-ghost" data-act="photo-pick">${icon('upload', 15)}${a.avatar?.photo ? 'Choose another photo' : 'Choose a photo'}</button>
               ${a.avatar?.photo ? '<button type="button" class="nx-me-link" data-act="photo-remove">Remove photo</button>' : ''}</div>
-              <small>Cropped to a circle and kept on this computer.</small><input type="file" accept="image/*" id="nx-av-file" hidden></div>` : ''}
+              <small>Cropped to a square. Like your name, it shows on the log-in screen.</small><input type="file" accept="image/*" id="nx-av-file" hidden></div>` : ''}
         </div></div>
       <form id="nx-me-profile" novalidate>
         <label class="nx-f"><span>Name</span><input name="name" value="${escH(a.name)}" autocomplete="name"></label>

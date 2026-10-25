@@ -98,6 +98,11 @@
     <rect x="22" y="19" width="17" height="14" rx="2" fill="#5C8CFF"/><rect x="29" y="19" width="2.8" height="14" fill="#fff"/><rect x="22" y="24.6" width="17" height="2.6" fill="#fff"/></svg>`;
   const asUrl = svg => `url("data:image/svg+xml,${encodeURIComponent(svg.replace(/\s+/g, ' '))}")`;
   const PROPS = { halloween: [PUMPKIN('d'), PUMPKINS], snow: [TREE, GIFTS] };
+  // The mark beside each tab's title: the logo's mark as a stand-alone image
+  const asImage = svg => svg.replace(/^<svg class="nx-sea-mark"/, '<svg xmlns="http://www.w3.org/2000/svg"').replace(/^<svg (?!xmlns)/, '<svg xmlns="http://www.w3.org/2000/svg" ');
+  const MARK = { snow: () => TREE, halloween: () => PUMPKIN('m'), lanterns: () => asImage(lantern('#FF4B3E')),
+                 fireworks: s => asImage(LOGO.fireworks(s)), confetti: () => asImage(LOGO.confetti()), festa: s => asImage(LOGO.festa(s)),
+                 autumn: () => asImage(LOGO.autumn()), moon: () => asImage(LOGO.moon()) };
 
   let currentSeason = null;
   function apply(season) {
@@ -108,6 +113,7 @@
     const [a, b] = PROPS[kit] || [];
     document.body.style.setProperty('--nx-prop-a', a ? asUrl(a) : 'none');
     document.body.style.setProperty('--nx-prop-b', b ? asUrl(b) : 'none');
+    document.body.style.setProperty('--nx-sea-mark', kit && MARK[kit] ? asUrl(MARK[kit](season)) : 'none');
     const header = document.querySelector('#app-wrapper > header'), logo = document.querySelector('#app-wrapper .logo');
     header?.querySelector('.nx-sea-strip')?.remove();
     logo?.querySelectorAll('.nx-sea-logo').forEach(e => e.remove());

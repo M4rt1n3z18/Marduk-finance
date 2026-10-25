@@ -85,22 +85,31 @@ function buildAllocChart() {
   }
 }
 
+// The month's five biggest categories. With nothing spent yet it says so, rather than
+// drawing every category at zero on an axis of €0 … €1.
 function buildCatSpendChart() {
   const el = document.getElementById('chart-catspend');
-  if (!el || !el.offsetParent) return;
+  const wrap = el && el.parentElement;
+  if (!wrap || !wrap.offsetParent) return;
   destroyChart('catspend');
   const thisMonthKey = getExpenseMonthKey(now.getFullYear(), now.getMonth());
   const thisMonth = state.expenses.filter(e => expenseBelongsToMonth(e, thisMonthKey));
-  const data = CATS.map(c => thisMonth.filter(e=>e.cat===c).reduce((s,e)=>s+Number(e.amount),0));
-  const nonZeroCats = CATS.filter((_,i)=>data[i]>0);
-  const nonZeroData = data.filter(v=>v>0);
-  const nonZeroColors = CATS.map((_,i)=>CAT_COLORS[i]).filter((_,i)=>data[i]>0);
-  charts['catspend'] = new Chart(document.getElementById('chart-catspend').getContext('2d'), {
+  const top = CATS.map((c, i) => ({ c, col: CAT_COLORS[i], v: thisMonth.filter(e => e.cat === c).reduce((s, e) => s + Number(e.amount), 0) }))
+    .filter(x => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 5);
+  let empty = wrap.querySelector('.chart-empty');
+  if (!top.length) {
+    el.style.display = 'none';
+    if (!empty) wrap.insertAdjacentHTML('beforeend', '<div class="chart-empty">No spending yet this month.</div>');
+    return;
+  }
+  el.style.display = ''; empty?.remove();
+  const short = v => v >= 1000 ? '€' + (v / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 }) + 'k' : '€' + Math.round(v);
+  charts['catspend'] = new Chart(el.getContext('2d'), {
     type:'bar',
-    data: { labels:nonZeroCats.length?nonZeroCats:CATS, datasets:[{data:nonZeroCats.length?nonZeroData:data, backgroundColor:nonZeroCats.length?nonZeroColors:CAT_COLORS, borderRadius:4, borderSkipped:false}] },
+    data: { labels: top.map(x => x.c), datasets:[{ data: top.map(x => x.v), backgroundColor: top.map(x => x.col), borderRadius:4, borderSkipped:false }] },
     options: { indexAxis:'y', responsive:true, maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+eur(c.raw)}}},
-      scales:{x:{grid:{color:gridColor()},ticks:{color:textColor(),callback:v=>eur(v,0)}},y:{grid:{display:false},ticks:{color:textColor(),font:{size:11}}}} }
+      scales:{x:{beginAtZero:true,grid:{color:gridColor()},ticks:{color:textColor(),callback:short,maxTicksLimit:5}},y:{grid:{display:false},ticks:{color:textColor(),font:{size:11}}}} }
   });
 }
 
@@ -334,8 +343,8 @@ function renderOverview() {
   document.getElementById('top-positions').innerHTML = sorted.slice(0,5).map(h=>{
     const v = (h.currentPrice||h.buyPrice)*h.shares;
     const p = (v/total*100).toFixed(1);
-    return `<div style="margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="font-weight:600;color:var(--gold)">${h.ticker}</span><span>${eur(v)} <span class="muted">${p}%</span></span></div>
+    return `<div class="top-pos">
+      <div class="top-pos-row"><span class="top-pos-ticker">${esc(h.ticker)}</span><span class="top-pos-val">${eur(v)}</span><span class="top-pos-pct">${p}%</span></div>
       <div class="pos-bar-wrap"><div class="pos-bar" style="width:${p}%;background:${CLASS_COLORS[guessAssetClass(h.ticker)]||CLASS_COLORS[h.assetClass]||'var(--gold)'};"></div></div>
     </div>`;
   }).join('') || '<p class="empty">No holdings yet.</p>';
