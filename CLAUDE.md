@@ -175,7 +175,7 @@ git push
 
 `npm run release` builds for mac + win + linux, publishes to GitHub Releases, then empties `dist/` (everything except `.metadata_never_index` and the `.icon-*` caches) — only after a successful publish, so a failed upload leaves the files for a retry. It used to remove just the unpacked app folders, so every release left ~500 MB of installers behind: by 1.0.47 `dist/` held 8.4 GB of builds back to 1.0.32, and Google Drive was backing them up because the project lived in `~/Downloads`. `releaseType: "release"` in `package.json` ensures releases are published (not drafts).
 
-The project lives in **`~/Developer`** (moved from `~/Downloads` on 2026-10-25): Google Drive for desktop backs up Desktop, Documents and Downloads on this Mac, which uploaded `dist/` and `node_modules` with every build. 2.0 was built in a git worktree at `~/Developer/nexora-app`.
+The project lives in **`~/Developer/nexora-app`** (it was `~/Downloads/marduk-app`, then `~/Developer/marduk-app`; moved out of Downloads on 2026-10-25 because Google Drive for desktop backs up Desktop, Documents and Downloads on this Mac, which uploaded `dist/` and `node_modules` with every build).
 
 Friends download the app once from GitHub Releases. After that, the in-app updater handles everything.
 
