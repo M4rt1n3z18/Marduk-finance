@@ -18,7 +18,7 @@ function showTab(name, el) {
 // ══════════════ THEME ══════════════
 // Three modes, persisted across launches: 'light' | 'dark' | 'system'.
 // 'system' follows the OS appearance and reacts to live changes.
-const THEME_MODE_KEY = 'marduk_theme_mode';
+const THEME_MODE_KEY = 'nexora_theme_mode';
 
 function getThemeMode() {
   const m = localStorage.getItem(THEME_MODE_KEY);
@@ -108,43 +108,7 @@ async function _fillSettingsFooter() {
   if (!el) return;
   let version = '';
   try { version = window.electronAPI?.getVersion ? await window.electronAPI.getVersion() : ''; } catch(e) {}
-  el.textContent = version ? `MARDUK v${version}` : 'MARDUK';
-}
-
-// ── Change password ───────────────────────────────────────────────────────────
-function openChangePwModal() {
-  ['cpw-current', 'cpw-new', 'cpw-confirm'].forEach(id => { document.getElementById(id).value = ''; });
-  document.getElementById('cpw-hint').textContent = '';
-  document.getElementById('changepw-modal').style.display = 'flex';
-  document.getElementById('cpw-current').focus();
-}
-
-function closeChangePwModal() {
-  document.getElementById('changepw-modal').style.display = 'none';
-}
-
-async function submitChangePw() {
-  const hint = document.getElementById('cpw-hint');
-  const current = document.getElementById('cpw-current').value;
-  const next = document.getElementById('cpw-new').value.trim();
-  const confirmVal = document.getElementById('cpw-confirm').value.trim();
-
-  const stored = await getPw();
-  if (!stored) { hint.textContent = 'No password is set yet — lock the app to create one.'; return; }
-
-  // Verify current password (supports the legacy base64 format too)
-  const matches = isHashed(stored)
-    ? (await hashPw(current)) === stored
-    : current === atob(stored);
-  if (!matches) { hint.textContent = 'Current password is incorrect.'; return; }
-
-  if (next.length < 4) { hint.textContent = 'New password must be at least 4 characters.'; return; }
-  if (next !== confirmVal) { hint.textContent = 'New passwords do not match.'; return; }
-  if (next === current) { hint.textContent = 'New password is the same as the current one.'; return; }
-
-  await setPw(await hashPw(next));
-  closeChangePwModal();
-  showToast('✓ Password changed');
+  el.textContent = version ? `Nexora ${version}` : 'Nexora';
 }
 
 // ── Portfolio actions dropdown ────────────────────────────────────────────────
@@ -176,13 +140,12 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#port-menu-wrap')) closePortMenu();
 });
 
-// ══════════════ LOCK SCREEN ══════════════
-const LOCK_KEY = 'marduk_pw';
-
 // ══════════════ SECURITY ══════════════
+// Passwords, profiles and the lock screen live in js/nexora/shell.js; this keeps the
+// inactivity timer and the two switches the shell calls: lockApp and unlockApp.
 
 // ── Auto-lock after inactivity (configurable: 5/10/30 min or off) ─────────────
-const AUTOLOCK_KEY = 'marduk_autolock_min';
+const AUTOLOCK_KEY = 'nexora_autolock_min';
 
 function getAutolockMode() {
   const m = localStorage.getItem(AUTOLOCK_KEY);
@@ -243,105 +206,7 @@ function stopAutoLock() {
   );
 }
 
-// ── Brute-force protection ────────────────────────────────────────────────────
-let _failedAttempts = 0;
-let _lockoutUntil   = 0;
-const MAX_ATTEMPTS  = 5;
-const LOCKOUT_MS    = 30_000; // 30 s
-
-function _checkLockout() {
-  if (Date.now() < _lockoutUntil) {
-    const secs = Math.ceil((_lockoutUntil - Date.now()) / 1000);
-    showLockError(`Too many attempts. Try again in ${secs}s.`);
-    return false;
-  }
-  return true;
-}
-
-function _recordFailedAttempt() {
-  _failedAttempts++;
-  if (_failedAttempts >= MAX_ATTEMPTS) {
-    _lockoutUntil = Date.now() + LOCKOUT_MS;
-    _failedAttempts = 0;
-    showLockError(`Too many incorrect attempts. Locked for 30 seconds.`);
-  } else {
-    const left = MAX_ATTEMPTS - _failedAttempts;
-    showLockError(`Incorrect password. ${left} attempt${left !== 1 ? 's' : ''} remaining.`);
-  }
-}
-
-function _clearFailedAttempts() { _failedAttempts = 0; _lockoutUntil = 0; }
-
-// Helper: get/set password using Electron or localStorage
-function getPw() {
-  if (window.electronAPI) return window.electronAPI.getPw();
-  return Promise.resolve(localStorage.getItem(LOCK_KEY));
-}
-async function setPw(val) {
-  if (window.electronAPI) await window.electronAPI.setPw(val);
-  else localStorage.setItem(LOCK_KEY, val);
-}
-async function clearPw() {
-  if (window.electronAPI) await window.electronAPI.clearPw();
-  else localStorage.removeItem(LOCK_KEY);
-}
-async function hashPw(val) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(val));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-function isHashed(stored) {
-  return /^[0-9a-f]{64}$/.test(stored);
-}
-
-async function handleLock() {
-  if (!_checkLockout()) return; // enforce lockout before doing anything
-  const pwVal = await getPw();
-  const hasPassword = !!pwVal;
-  const input = document.getElementById('lock-input');
-  const confirm = document.getElementById('lock-confirm');
-  const val = input.value.trim();
-  if (!val) { showLockError('Please enter a password.'); return; }
-  if (!hasPassword) {
-    if (confirm.style.display !== 'block') {
-      confirm.style.display = 'block';
-      document.getElementById('lock-title').textContent = 'Confirm Password';
-      document.getElementById('lock-btn').textContent = 'Set Password';
-      document.getElementById('lock-hint').textContent = 'Re-enter your password to confirm.';
-      document.getElementById('lock-hint').className = 'lock-hint';
-      confirm.focus(); return;
-    }
-    const confirmVal = confirm.value.trim();
-    if (val !== confirmVal) { showLockError('Passwords do not match.'); confirm.value=''; confirm.focus(); return; }
-    if (val.length < 4) { showLockError('Password must be at least 4 characters.'); return; }
-    await setPw(await hashPw(val));
-    unlockApp();
-  } else {
-    let match = false;
-    if (isHashed(pwVal)) {
-      // Modern: compare SHA-256 hashes
-      match = (await hashPw(val)) === pwVal;
-    } else {
-      // Legacy migration: old base64 password — check and re-save as hash
-      match = val === atob(pwVal);
-      if (match) await setPw(await hashPw(val));
-    }
-    if (match) { _clearFailedAttempts(); unlockApp(); }
-    else {
-      _recordFailedAttempt();
-      input.value = ''; input.classList.add('error');
-      setTimeout(() => input.classList.remove('error'), 400);
-      input.focus();
-    }
-  }
-}
-
-function showLockError(msg) {
-  const hint = document.getElementById('lock-hint');
-  hint.textContent = msg; hint.className = 'lock-hint err';
-}
-
 async function unlockApp() {
-  document.getElementById('lock-screen').style.display = 'none';
   document.getElementById('app-wrapper').style.display = 'block';
   await initApp();
   startAutoLock(); // begin inactivity timer
@@ -354,47 +219,10 @@ async function unlockApp() {
   }, 50);
 }
 
+// The shell wraps this to drop the data key and show the profile's lock screen
 function lockApp() {
   stopAutoLock(); // cancel inactivity timer
-  document.getElementById('lock-screen').style.display = 'flex';
   document.getElementById('app-wrapper').style.display = 'none';
-  document.getElementById('lock-input').value = '';
-  document.getElementById('lock-confirm').value = '';
-  document.getElementById('lock-confirm').style.display = 'none';
-  document.getElementById('lock-hint').textContent = '';
-  document.getElementById('lock-title').textContent = 'Enter Password';
-  document.getElementById('lock-btn').textContent = 'Unlock';
-  document.getElementById('lock-input').focus();
-}
-
-async function resetPassword() {
-  // Was window.prompt(), which Electron doesn't implement — it returned null,
-  // so "Forgot password" silently did nothing.
-  const yes = await mardukConfirm('Reset your password?\n\nYour data is kept — only the password is removed, ' +
-    'and you choose a new one straight away.', 'RESET PASSWORD');
-  if (!yes) return;
-  await clearPw();
-  // Data is kept — only the password is cleared
-  location.reload();
-}
-
-async function initLock() {
-  const hasPassword = !!(await getPw());
-  const input = document.getElementById('lock-input');
-  const confirm = document.getElementById('lock-confirm');
-  confirm.style.display = 'none';
-  if (!hasPassword) {
-    document.getElementById('lock-title').textContent = 'Create Your Password';
-    document.getElementById('lock-btn').textContent = 'Continue';
-    document.getElementById('lock-hint').textContent = 'First time here — choose a password to protect your data.';
-    document.getElementById('lock-hint').className = 'lock-hint';
-  } else {
-    document.getElementById('lock-title').textContent = 'Enter Password';
-    document.getElementById('lock-btn').textContent = 'Unlock';
-    document.getElementById('lock-hint').textContent = '';
-  }
-  input.value = '';
-  input.focus();
 }
 
 async function initApp() {
@@ -501,13 +329,6 @@ async function initApp() {
 }
 
 // ══════════════ INIT ══════════════
-// Attach Enter key listeners once only (prevents accumulation on each lockApp() call).
-// A second pair used to be added by a separate lock-screen IIFE, so every Enter
-// ran handleLock() twice: two unlocks (double price fetch, double AI summary),
-// a wrong password counted twice, and "passwords don't match" on first setup.
-document.getElementById('lock-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleLock(); });
-document.getElementById('lock-confirm').addEventListener('keydown', e => { if (e.key === 'Enter') handleLock(); });
-
 // Close company modal with Escape key
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
@@ -520,7 +341,6 @@ document.addEventListener('keydown', e => {
 });
 
 initSalaryDropZone();
-initLock();
 
 // ══════════════ DYNAMIC CATEGORIES ══════════════
 function syncCats() {
@@ -562,7 +382,7 @@ async function delCategory(cat) {
   const msg = expenseCount > 0
     ? `Delete "${cat}"? It has ${expenseCount} expense${expenseCount > 1 ? 's' : ''} — they will keep the label but won't show in budget. Continue?`
     : `Delete category "${cat}"?`;
-  if (!await mardukConfirm(msg)) return;
+  if (!await nexoraConfirm(msg)) return;
   state.categories = (state.categories || CATS).filter(c => c !== cat);
   state.budgets = state.budgets.filter(b => b.cat !== cat);
   syncCats();

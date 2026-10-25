@@ -3,7 +3,7 @@
 // that looks nothing like the rest of the app.
 //
 // confirm() returns a boolean synchronously and a custom modal cannot, so
-// mardukConfirm() returns a Promise and its call sites must await it. That is
+// nexoraConfirm() returns a Promise and its call sites must await it. That is
 // the whole reason the callers became async.
 let _dlgResolve = null;
 
@@ -20,7 +20,7 @@ function _dlgKey(e) {
   else if (e.key === 'Enter') { e.preventDefault(); _dlgClose(true); }
 }
 
-function _dlgOpen(message, { title = 'MARDUK', confirm = false, okLabel = 'OK' } = {}) {
+function _dlgOpen(message, { title = 'Nexora', confirm = false, okLabel = 'OK' } = {}) {
   const m = document.getElementById('dlg-modal');
   // No modal in the DOM (or called before load) — fall back rather than lose the
   // message entirely, and keep confirm's meaning intact.
@@ -56,5 +56,5 @@ function _dlgEnqueue(message, opts) {
 }
 
 // Fire-and-forget: callers do not need to await unless they want to sequence
-function mardukAlert(message, title)   { return _dlgEnqueue(message, { title }); }
-function mardukConfirm(message, title) { return _dlgEnqueue(message, { title, confirm: true, okLabel: 'Confirm' }); }
+function nexoraAlert(message, title)   { return _dlgEnqueue(message, { title }); }
+function nexoraConfirm(message, title) { return _dlgEnqueue(message, { title, confirm: true, okLabel: 'Confirm' }); }

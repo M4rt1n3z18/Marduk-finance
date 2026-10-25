@@ -16,7 +16,7 @@
 // Runs once a day after unlock, and on demand from Actions. Nothing changes
 // until you confirm each holding's adjustment.
 
-const SPLIT_CHECK_KEY   = 'marduk_split_check';
+const SPLIT_CHECK_KEY   = 'nexora_split_check';
 const SPLIT_CHECK_EVERY = 24 * 60 * 60 * 1000;
 const SPLIT_TOLERANCE   = 0.25;   // |ln(price / expected)| — within ~28%
 let _splitRunning = false;
@@ -113,7 +113,7 @@ async function checkStockSplits(manual = false) {
         const portName = (state.portfolios || []).length > 1 ? ` (${g.port.name})` : '';
         const newAvg = newShares > 0 ? g.h.buyPrice * oldShares / newShares : g.h.buyPrice;
 
-        const ok = await mardukConfirm(
+        const ok = await nexoraConfirm(
           `${ticker}${portName} had a ${what}.\n\n` +
           `Your position was recorded before it: ${fmtShares(oldShares)} shares at ${eur(g.h.buyPrice)} each. ` +
           `In today's terms that is ${fmtShares(newShares)} shares at ${eur(newAvg)} each — the total cost stays ${eur(g.h.buyPrice * oldShares)}.\n\n` +

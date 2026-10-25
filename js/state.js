@@ -58,17 +58,18 @@ function save() {
   if (_loadFailed) return;
   try {
     const json = JSON.stringify(state);
-    if (window.electronAPI) {
+    if (window.NexoraVault) {
+      // Encrypted with the open profile's key (js/nexora/shell.js) before it's written.
       // Was fire-and-forget: a failed write (Drive folder gone, disk full) was
       // invisible, so you kept working on changes that were never stored.
-      Promise.resolve(window.electronAPI.saveData(json)).then(ok => {
+      Promise.resolve(window.NexoraVault.save(json)).then(ok => {
         if (ok === false && Date.now() - _saveWarnedAt > 60000) {
           _saveWarnedAt = Date.now();
           showToast('⚠ Couldn’t save your data — check that the Google Drive folder is available', 8000);
         }
       }).catch(() => {});
     } else {
-      localStorage.setItem('marduk_v1', json);
+      localStorage.setItem('nexora_v1', json);
     }
   } catch(e) {}
 }
@@ -79,15 +80,15 @@ async function load() {
   _loadFailed = false;
   let d = null;
   try {
-    d = window.electronAPI ? await window.electronAPI.loadData() : localStorage.getItem('marduk_v1');
+    d = window.NexoraVault ? window.NexoraVault.json() : localStorage.getItem('nexora_v1');
   } catch(e) { return; }   // couldn't read at all → fresh start is the only option
   if (!d) return;          // no file yet — a genuine first run
   try {
     state = JSON.parse(d);
   } catch(e) {
     _loadFailed = true;
-    mardukAlert('Your data file could not be read — it may still be syncing from Google Drive.\n\n' +
-      'Nothing will be saved until this is fixed, so your data is safe. Restart Marduk in a minute, ' +
+    nexoraAlert('Your data file could not be read — it may still be syncing from Google Drive.\n\n' +
+      'Nothing will be saved until this is fixed, so your data is safe. Restart Nexora in a minute, ' +
       'or restore yesterday\'s copy from Settings → Backups.', 'DATA FILE UNREADABLE');
   }
 }

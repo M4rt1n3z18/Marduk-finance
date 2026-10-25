@@ -264,17 +264,17 @@ function impCategories() {
 
 // filePath set = file was dragged in; omitted = open the picker
 async function impPickFile(filePath) {
-  if (!window.electronAPI?.readStatement) { mardukAlert('File import is unavailable in this build.'); return; }
+  if (!window.electronAPI?.readStatement) { nexoraAlert('File import is unavailable in this build.'); return; }
   const res = await window.electronAPI.readStatement(filePath);
   if (!res) return;                                   // cancelled
-  if (!res.rows || !res.rows.length) { mardukAlert(`Could not read ${res.fileName}${res.error ? ': ' + res.error : ''}`); return; }
+  if (!res.rows || !res.rows.length) { nexoraAlert(`Could not read ${res.fileName}${res.error ? ': ' + res.error : ''}`); return; }
 
   _impFile = res.fileName;
   _impGrid = res.rows;
   const { map, header, body } = impDetectLayout(res.rows);
   _impMap = map;
   if (!body.length || map.date < 0) {
-    mardukAlert('No transactions found in that file. Check it is an account-movements export.');
+    nexoraAlert('No transactions found in that file. Check it is an account-movements export.');
     return;
   }
   _impRows = impBuildRows(body, map);
@@ -454,7 +454,7 @@ function impCommit() {
   impReset();
   renderAll();
   renderImportView();
-  mardukAlert(`Imported ${added} expense${added === 1 ? '' : 's'}` +
+  nexoraAlert(`Imported ${added} expense${added === 1 ? '' : 's'}` +
         (extras ? `, ${extras} extra income entr${extras === 1 ? 'y' : 'ies'}` : '') +
         (cashAdded ? `, ${eur(cashAdded)} to cash` : '') +
         (allocated ? `, ${allocated} investment allocation${allocated === 1 ? '' : 's'}` : '') +
@@ -464,7 +464,7 @@ function impCommit() {
 async function impUndoBatch(batchId) {
   const b = (state.importBatches || []).find(x => x.id === batchId);
   if (!b) return;
-  if (!await mardukConfirm(`Undo this import?\n\n${b.expenses} expense(s)` +
+  if (!await nexoraConfirm(`Undo this import?\n\n${b.expenses} expense(s)` +
                (b.allocations ? `, ${b.allocations} allocation(s)` : '') +
                (b.extras ? `, ${b.extras} extra income entr${b.extras === 1 ? 'y' : 'ies'}` : '') +
                (b.cash ? `, ${eur(b.cash)} of cash` : '') +
@@ -550,7 +550,7 @@ function initBankImport() {
       const f = e.dataTransfer?.files?.[0];
       const p = f && (f.path || window.electronAPI?.getPathForFile?.(f));
       if (p) impPickFile(p);
-      else if (f) mardukAlert(`Could not read the path for "${f.name}". Click the box to choose it instead.`);
+      else if (f) nexoraAlert(`Could not read the path for "${f.name}". Click the box to choose it instead.`);
       else impPickFile();
     });
   }

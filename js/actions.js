@@ -11,7 +11,7 @@ async function addHolding() {
   // Symbol characters only — the ticker is written into the table's HTML and
   // its click handlers, where a stray quote broke the whole row.
   if (!/^[A-Z0-9^][A-Z0-9.\-=^]{0,19}$/.test(ticker)) {
-    mardukAlert(`"${ticker}" doesn't look like a ticker. Use the symbol, e.g. AAPL, VWCE.DE or BTC-USD.`);
+    nexoraAlert(`"${ticker}" doesn't look like a ticker. Use the symbol, e.g. AAPL, VWCE.DE or BTC-USD.`);
     return;
   }
 
@@ -30,7 +30,7 @@ async function addHolding() {
     // No rate, no holding. This used to carry on with the dollar price stored as
     // if it were euros, quietly misstating the cost basis by the exchange rate.
     if (!(rate > 0)) {
-      mardukAlert(`Couldn't get the ${buyCurrency}→EUR rate for ${buyDate}, so the cost in euros can't be worked out. ` +
+      nexoraAlert(`Couldn't get the ${buyCurrency}→EUR rate for ${buyDate}, so the cost in euros can't be worked out. ` +
         'Check your connection and try again, or enter the price in EUR.');
       return;
     }
@@ -42,9 +42,9 @@ async function addHolding() {
   const existing = port.holdings.find(h => h.ticker === ticker);
 
   if (type === 'Sell') {
-    if (!existing) { mardukAlert('No existing holding found for ' + ticker + ' to sell.'); return; }
+    if (!existing) { nexoraAlert('No existing holding found for ' + ticker + ' to sell.'); return; }
     const newShares = parseFloat((existing.shares - shares).toFixed(6));
-    if (newShares < 0) { mardukAlert('Cannot sell more shares than you hold (' + existing.shares + ').'); return; }
+    if (newShares < 0) { nexoraAlert('Cannot sell more shares than you hold (' + existing.shares + ').'); return; }
     if (newShares === 0) {
       port.holdings = port.holdings.filter(h => h.ticker !== ticker);
     } else {
@@ -126,7 +126,7 @@ async function delHolding(id) {
   const port = ap();
   const holding = port.holdings.find(h => h.id === id);
   if (!holding) return;
-  if (!await mardukConfirm(`Remove ${holding.ticker} holding and its transaction history?`)) return;
+  if (!await nexoraConfirm(`Remove ${holding.ticker} holding and its transaction history?`)) return;
   port.holdings = port.holdings.filter(h => h.id !== id);
   port.transactions = port.transactions.filter(t => t.ticker !== holding.ticker);
   save(); renderAll();
@@ -561,7 +561,7 @@ const _mktFmt = new Intl.DateTimeFormat('en-GB', {
 });
 
 // 'open' | 'quiet' | 'weekend', in market-local time — not the machine's timezone,
-// so it stays correct for users running MARDUK outside Portugal.
+// so it stays correct for users running Nexora outside Portugal.
 function marketPhase(now = new Date()) {
   const parts = _mktFmt.formatToParts(now);
   const get = t => parts.find(p => p.type === t)?.value;
@@ -798,9 +798,9 @@ function addAllocation() {
   const date = getDateRaw('al-date') || localIso();
   const notes = document.getElementById('al-note').value.trim() || null;
 
-  if (isNaN(amount) || amount <= 0) { mardukAlert('Enter a valid amount to allocate.'); return; }
+  if (isNaN(amount) || amount <= 0) { nexoraAlert('Enter a valid amount to allocate.'); return; }
   if (!portfolioId || !(state.portfolios || []).find(p => p.id === portfolioId)) {
-    mardukAlert('Select a target portfolio.'); return;
+    nexoraAlert('Select a target portfolio.'); return;
   }
 
   if (!state.allocations) state.allocations = [];
@@ -829,7 +829,7 @@ async function delAllocation(id) {
   const msg = a.amountInvested > 0
     ? `Delete this allocation? ${eur(a.amountInvested)} of it was already marked as invested — that history will be lost.`
     : 'Delete this allocation?';
-  if (!await mardukConfirm(msg)) return;
+  if (!await nexoraConfirm(msg)) return;
   state.allocations = state.allocations.filter(x => x.id !== id);
   save(); renderExpenses(); renderBudget(); renderPortfolio();
 }
@@ -840,16 +840,16 @@ async function openBackupsModal() {
   const list = document.getElementById('backups-list');
   list.innerHTML = '<div class="muted" style="font-size:12px;padding:10px 0;">Loading…</div>';
   modal.style.display = 'flex';
-  const backups = (await window.electronAPI?.listBackups?.()) || [];
+  const backups = (await window.NexoraVault?.listBackups()) || [];
   if (!backups.length) {
-    list.innerHTML = '<div class="empty" style="padding:20px 0;">No backups yet — one is created automatically each day you use Marduk.</div>';
+    list.innerHTML = '<div class="empty" style="padding:20px 0;">No backups yet — one is created automatically each day you use Nexora.</div>';
     return;
   }
   list.innerHTML = '';
   backups.forEach(b => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid var(--border);';
-    row.innerHTML = `<span style="flex:1;font-size:13px;font-weight:600;">${b.date}</span>
+    row.innerHTML = `<span style="flex:1;font-size:13px;font-weight:600;">${b.date}${b.legacy ? ' <span class="muted" style="font-weight:400;">· from Marduk</span>' : ''}</span>
       <span class="muted" style="font-size:12px;">${b.sizeKb} KB</span>`;
     const btn = document.createElement('button');
     btn.className = 'btn-ghost';
@@ -866,13 +866,14 @@ function closeBackupsModal() {
 }
 
 async function restoreBackup(name, date) {
-  if (!await mardukConfirm(`Restore the backup from ${date}?\n\nYour current data will be replaced with that day's snapshot.`)) return;
-  const content = await window.electronAPI?.readBackup?.(name);
-  if (!content) { mardukAlert('Could not read that backup file.'); return; }
+  if (!await nexoraConfirm(`Restore the backup from ${date}?\n\nYour current data will be replaced with that day's snapshot.`)) return;
+  // This profile's backups are encrypted with its key; Marduk's older ones are plain JSON
+  const content = await window.NexoraVault?.readBackup(name);
+  if (!content) { nexoraAlert('Could not read that backup file.'); return; }
   try {
     const parsed = JSON.parse(content);
     if (!Array.isArray(parsed.expenses) && !Array.isArray(parsed.portfolios)) {
-      mardukAlert('That backup file does not look like Marduk data.'); return;
+      nexoraAlert('That backup file does not look like Nexora data.'); return;
     }
     state = parsed;
     _loadFailed = false;     // restoring a backup is the way out of an unreadable file
@@ -883,7 +884,7 @@ async function restoreBackup(name, date) {
     closeBackupsModal();
     showToast(`✓ Backup from ${date} restored`);
   } catch (e) {
-    mardukAlert('Backup file is corrupted and could not be restored.');
+    nexoraAlert('Backup file is corrupted and could not be restored.');
   }
 }
 
@@ -943,7 +944,7 @@ function exportData() {
   const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'marduk-backup.json';
+  a.download = 'nexora-backup.json';
   a.click();
 }
 
@@ -957,16 +958,16 @@ function importData() {
         const imported = JSON.parse(ev.target.result);
         const required = ['expenses','assets','liabilities','budgets'];
         const missing = required.filter(k => !Array.isArray(imported[k]));
-        if (missing.length) { mardukAlert('Invalid file: missing sections: ' + missing.join(', ')); return; }
+        if (missing.length) { nexoraAlert('Invalid file: missing sections: ' + missing.join(', ')); return; }
         if (!Array.isArray(imported.portfolios) && !Array.isArray(imported.holdings)) {
-          mardukAlert('Invalid file: missing portfolio data.'); return;
+          nexoraAlert('Invalid file: missing portfolio data.'); return;
         }
-        if (!await mardukConfirm('This will replace ALL current data with the imported file. Are you sure?')) return;
+        if (!await nexoraConfirm('This will replace ALL current data with the imported file. Are you sure?')) return;
         state = imported;
         _loadFailed = false;     // a good file replaces whatever couldn't be read
         save(); syncCats(); renderAll(); checkRecurring();
-        mardukAlert('Data imported successfully!');
-      } catch(e) { mardukAlert('Invalid file: could not read JSON. Make sure you are importing a MARDUK backup file.'); }
+        nexoraAlert('Data imported successfully!');
+      } catch(e) { nexoraAlert('Invalid file: could not read JSON. Make sure you are importing a Nexora backup file.'); }
     };
     fr.readAsText(e.target.files[0]);
   };

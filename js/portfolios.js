@@ -14,7 +14,7 @@ function exportPortfolioCSV() {
       h.dayChangePct != null ? h.dayChangePct.toFixed(2) + '%' : '', cost.toFixed(2), val.toFixed(2),
       gain.toFixed(2), gainPct.toFixed(2) + '%', (h.dividends || 0)]);
   });
-  downloadCSV(rows, 'marduk-portfolio.csv');
+  downloadCSV(rows, 'nexora-portfolio.csv');
 }
 
 function exportExpensesCSV() {
@@ -24,7 +24,7 @@ function exportExpensesCSV() {
   const rows = [['Description', 'Category', 'Date', 'Amount (€)', 'Recurring']];
   [...expenses].sort((a, b) => new Date(b.date) - new Date(a.date))
     .forEach(e => rows.push([e.desc, e.cat, e.date, Number(e.amount).toFixed(2), e.recurring ? 'Yes' : 'No']));
-  downloadCSV(rows, `marduk-expenses${month ? '-' + month : ''}.csv`);
+  downloadCSV(rows, `nexora-expenses${month ? '-' + month : ''}.csv`);
 }
 
 function downloadCSV(rows, filename) {
@@ -91,7 +91,7 @@ function renamePortfolio() {
 async function deletePortfolio() {
   if ((state.portfolios||[]).length <= 1) return;
   const port = ap();
-  if (!await mardukConfirm(`Delete "${port.name}" and all its holdings? This cannot be undone.`)) return;
+  if (!await nexoraConfirm(`Delete "${port.name}" and all its holdings? This cannot be undone.`)) return;
   state.portfolios = state.portfolios.filter(p => p.id !== port.id);
   state.activePortfolioId = state.portfolios[0].id;
   save();

@@ -1,12 +1,12 @@
-// ══════════════ HOLDINGS CSV IMPORT (Marduk template) ══════════════
+// ══════════════ HOLDINGS CSV IMPORT (Nexora template) ══════════════
 // Portfolio → Holdings → Import CSV. Exactly one layout is accepted — the
-// Marduk template, first row:
+// Nexora template, first row:
 //
 //   Symbol,Trade Date,Purchase Price,Quantity,Status
 //
 // Status (Open | Closed) is optional, so the original four-column file still
 // works with every row treated as Open. Closed rows are listed but never
-// imported: Marduk tracks what you hold now, and a sold lot counted as a
+// imported: Nexora tracks what you hold now, and a sold lot counted as a
 // holding is exactly the mistake a broker's closed-positions sheet invites.
 // Any other header — broker exports, Yahoo's export, renamed or reordered
 // columns — is rejected rather than half-understood.
@@ -143,7 +143,7 @@ function hiBuildRows(text, port) {
   const want = HI_TEMPLATE.map(h => h.toLowerCase());
   const hasStatus = header.length === 5;
   if (!(header.length === 4 || hasStatus) || header.some((h, i) => h !== want[i])) {
-    return { error: `Not the Marduk template — the first row must be: ${HI_TEMPLATE.join(', ')}. ` +
+    return { error: `Not the Nexora template — the first row must be: ${HI_TEMPLATE.join(', ')}. ` +
       'Download the template and copy your lots into it.' };
   }
 
@@ -306,7 +306,7 @@ function hiReadFile(f) {
   if (!/\.(csv|txt)$/i.test(f.name)) {
     hiShowError(/\.(xlsx?|numbers)$/i.test(f.name)
       ? 'This needs a .csv file. Save the spreadsheet as CSV first (File → Export To → CSV in Numbers).'
-      : 'Choose a .csv file made from the Marduk template.');
+      : 'Choose a .csv file made from the Nexora template.');
     return;
   }
   const fr = new FileReader();
@@ -476,11 +476,11 @@ async function hiUndo() {
   if (!u) return;
   const port = (state.portfolios || []).find(p => p.id === u.portfolioId);
   if (!port || !hiUndoAvailable()) {
-    mardukAlert('This portfolio has changed since the import, so it can’t be undone in one step. Remove the holdings from the table instead.', 'Undo import');
+    nexoraAlert('This portfolio has changed since the import, so it can’t be undone in one step. Remove the holdings from the table instead.', 'Undo import');
     return;
   }
   const when = new Date(u.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  if (!await mardukConfirm(`Remove the ${u.lots} lot${u.lots !== 1 ? 's' : ''} imported on ${when} from ${port.name}?`, 'Undo import')) return;
+  if (!await nexoraConfirm(`Remove the ${u.lots} lot${u.lots !== 1 ? 's' : ''} imported on ${when} from ${port.name}?`, 'Undo import')) return;
   // Positions and history go back exactly; current prices stay fresh
   const live = new Map(port.holdings.map(h => [h.id, h]));
   port.holdings = u.before.holdings.map(h => {
@@ -503,7 +503,7 @@ function hiDownloadTemplate() {
   const csv = HI_TEMPLATE.join(',') + '\nAAPL,2024-03-15,172.50,10,Open\nVWCE.DE,2024-05-02,115.40,4,Open\nTSLA,2023-01-10,118.20,3,Closed\n';
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-  a.download = 'marduk-holdings-template.csv';
+  a.download = 'nexora-holdings-template.csv';
   a.click();
 }
 

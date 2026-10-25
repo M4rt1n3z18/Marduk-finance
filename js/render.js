@@ -652,7 +652,7 @@ function logSalary() {
 }
 
 async function clearSalary() {
-  if (!await mardukConfirm('Remove the salary entry for this month?')) return;
+  if (!await nexoraConfirm('Remove the salary entry for this month?')) return;
   const key = selectedBudgetMonth || getExpenseMonthKey(now.getFullYear(), now.getMonth());
   state.salaries = state.salaries.filter(s => s.month !== key);
   save(); renderBudget(); renderExpenses();

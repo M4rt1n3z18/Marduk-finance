@@ -1,5 +1,6 @@
 // ══════════════ CHANGELOG ══════════════
-// Shown once, the first time you open Marduk after an update.
+// Shown once, the first time you open Nexora after an update. Entries before 2.0
+// describe Marduk, the app's name until then, and keep it.
 //
 // Keep every line short and say only what is new. Do NOT describe the old
 // behaviour ("it used to open a picker…") — nobody reads release notes to be
@@ -246,7 +247,7 @@ const CHANGELOG = [
   },
 ];
 
-const CHANGELOG_SEEN_KEY = 'marduk_last_seen_version';
+const CHANGELOG_SEEN_KEY = 'nexora_last_seen_version';
 
 function _vcmp(a, b) {
   const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
@@ -291,27 +292,27 @@ function closeChangelog() {
   const m = document.getElementById('changelog-modal');
   if (m) m.style.display = 'none';
   // Only mark as seen once it has actually been shown and dismissed
-  try { localStorage.setItem(CHANGELOG_SEEN_KEY, _mardukVersion || ''); } catch(e) {}
+  try { localStorage.setItem(CHANGELOG_SEEN_KEY, _appVersion || ''); } catch(e) {}
 }
 
-let _mardukVersion = '';
+let _appVersion = '';
 
 // Called after unlock. Shows only when the version actually changed.
 async function maybeShowChangelog() {
   try {
-    _mardukVersion = await window.electronAPI?.getVersion?.() || '';
-    if (!_mardukVersion) return;
+    _appVersion = await window.electronAPI?.getVersion?.() || '';
+    if (!_appVersion) return;
     const seen = localStorage.getItem(CHANGELOG_SEEN_KEY);
-    if (seen === _mardukVersion) return;
+    if (seen === _appVersion) return;
 
     // No stored version means either a genuinely new install or — far more
     // likely right now — an existing user updating to the first build that
     // records it. Show just the current release rather than nothing, so the
     // update they *just* installed is explained.
     const entries = seen
-      ? changelogSince(seen, _mardukVersion)
-      : CHANGELOG.filter(c => c.v === _mardukVersion);
+      ? changelogSince(seen, _appVersion)
+      : CHANGELOG.filter(c => c.v === _appVersion);
     if (entries.length) openChangelog(entries);
-    else localStorage.setItem(CHANGELOG_SEEN_KEY, _mardukVersion);
+    else localStorage.setItem(CHANGELOG_SEEN_KEY, _appVersion);
   } catch(e) { /* never block startup over release notes */ }
 }

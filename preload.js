@@ -2,14 +2,17 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Expose safe APIs to the renderer (index.html)
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Data
-  saveData: (json) => ipcRenderer.invoke('save-data', json),
-  loadData: () => ipcRenderer.invoke('load-data'),
+  // Profiles — encrypted in the renderer; these only move the encrypted files
+  profilesRead:  ()         => ipcRenderer.invoke('profiles-read'),
+  profilesWrite: (json)     => ipcRenderer.invoke('profiles-write', json),
+  profileRead:   (id)       => ipcRenderer.invoke('profile-read', id),
+  profileWrite:  (id, json) => ipcRenderer.invoke('profile-write', id, json),
+  profileRemove: (id)       => ipcRenderer.invoke('profile-remove', id),
 
-  // Password
-  getPw:   ()    => ipcRenderer.invoke('get-pw'),
-  setPw:   (val) => ipcRenderer.invoke('set-pw', val),
-  clearPw: ()    => ipcRenderer.invoke('clear-pw'),
+  // Upgrade from Marduk 1.x (unencrypted data + password hash), once
+  legacyStatus: () => ipcRenderer.invoke('legacy-status'),
+  legacyRead:   () => ipcRenderer.invoke('legacy-read'),
+  legacyRetire: () => ipcRenderer.invoke('legacy-retire'),
 
   // Prices
   fetchPrices:   (tickers) => ipcRenderer.invoke('fetch-prices', tickers),
@@ -43,7 +46,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiMonthlySummary: (payload) => ipcRenderer.invoke('ai-monthly-summary', payload),
 
   // Automatic backups
-  listBackups: ()     => ipcRenderer.invoke('list-backups'),
+  listBackups: (id)   => ipcRenderer.invoke('list-backups', id),
   readBackup:  (name) => ipcRenderer.invoke('read-backup', name),
 
   // Bank statement — filePath is set when the file was dragged in; omitted opens the picker

@@ -150,7 +150,7 @@ function localIso(d = new Date()) {
 
 let _toastTimer;
 function showToast(msg, duration = 4000) {
-  const el = document.getElementById('marduk-toast');
+  const el = document.getElementById('nexora-toast');
   if (!el) return;
   el.textContent = msg;
   el.classList.add('show');

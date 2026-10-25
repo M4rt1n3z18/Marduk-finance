@@ -4,6 +4,35 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+// ── One copy at a time ────────────────────────────────────────────────────────
+// Two windows on the same data folder could each save over the other's changes.
+if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
+app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
+
+// ── Nexora was called Marduk until 2.0 ────────────────────────────────────────
+// The local folder (the old password file, AI key, backups, caches, settings)
+// was "<appData>/marduk" — Electron names it after package.json "name" — and is
+// now "<appData>/nexora". On the first start the old folder is *copied* across,
+// never moved, so nothing disappears; caches and lock files are left behind.
+(function carryOverLocalFolder() {
+  try {
+    const next = app.getPath('userData'), marker = path.join(next, '.carried-over-from-marduk');
+    if (fs.existsSync(marker)) return;
+    const old = path.join(app.getPath('appData'), 'marduk');
+    if (old !== next && fs.existsSync(old)) {
+      const skip = /^(Cache|Code Cache|GPUCache|DawnCache|DawnGraphiteCache|DawnWebGPUCache|blob_storage|Singleton.*|update-relaunch\.log)$/;
+      fs.cpSync(old, next, { recursive: true, force: false, errorOnExist: false, filter: src => !skip.test(path.basename(src)) });
+      // its own files take their new names (the copy keeps the old ones too, until it's gone)
+      for (const f of ['ai-key.bin', 'tickers.json', 'symbols.json', 'fx.json']) {
+        const from = path.join(next, 'marduk-' + f), to = path.join(next, 'nexora-' + f);
+        if (fs.existsSync(from) && !fs.existsSync(to)) fs.renameSync(from, to);
+      }
+    }
+    fs.mkdirSync(next, { recursive: true });
+    fs.writeFileSync(marker, new Date().toISOString());
+  } catch (e) { console.error('Carrying over the Marduk folder (non-fatal):', e.message); }
+})();
+
 // ── macOS quarantine self-heal ────────────────────────────────────────────────
 // Clears the quarantine flag on every launch so macOS never shows
 // the "damaged" error — whether from a manual download or an auto-update.
@@ -20,7 +49,7 @@ if (process.platform === 'darwin') {
 // macOS: custom downloader (electron-updater gets stuck on unsigned Mac apps)
 
 const GITHUB_OWNER = 'M4rt1n3z18';
-const GITHUB_REPO  = 'Marduk-finance';
+const GITHUB_REPO  = 'Nexora-finance';   // was Marduk-finance — releases are looked up by id anyway
 const GITHUB_REPO_ID = 1253690538;   // never changes, even when the repository is renamed
 const macUpdate = require('./updater-mac');
 
@@ -39,7 +68,7 @@ async function _checkForUpdatesMac() {
     // 1. Ask GitHub for the latest release — by repository id, so a renamed
     //    repository keeps answering (by name it returned "Moved Permanently")
     const release = await macUpdate.latestRelease({
-      repoId: GITHUB_REPO_ID, owner: GITHUB_OWNER, repo: GITHUB_REPO, headers: { 'User-Agent': 'MARDUK-App' },
+      repoId: GITHUB_REPO_ID, owner: GITHUB_OWNER, repo: GITHUB_REPO, headers: { 'User-Agent': 'Nexora-App' },
     });
 
     const latest = (release.tag_name || '').replace('v', '');
@@ -61,7 +90,7 @@ async function _checkForUpdatesMac() {
     if (!asset) return;
 
     // 4. Download the DMG with real progress tracking
-    const dmgPath = path.join(os.tmpdir(), `MARDUK-${latest}.dmg`);
+    const dmgPath = path.join(os.tmpdir(), `Nexora-${latest}.dmg`);
 
     // Already downloaded this version in this session — the 4-hourly re-check
     // used to fetch the whole DMG again every time until you restarted.
@@ -76,7 +105,7 @@ async function _checkForUpdatesMac() {
       const download = (url, hops = 0) => {
         if (hops > 5) return reject(new Error('Too many redirects'));
         const mod = url.startsWith('https') ? require('https') : require('http');
-        mod.get(url, { headers: { 'User-Agent': 'MARDUK-App' } }, res => {
+        mod.get(url, { headers: { 'User-Agent': 'Nexora-App' } }, res => {
           if ([301, 302, 303, 307, 308].includes(res.statusCode)) { res.resume(); download(res.headers.location, hops + 1); return; }
           if (res.statusCode !== 200) return reject(new Error(`download HTTP ${res.statusCode}`));
           const total = parseInt(res.headers['content-length'] || '0');
@@ -144,7 +173,7 @@ ipcMain.handle('install-update', async () => {
     try {
       const mountOut = spawnSync('hdiutil', ['attach', global._pendingDmg, '-nobrowse'], { encoding: 'utf8' });
       const mountPoint = (mountOut.stdout || '').trim().split('\n').pop().split('\t').pop().trim();
-      // Any app in the DMG, not only `MARDUK.app` — the next version arrives under a new name
+      // Any app in the DMG — the update that brought Nexora replaced MARDUK.app this way
       if (mountOut.status !== 0 || !mountPoint || !fs.existsSync(mountPoint) || !macUpdate.findApp(mountPoint)) {
         if (mountOut.status === 0 && mountPoint) spawnSync('hdiutil', ['detach', mountPoint, '-quiet'], { timeout: 10000 });
         fs.unlink(global._pendingDmg, () => {});
@@ -235,9 +264,16 @@ function findGoogleDriveFolder() {
 }
 
 const GDRIVE_FOLDER = findGoogleDriveFolder();
-const DATA_FILE = path.join(GDRIVE_FOLDER, 'marduk-data.json');
-const PW_FILE   = path.join(app.getPath('userData'), 'marduk-pw.bin'); // password stays local
-const AI_KEY_FILE = path.join(app.getPath('userData'), 'marduk-ai-key.bin'); // API key stays local too
+// Each profile is one encrypted file in a Nexora folder on Google Drive; the
+// renderer encrypts and decrypts, so nothing readable ever reaches this folder.
+const NEXORA_DIR    = path.join(GDRIVE_FOLDER, 'Nexora');
+const PROFILES_FILE = path.join(NEXORA_DIR, 'profiles.json');   // names, avatars, settings — no finances
+const profileFile   = id => path.join(NEXORA_DIR, `${id}.nexora`);
+const PROFILE_ID    = /^[a-z0-9]{3,32}$/i;
+// Marduk 1.x kept the data unencrypted beside a password hash; read once to upgrade
+const LEGACY_DATA_FILE = path.join(GDRIVE_FOLDER, 'marduk-data.json');
+const LEGACY_PW_FILE   = path.join(app.getPath('userData'), 'marduk-pw.bin');
+const AI_KEY_FILE = path.join(app.getPath('userData'), 'nexora-ai-key.bin'); // API key stays local, never synced
 
 // ── Window ────────────────────────────────────────────────────────────────────
 let win;
@@ -248,14 +284,14 @@ function createWindow() {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    title: 'MARDUK — Wealth of Babylon',
+    title: 'Nexora',
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
-    backgroundColor: '#0d0d0f',
+    backgroundColor: '#0D0F14',
     show: false, // show after ready-to-show for smooth launch
   });
 
@@ -284,7 +320,7 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin') {
     try {
       for (const f of fs.readdirSync(os.tmpdir()))
-        if (/^MARDUK-[\d.]+\.dmg$/.test(f)) fs.unlink(path.join(os.tmpdir(), f), () => {});
+        if (/^(MARDUK|Nexora)-[\d.]+\.dmg$/.test(f)) fs.unlink(path.join(os.tmpdir(), f), () => {});
     } catch (e) {}
   }
 
@@ -308,94 +344,111 @@ app.on('window-all-closed', () => {
 
 // ── IPC Handlers ──────────────────────────────────────────────────────────────
 
-// Data (saved to Google Drive)
-ipcMain.handle('load-data', () => {
+// ── Profiles ──────────────────────────────────────────────────────────────────
+// Written to a temporary file first and renamed into place, so a crash or a
+// Drive sync mid-write never leaves half a file.
+function writeAtomic(file, text) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, text, 'utf8');
+  fs.renameSync(tmp, file);
+}
+const readIfExists = file => fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+
+ipcMain.handle('profiles-read', () => { try { return readIfExists(PROFILES_FILE); } catch (e) { return null; } });
+ipcMain.handle('profiles-write', (event, json) => {
+  try { JSON.parse(json); writeAtomic(PROFILES_FILE, json); return true; }
+  catch (e) { console.error('Profiles save error:', e); return false; }
+});
+ipcMain.handle('profile-read', (event, id) => {
+  if (!PROFILE_ID.test(String(id))) return null;
+  try { return readIfExists(profileFile(id)); } catch (e) { return null; }
+});
+ipcMain.handle('profile-write', (event, id, json) => {
+  if (!PROFILE_ID.test(String(id))) return false;
   try {
-    if (fs.existsSync(DATA_FILE)) {
-      return fs.readFileSync(DATA_FILE, 'utf8');
+    if (JSON.parse(json).format !== 'nexora-encrypted') return false;   // only ever encrypted data
+    rotateBackup(id);
+    writeAtomic(profileFile(id), json);
+    return true;
+  } catch (e) { console.error('Profile save error:', e); return false; }
+});
+// A deleted profile's file goes to the local backups, not away
+ipcMain.handle('profile-remove', (event, id) => {
+  if (!PROFILE_ID.test(String(id))) return false;
+  try {
+    const f = profileFile(id);
+    if (fs.existsSync(f)) {
+      fs.mkdirSync(BACKUP_DIR, { recursive: true });
+      fs.copyFileSync(f, path.join(BACKUP_DIR, `nexora-${id}-removed-${localDay()}.nexora`));
+      fs.unlinkSync(f);
     }
-  } catch (e) {
-    console.error('Load error:', e);
-  }
-  return null;
+    return true;
+  } catch (e) { return false; }
+});
+
+// ── Upgrade from Marduk 1.x ───────────────────────────────────────────────────
+ipcMain.handle('legacy-status', () => ({ data: fs.existsSync(LEGACY_DATA_FILE), password: fs.existsSync(LEGACY_PW_FILE) }));
+ipcMain.handle('legacy-read', () => {
+  try { return { json: readIfExists(LEGACY_DATA_FILE), password: readIfExists(LEGACY_PW_FILE) }; }
+  catch (e) { return null; }
+});
+// Called only after the encrypted profile has been written and read back: the
+// unencrypted file leaves Google Drive (a copy stays in the local backups) and
+// the old password hash goes with it.
+ipcMain.handle('legacy-retire', () => {
+  try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const day = localDay();
+    if (fs.existsSync(LEGACY_DATA_FILE)) {
+      fs.copyFileSync(LEGACY_DATA_FILE, path.join(BACKUP_DIR, `marduk-data-before-nexora-${day}.json`));
+      fs.unlinkSync(LEGACY_DATA_FILE);
+    }
+    if (fs.existsSync(LEGACY_PW_FILE)) fs.renameSync(LEGACY_PW_FILE, path.join(BACKUP_DIR, `marduk-pw-before-nexora-${day}.bin`));
+    return true;
+  } catch (e) { console.error('Retiring the Marduk files:', e); return false; }
 });
 
 // ── Automatic rotating backups ────────────────────────────────────────────────
-// Before the first save of each day, a copy of the previous data file is kept
-// in userData/backups (local disk — independent of Google Drive sync issues).
-// Keeps the last 10 daily backups.
+// Before the first save of each day, a copy of the profile's previous file is
+// kept in userData/backups (local disk — independent of Google Drive sync).
+// Still encrypted. Keeps the last 10 days per profile. Marduk's own daily
+// backups (unencrypted, from before 2.0) stay listed so they can be restored.
 const BACKUP_DIR = path.join(app.getPath('userData'), 'backups');
+const localDay = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const BACKUP_NAME = /^(nexora-[a-z0-9]{3,32}-(\d{4}-\d{2}-\d{2})\.nexora|marduk-data-(?:before-nexora-)?(\d{4}-\d{2}-\d{2})\.json)$/i;
 
-function rotateBackup() {
+function rotateBackup(id) {
   try {
-    if (!fs.existsSync(DATA_FILE)) return;
-    if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
-    const today = new Date().toISOString().slice(0, 10);
-    const dest = path.join(BACKUP_DIR, `marduk-data-${today}.json`);
+    const src = profileFile(id);
+    if (!fs.existsSync(src)) return;
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const dest = path.join(BACKUP_DIR, `nexora-${id}-${localDay()}.nexora`);
     if (fs.existsSync(dest)) return; // one backup per day
-    fs.copyFileSync(DATA_FILE, dest);
-    const files = fs.readdirSync(BACKUP_DIR).filter(f => /^marduk-data-\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
-    while (files.length > 10) fs.unlinkSync(path.join(BACKUP_DIR, files.shift()));
+    fs.copyFileSync(src, dest);
+    const mine = fs.readdirSync(BACKUP_DIR).filter(f => new RegExp(`^nexora-${id}-\\d{4}-\\d{2}-\\d{2}\\.nexora$`).test(f)).sort();
+    while (mine.length > 10) fs.unlinkSync(path.join(BACKUP_DIR, mine.shift()));
   } catch (e) { console.error('Backup rotation error (non-fatal):', e.message); }
 }
 
-ipcMain.handle('list-backups', () => {
+// This profile's backups, plus Marduk's unencrypted ones
+ipcMain.handle('list-backups', (event, id) => {
   try {
     if (!fs.existsSync(BACKUP_DIR)) return [];
     return fs.readdirSync(BACKUP_DIR)
-      .filter(f => /^marduk-data-\d{4}-\d{2}-\d{2}\.json$/.test(f))
-      .sort().reverse()
-      .map(f => {
-        const st = fs.statSync(path.join(BACKUP_DIR, f));
-        return { name: f, date: f.slice(12, 22), sizeKb: Math.round(st.size / 1024) };
-      });
+      .map(f => ({ f, m: f.match(BACKUP_NAME) }))
+      .filter(({ f, m }) => m && (f.startsWith('marduk-') || (PROFILE_ID.test(String(id)) && f.startsWith(`nexora-${id}-`))))
+      .map(({ f, m }) => ({ name: f, date: m[2] || m[3], legacy: f.startsWith('marduk-'), sizeKb: Math.round(fs.statSync(path.join(BACKUP_DIR, f)).size / 1024) }))
+      .sort((a, b) => b.date.localeCompare(a.date) || a.legacy - b.legacy);
   } catch (e) { return []; }
 });
 
 ipcMain.handle('read-backup', (event, name) => {
   try {
     // Only allow reading files that match the backup naming pattern (no path tricks)
-    if (!/^marduk-data-\d{4}-\d{2}-\d{2}\.json$/.test(name)) return null;
-    const p = path.join(BACKUP_DIR, name);
-    if (!fs.existsSync(p)) return null;
-    return fs.readFileSync(p, 'utf8');
+    if (!BACKUP_NAME.test(String(name))) return null;
+    return readIfExists(path.join(BACKUP_DIR, name));
   } catch (e) { return null; }
-});
-
-ipcMain.handle('save-data', (event, json) => {
-  try {
-    // Ensure folder exists
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    rotateBackup(); // keep a daily copy of the previous state before overwriting
-    fs.writeFileSync(DATA_FILE, json, 'utf8');
-    return true;
-  } catch (e) {
-    console.error('Save error:', e);
-    return false;
-  }
-});
-
-// Password (saved locally, never synced)
-ipcMain.handle('get-pw', () => {
-  try {
-    if (fs.existsSync(PW_FILE)) return fs.readFileSync(PW_FILE, 'utf8');
-  } catch (e) {}
-  return null;
-});
-
-ipcMain.handle('set-pw', (event, val) => {
-  try {
-    fs.writeFileSync(PW_FILE, val, 'utf8');
-    return true;
-  } catch (e) { return false; }
-});
-
-ipcMain.handle('clear-pw', () => {
-  try {
-    if (fs.existsSync(PW_FILE)) fs.unlinkSync(PW_FILE);
-    return true;
-  } catch (e) { return false; }
 });
 
 // ── AI key (Anthropic API — optional, enables AI payslip parsing) ─────────────
@@ -533,7 +586,7 @@ const EU_EXCHANGE_SUFFIXES = ['.DE','.LS','.PA','.AS','.MI','.MC','.L','.SW','.S
 // Bare ticker → the Yahoo symbol that answered (EDP → EDP.LS). Kept on disk:
 // it used to live in memory only, so every launch re-probed up to 16 suffixes
 // per European holding — exactly the request bursts that got the IP throttled.
-const TICKERS_FILE = path.join(app.getPath('userData'), 'marduk-tickers.json');
+const TICKERS_FILE = path.join(app.getPath('userData'), 'nexora-tickers.json');
 const _tickerResolutionCache = new Map(Object.entries((() => {
   try { return JSON.parse(fs.readFileSync(TICKERS_FILE, 'utf8')) || {}; } catch (e) { return {}; }
 })()));
@@ -753,12 +806,12 @@ ipcMain.handle('search-tickers', async (event, query) => {
 // The renderer's built-in TICKER_DB holds ~300 large caps, so most real
 // portfolios contain symbols it has never heard of — and when Yahoo's live
 // search is rate-limited, autocomplete had nothing to fall back on and looked
-// like "Marduk doesn't know this ticker".
+// like "Nexora doesn't know this ticker".
 //
 // NASDAQ Trader publishes the official directory of every US-listed security as
 // plain pipe-delimited text: free, no key, no rate limit, ~13k symbols. Cached
 // on disk and refreshed weekly, so search works offline and instantly.
-const SYMBOLS_FILE = path.join(app.getPath('userData'), 'marduk-symbols.json');
+const SYMBOLS_FILE = path.join(app.getPath('userData'), 'nexora-symbols.json');
 const SYMBOLS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function _cleanSecurityName(name) {
@@ -939,7 +992,7 @@ async function mapLimit(items, limit, fn) {
 // Source order: ECB → Yahoo → last known good → nothing. A stale *real* rate is
 // a defensible approximation; an invented one is not. If every source fails the
 // price is left un-updated rather than converted at a guess.
-const FX_CACHE_FILE = path.join(app.getPath('userData'), 'marduk-fx.json');
+const FX_CACHE_FILE = path.join(app.getPath('userData'), 'nexora-fx.json');
 const FX_TTL_MS     = 12 * 60 * 60 * 1000; // ECB publishes once a day (~16:00 CET)
 const FX_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 let _fxMem = null; // { rates, date, source, fetchedAt, stale }
@@ -1612,7 +1665,7 @@ function parsePayslipText(t) {
     ytdIRSDeduction:  ptNum(t.match(/Ac\. Retenção IRS:\s*([\d.,]+)/)?.[1]),
     department:       t.match(/Departamento:\s*(.+)/)?.[1]?.trim() || null,
     // The full extracted text used to ride along as `_rawText` and was saved
-    // with the payslip into marduk-data.json on Google Drive — name, tax
+    // with the payslip into the data file on Google Drive — name, tax
     // number, address and all. Nothing ever read it back.
   };
 }
@@ -1661,7 +1714,7 @@ function parsePdfAtPath(filePath) {
 // ══════════════ AI PAYSLIP PARSER (optional) ══════════════
 // Sends the PDF directly to Claude (vision) — works for any language, layout,
 // or company, and does not need Python. Used only when an API key is set;
-// otherwise (or on any failure) Marduk falls back to the regex parser above.
+// otherwise (or on any failure) Nexora falls back to the regex parser above.
 
 const PAYSLIP_SCHEMA = {
   type: 'object',
@@ -1818,7 +1871,7 @@ ipcMain.handle('ai-monthly-summary', async (event, payload) => {
       messages: [{
         role: 'user',
         content:
-          'You are the assistant inside MARDUK, a personal finance app. ' +
+          'You are the assistant inside Nexora, a personal finance app. ' +
           'Write a short monthly financial summary for the user (4-6 sentences, plain text, no headers or bullet points). ' +
           'Be direct and specific with the numbers (euros). Mention: how spending compares to income and to last month, ' +
           'the biggest spending category, portfolio performance if present, and one encouraging or cautionary note at the end. ' +
