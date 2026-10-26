@@ -330,7 +330,7 @@ function impRenderReview() {
   body.innerHTML = _impRows.map((r, i) => `
     <tr style="${r.dup ? 'opacity:.45;' : ''}">
       <td style="text-align:center;"><input type="checkbox" data-impinc="${i}"${r.include ? ' checked' : ''} style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer;"></td>
-      <td class="muted" style="white-space:nowrap;text-align:center;">${r.date}</td>
+      <td class="muted" style="white-space:nowrap;text-align:center;">${fmtDay(r.date)}</td>
       <td>${r.desc}${
         r.dup  ? ' <span style="font-size:10px;color:var(--gold);">already imported</span>'
       : r.near ? ` <span style="font-size:10px;color:var(--gold);" title="You already have an expense for this date and amount">possibly already logged as “${r.near}”</span>`

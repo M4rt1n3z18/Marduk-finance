@@ -106,7 +106,7 @@ function renderReceivedDividends() {
   document.getElementById('divr-total').textContent = eur(total);
   document.getElementById('divr-year').textContent = eur(yearTotal);
   document.getElementById('divr-last').textContent = eur(last.amountEur);
-  document.getElementById('divr-last-sub').textContent = `${last.ticker} · ${last.date}`;
+  document.getElementById('divr-last-sub').textContent = `${last.ticker} · ${fmtDay(last.date)}`;
 
   // Cumulative passive-income chart (by month)
   const byMonth = {};
@@ -148,7 +148,7 @@ function renderReceivedDividends() {
     <thead><tr><th>Date</th><th>Holding</th><th>Per Share</th><th>Shares Held</th><th>Received</th></tr></thead>
     <tbody>
       ${log.slice(0, 12).map(d => `<tr>
-        <td class="muted">${d.date}</td>
+        <td class="muted">${fmtDay(d.date)}</td>
         <td style="font-weight:600;color:var(--gold);">${d.ticker}</td>
         <td class="muted">${d.currency !== 'EUR' ? (CURRENCY_SYMBOLS[d.currency] || d.currency + ' ') : '€'}${d.perShare.toFixed(4)}</td>
         <td class="muted">${fmtShares(d.shares)}</td>

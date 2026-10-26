@@ -93,7 +93,8 @@ async function buildPortDynamicsChart(preData) {
 
   // Update label
   const bmLbl = document.getElementById('port-dynamics-bm-label');
-  if (bmLbl) bmLbl.textContent = selectedBenchmarkTicker ? `vs ${selectedBenchmarkName} (dashed)` : '';
+  if (bmLbl) bmLbl.innerHTML = selectedBenchmarkTicker
+    ? `<span class="mret-key"><i class="mret-bars"></i>Portfolio</span><span class="mret-key"><i class="mret-line"></i>${esc(selectedBenchmarkName)}</span>` : '';
 
   const datasets = [{
     label: 'Portfolio',
@@ -127,10 +128,7 @@ async function buildPortDynamicsChart(preData) {
       responsive: true, maintainAspectRatio: false,
       animation: { duration: 250 },
       plugins: {
-        legend: {
-          display: !!bmTimeline,
-          labels: { color: textColor(), font: { size: 10, family: 'Karla' }, boxWidth: 14, padding: 10 }
-        },
+        legend: { display: false },
         tooltip: {
           mode: 'index', intersect: false,
           callbacks: { label: c => c.raw != null ? ` ${c.dataset.label}: ${c.raw > 0 ? '+' : ''}${c.raw.toFixed(2)}%` : '' }
@@ -330,7 +328,7 @@ function buildSectorChart() {
       <div class="sector-dot" style="background:${sectorColor(sec)};"></div>
       <span class="sector-legend-name">${sec}</span>
       <span class="sector-legend-val">${eur(val)}</span>
-      <span class="sector-legend-pct">&nbsp;(${pct}%)</span>
+      <span class="sector-legend-pct">${pct}%</span>
     </div>`;
   }).join('');
 }

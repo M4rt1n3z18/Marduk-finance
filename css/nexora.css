@@ -1153,3 +1153,177 @@ body[data-theme="light"] .top-pos-ticker { color: var(--gold); }
 /* A small seasonal mark beside every tab's title (the Overview has it beside the logo) */
 body[data-kit] .sec-title::after { content: ''; display: inline-block; width: 24px; height: 24px; margin-left: 10px; vertical-align: -4px;
   background: var(--nx-sea-mark) no-repeat center / contain; pointer-events: none; }
+
+/* ══ 2.0.1 presentation pass ══ */
+/* Sector legend: value and share in aligned columns */
+.sector-legend-row { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto 56px; gap: 10px; }
+.sector-legend-val { font-variant-numeric: tabular-nums; }
+.sector-legend-pct { justify-self: end; min-width: 50px; text-align: right; font-size: 12px; font-weight: 600; color: var(--text2); background: var(--bg3); border-radius: 6px; padding: 2px 7px; }
+/* Monthly Returns: a small key instead of Chart.js's legend */
+#port-dynamics-bm-label { display: inline-flex; gap: 14px; }
+.mret-key { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text3); }
+.mret-bars { width: 10px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, var(--up) 50%, var(--down) 50%); }
+.mret-line { width: 14px; height: 0; border-top: 2px dashed var(--gold); }
+/* Recent expenses on the Overview */
+.ov-recent-dot { display: inline-block; width: 8px; height: 8px; border-radius: 3px; margin-right: 9px; vertical-align: 1px; }
+.nx-empty-line { font-size: 13px; color: var(--text3); padding: 14px 0; }
+
+/* Goals */
+#nx-goals { margin-top: 4px; }
+.nx-goals-head { display: flex; align-items: flex-end; justify-content: space-between; margin: 0 0 12px; }
+.nx-goals-title { font-size: 16px; font-weight: 650; color: var(--text); letter-spacing: -0.01em; }
+.nx-goals-sum { font-size: 13px; color: var(--text3); margin-top: 3px; }
+.nx-goals-sum b { color: var(--text2); font-weight: 600; }
+.nx-goal-grid { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.nx-goal-card { display: flex; flex-direction: column; padding: 18px 20px; border-radius: var(--radius); background: var(--bg2); border: 1px solid var(--border); box-shadow: var(--shadow); min-width: 0; }
+.nx-goal-card.done { border-color: rgba(var(--mint-rgb), .4); background: linear-gradient(160deg, rgba(var(--mint-rgb), .07), transparent 60%), var(--bg2); }
+.nx-goal-top { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.nx-goal-top .nx-ic { margin: 0; flex-shrink: 0; }
+.nx-goal-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.nx-goal-title b { font-size: 15px; font-weight: 650; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-goal-title small { font-size: 12.5px; color: var(--text3); }
+.nx-goal-tools { display: flex; gap: 2px; margin: -4px -6px 0 0; opacity: .55; transition: opacity .15s; }
+.nx-goal-card:hover .nx-goal-tools, .nx-goal-tools:focus-within { opacity: 1; }
+.nx-row-edit:hover { color: var(--gold) !important; background: rgba(var(--accent-rgb), .12) !important; }
+.nx-goal-amt { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.nx-goal-saved { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; color: var(--text); font-variant-numeric: tabular-nums; }
+.nx-goal-of { font-size: 13.5px; color: var(--text3); font-variant-numeric: tabular-nums; }
+.nx-goal-pct { margin-left: auto; font-size: 13px; font-weight: 650; color: var(--text2); font-variant-numeric: tabular-nums; }
+.nx-goal-card.done .nx-goal-pct { color: var(--up); }
+.nx-goal-track { height: 8px; }
+.nx-goal-foot { font-size: 13px; color: var(--text3); margin-top: 12px; line-height: 1.5; }
+.nx-goal-foot b { color: var(--text); font-weight: 650; }
+.nx-goal-ok { display: inline-flex; align-items: center; gap: 6px; color: var(--up); font-weight: 600; }
+.nx-goal-actions { margin-top: auto; padding-top: 16px; }
+.nx-goal-addbtn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; }
+.nx-goal-addf { display: flex; gap: 8px; }
+.nx-goal-addf input { flex: 1; min-width: 0; padding: 8px 11px; border-radius: 9px; border: 1px solid var(--gold); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .15); background: var(--bg2); color: var(--text); font-size: 14px; font-family: inherit; outline: none; }
+.nx-goal-addf .btn, .nx-goal-addf .btn-ghost { padding: 7px 13px; font-size: 12.5px; }
+.nx-goal-new { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 200px; padding: 20px; border-radius: var(--radius);
+  border: 1.5px dashed var(--border-strong); background: transparent; color: var(--text2); cursor: pointer; font-family: inherit; text-align: center; transition: border-color .15s, color .15s, background .15s; }
+.nx-goal-new svg { width: 34px; height: 34px; padding: 8px; border-radius: 10px; background: var(--bg3); color: var(--gold); }
+.nx-goal-new b { font-size: 14px; font-weight: 650; color: var(--text); margin-top: 4px; }
+.nx-goal-new small { font-size: 12.5px; color: var(--text3); max-width: 240px; }
+.nx-goal-new:hover { border-color: var(--gold); background: rgba(var(--accent-rgb), .04); }
+.nx-goal-form { gap: 12px; border-color: rgba(var(--accent-rgb), .45); }
+.nx-goal-form-title { font-size: 15px; font-weight: 650; color: var(--text); }
+.nx-goal-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.nx-goal-form .nx-auth-err:empty { display: none; }
+.nx-goal-form .nx-nw-form-btns { align-items: center; margin-top: 2px; }
+.nx-goal-link { margin-right: auto; border: none; background: none; padding: 0; color: var(--text3); font-size: 12.5px; font-weight: 500; cursor: pointer; font-family: inherit; }
+.nx-goal-link:hover { color: var(--down); }
+@media (max-width: 1200px) { .nx-goal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .nx-goal-grid { grid-template-columns: 1fr; } }
+
+/* Portfolio → Transactions */
+.nx-tx-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.nx-tx-sum { font-size: 13px; color: var(--text3); margin-top: 4px; }
+.nx-tx-sum b { color: var(--text2); font-weight: 600; }
+.nx-tx-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.nx-tx-search { display: flex; align-items: center; gap: 7px; padding: 0 11px; height: 34px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg2); color: var(--text3); }
+.nx-tx-search:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .15); }
+.nx-tx-search input { border: none; background: none; outline: none; color: var(--text); font-size: 13px; font-family: inherit; width: 180px; padding: 0; }
+.nx-tx-row { display: grid; grid-template-columns: 62px minmax(0, 1.3fr) 104px minmax(0, 1fr) 118px 28px; align-items: center; gap: 12px; padding: 9px 4px; border-top: 1px solid var(--border); font-size: 13.5px; }
+.nx-tx-cols { border-top: none; padding-top: 0; font-size: 12px; font-weight: 600; color: var(--text3); }
+.nx-tx-cols span:nth-child(5) { text-align: right; }
+.nx-tx-month { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 16px 4px 8px; border-top: 1px solid var(--border); }
+.nx-tx-month > span { font-size: 13px; font-weight: 650; color: var(--text); }
+.nx-tx-month small { font-size: 12px; color: var(--text3); font-variant-numeric: tabular-nums; }
+.nx-tx-month + .nx-tx-row { border-top-color: transparent; }
+.nx-tx-type { display: inline-block; font-size: 11.5px; font-weight: 650; padding: 3px 9px; border-radius: 999px; }
+.nx-tx-type.buy { color: var(--up); background: rgba(var(--mint-rgb), .13); }
+.nx-tx-type.sell { color: var(--down); background: rgba(242,112,109,.13); }
+.nx-tx-tk { display: flex; flex-direction: column; min-width: 0; }
+.nx-tx-tk small { font-size: 12px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-tx-open { align-self: flex-start; border: none; background: none; padding: 0; font: inherit; font-weight: 650; color: var(--gold-light); cursor: pointer; }
+body[data-theme="light"] .nx-tx-open { color: var(--gold); }
+.nx-tx-open:hover { text-decoration: underline; text-underline-offset: 3px; }
+.nx-tx-date { color: var(--text2); font-variant-numeric: tabular-nums; }
+.nx-tx-qty { color: var(--text2); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-tx-amt { text-align: right; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
+.nx-tx-row .nx-row-del { opacity: 0; }
+.nx-tx-row:hover .nx-row-del, .nx-tx-row .nx-row-del:focus-visible { opacity: 1; }
+.nx-tx-more { display: block; width: 100%; margin-top: 10px; padding: 10px; border-radius: 10px; border: 1px dashed var(--border-strong); background: none; color: var(--text2); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.nx-tx-more:hover { border-color: var(--gold); color: var(--text); }
+.nx-tx-more-of { color: var(--text3); font-weight: 500; }
+@media (max-width: 900px) { .nx-tx-row { grid-template-columns: 56px minmax(0, 1fr) 88px 100px 28px; } .nx-tx-row > :nth-child(4) { display: none; } }
+
+/* Portfolio → Dividends */
+.nx-div-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.nx-delta-flat { color: var(--text2); background: var(--bg3); }
+.nx-div-figs { display: grid; grid-template-columns: repeat(3, minmax(150px, auto)); gap: 12px; }
+.nx-div-fig { display: flex; align-items: center; gap: 11px; padding: 14px 16px; border-radius: 14px; background: var(--bg3); }
+.nx-div-fig .nx-ic { margin: 0; }
+.nx-div-fig small { display: block; font-size: 12px; color: var(--text3); }
+.nx-div-fig b { display: block; font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.nx-div-note { font-size: 12.5px; color: var(--text3); margin-top: 3px; }
+.nx-sal-keys i.nx-key-exp { background: rgba(var(--mint-rgb), .12); box-shadow: inset 0 0 0 1.5px rgba(var(--mint-rgb), .75); }
+.nx-div-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 16px; align-items: start; }
+.nx-div-grid > .card { margin: 0; }
+.nx-div-row { display: grid; grid-template-columns: minmax(0, 1.1fr) 64px minmax(0, 1.3fr) 92px 108px; align-items: center; gap: 12px; padding: 10px 2px; border-top: 1px solid var(--border); font-size: 13.5px; }
+.no-next .nx-div-row { grid-template-columns: minmax(0, 1.1fr) 64px minmax(0, 1.3fr) 92px; }
+.nx-div-cols { border-top: none; padding-top: 0; font-size: 12px; font-weight: 600; color: var(--text3); }
+.nx-div-cols span:nth-child(2), .nx-div-cols span:nth-child(4) { text-align: right; }
+.nx-div-tk { display: flex; flex-direction: column; min-width: 0; }
+.nx-div-tk small { font-size: 12px; color: var(--text3); }
+.nx-div-num { text-align: right; color: var(--text2); font-variant-numeric: tabular-nums; }
+.nx-div-rec { color: var(--up); font-weight: 600; }
+.nx-div-year { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.nx-div-year b { min-width: 74px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
+.nx-div-year i { flex: 1; height: 6px; border-radius: 999px; background: var(--bg4); overflow: hidden; }
+.nx-div-year em { display: block; height: 100%; border-radius: inherit; background: var(--up); -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,.55), #000); }
+.nx-div-next { display: flex; flex-direction: column; color: var(--text2); font-variant-numeric: tabular-nums; }
+.nx-div-next small { font-size: 11.5px; color: var(--text3); }
+.nx-div-count { font-size: 12px; font-weight: 600; color: var(--text3); background: var(--bg3); border-radius: 999px; padding: 2px 9px; }
+.nx-div-pay { display: flex; align-items: center; gap: 12px; padding: 10px 2px; border-top: 1px solid var(--border); font-size: 13.5px; }
+.nx-div-pay-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.nx-div-pay-main b { font-weight: 650; color: var(--text); }
+.nx-div-pay-main small { font-size: 12px; color: var(--text3); font-variant-numeric: tabular-nums; }
+.nx-div-pay-date { font-size: 12.5px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.nx-div-pay-amt { min-width: 76px; text-align: right; font-weight: 650; color: var(--up); font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .nx-div-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .nx-div-figs { grid-template-columns: 1fr; width: 100%; } }
+
+/* Portfolio → Cash */
+.nx-cash-sub { font-size: 12.5px; color: var(--text3); margin-top: 4px; }
+.nx-cash-form { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 12px; padding: 14px; margin-bottom: 14px; border-radius: 14px; border: 1px solid rgba(var(--accent-rgb), .4); background: rgba(var(--accent-rgb), .04); }
+.nx-cash-form .nx-nw-form-btns { grid-column: 1 / -1; }
+.nx-cash-hint { grid-column: 1 / -1; font-size: 12px; color: var(--text3); margin-top: -4px; }
+.nx-cash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.nx-cash-tile { padding: 14px 16px; border-radius: 14px; background: var(--bg3); display: flex; flex-direction: column; gap: 8px; }
+.nx-cash-top { display: flex; align-items: center; gap: 10px; }
+.nx-cash-name { flex: 1; display: flex; flex-direction: column; }
+.nx-cash-name b { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.nx-cash-name small { font-size: 11.5px; color: var(--text3); }
+.nx-cash-tile .nx-row-del { opacity: 0; }
+.nx-cash-tile:hover .nx-row-del { opacity: 1; }
+.nx-cash-amt { align-self: flex-start; margin-left: -8px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.nx-cash-edit { width: 160px; font-size: 18px; text-align: left; }
+.nx-cash-eur { font-size: 12.5px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.nx-cash-eur span, .nx-cash-rate { color: var(--text3); }
+
+/* Allocation strip (Portfolio → Overview) */
+.nx-alloc-strip { display: flex; align-items: center; gap: 16px; padding: 14px 18px; margin: -8px 0 16px; }
+.nx-alloc-strip .nx-ic { margin: 0; flex-shrink: 0; }
+.nx-as-main { flex: 1; min-width: 0; }
+.nx-as-k { font-size: 12px; font-weight: 600; color: var(--text3); }
+.nx-as-line { font-size: 13.5px; color: var(--text3); margin: 2px 0 8px; }
+.nx-as-line b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+.nx-as-line b.nx-as-left { color: var(--up); }
+.nx-as-track { height: 6px; max-width: 520px; }
+.nx-as-extra { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding: 0 16px; border-left: 1px solid var(--border); }
+.nx-as-extra small { font-size: 12px; color: var(--text3); }
+.nx-as-extra b { font-size: 15px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Expenses → Allocations: history */
+.nx-al-title { font-size: 13px; font-weight: 650; color: var(--text); margin: 6px 0 4px; }
+.nx-al-row { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 1.6fr) 104px 28px; align-items: center; gap: 16px; padding: 12px 2px; border-top: 1px solid var(--border); }
+.nx-al-when { display: flex; flex-direction: column; min-width: 0; }
+.nx-al-when b { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.nx-al-when small { font-size: 12px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-al-nums { font-size: 12.5px; color: var(--text3); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+.nx-al-nums b { color: var(--text); font-weight: 650; }
+.nx-al-prog .nx-limit-track { height: 6px; }
+.nx-al-left { justify-self: end; font-size: 12.5px; color: var(--text3); white-space: nowrap; }
+.nx-al-left.open b { color: var(--up); font-weight: 650; }
+.nx-al-left.used { padding: 3px 9px; border-radius: 999px; background: var(--bg3); font-weight: 600; font-size: 11.5px; }

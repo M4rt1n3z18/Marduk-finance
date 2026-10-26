@@ -156,7 +156,7 @@ function buildSavRateChart() {
     data: { labels, datasets:[{ data, borderColor:'#c9a84c', backgroundColor:'rgba(201,168,76,0.1)', borderWidth:2, pointBackgroundColor:'#c9a84c', pointRadius:4, fill:true, tension:.4, spanGaps:true }] },
     options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw!=null?' '+c.raw.toFixed(1)+'%':' no data'}}},
       layout:{padding:{top:10}},
-      scales:{x:{grid:{display:false},ticks:{color:textColor()}},y:{grid:{color:gridColor()},ticks:{color:textColor(),callback:v=>v+'%'},min:0,max:100}} }
+      scales:{x:{grid:{display:false},ticks:{color:textColor()}},y:{grid:{color:gridColor()},ticks:{color:textColor(),callback:v=>v+'%'},min:0,suggestedMax:Math.min(100, Math.ceil((Math.max(0, ...data.filter(v => v != null)) + 5) / 10) * 10)}} }
   });
 }
 
@@ -349,11 +349,12 @@ function renderOverview() {
     </div>`;
   }).join('') || '<p class="empty">No holdings yet.</p>';
 
-  // Recent transactions (last 5 expenses)
+  // Recent expenses (last 5)
   const recent = [...state.expenses].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
-  document.getElementById('ov-recent-body').innerHTML = recent.map(e=>
-    `<tr><td><span class="badge buy">Expense</span></td><td>${esc(e.desc)}</td><td class="muted">${e.date}</td><td class="down-text" style="font-weight:600;">${eur(e.amount)}</td></tr>`
-  ).join('') || '<tr><td colspan="4" class="empty">No transactions yet.</td></tr>';
+  document.getElementById('ov-recent-body').innerHTML = recent.map(e => {
+    const ci = CATS.indexOf(e.cat);
+    return `<tr><td><span class="ov-recent-dot" style="background:${ci >= 0 ? CAT_COLORS[ci] : 'var(--text3)'};"></span>${esc(e.desc)}</td><td class="muted">${esc(e.cat)}</td><td class="muted">${fmtDay(e.date, false)}</td><td style="font-weight:600;text-align:right;">${eur(e.amount)}</td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="empty">No expenses yet.</td></tr>';
 
   renderAiSummaryCard();
 
@@ -420,7 +421,7 @@ function lotsTableFor(h) {
     const lGain = lot.type === 'Buy' ? lVal - lCost : null;
     const lGPct = lGain !== null && lCost ? lGain/lCost*100 : null;
     return `<tr>
-      <td>${lot.date}</td>
+      <td>${fmtDay(lot.date)}</td>
       <td><span class="badge ${lot.type==='Buy'?'buy':'sell'}" style="font-size:10px;padding:2px 7px;">${lot.type}</span></td>
       <td>${fmtShares(lot.shares)}</td>
       <td>${lot.priceOriginal != null ? `${CURRENCY_SYMBOLS[lot.priceCurrency]||lot.priceCurrency}${lot.priceOriginal} <span style="font-size:10px;color:var(--text3);">(${eur(lot.price)})</span>` : eur(lot.price)}</td>

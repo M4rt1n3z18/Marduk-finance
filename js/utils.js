@@ -148,6 +148,14 @@ function localIso(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// A stored YYYY-MM-DD as the rest of the interface writes dates: "26 Oct 2026",
+// or "26 Oct" with year:false. Kept to exactly that shape so the language layer
+// translates it ("26 out. 2026", "2026年10月26日"); anything else comes back as is.
+function fmtDay(iso, year = true) {
+  if (!/^\d{4}-\d{2}-\d{2}/.test(iso || '')) return iso || '';
+  return new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('en-GB', year ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'short' });
+}
+
 let _toastTimer;
 function showToast(msg, duration = 4000) {
   const el = document.getElementById('nexora-toast');

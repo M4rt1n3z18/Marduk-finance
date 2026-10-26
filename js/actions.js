@@ -342,7 +342,7 @@ function renderTransactions() {
       <td style="font-weight:700;color:var(--gold);">${esc(t.ticker)}</td>
       <td class="muted">${fmtShares(t.shares)}</td>
       <td>${eur(t.price)}</td>
-      <td class="muted">${t.date}</td>
+      <td class="muted">${fmtDay(t.date)}</td>
       <td class="muted">${esc(t.notes||'—')}</td>
       <td><button class="del-btn" onclick="delTransaction('${t.id}')">✕</button></td>
     </tr>`;
@@ -849,7 +849,7 @@ async function openBackupsModal() {
   backups.forEach(b => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid var(--border);';
-    row.innerHTML = `<span style="flex:1;font-size:13px;font-weight:600;">${b.date}${b.legacy ? ' <span class="muted" style="font-weight:400;">· from Marduk</span>' : ''}</span>
+    row.innerHTML = `<span style="flex:1;font-size:13px;font-weight:600;">${fmtDay(b.date)}${b.legacy ? ' <span class="muted" style="font-weight:400;">· from Marduk</span>' : ''}</span>
       <span class="muted" style="font-size:12px;">${b.sizeKb} KB</span>`;
     const btn = document.createElement('button');
     btn.className = 'btn-ghost';

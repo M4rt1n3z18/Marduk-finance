@@ -751,7 +751,7 @@
     { id: 'alloc', title: 'Allocation by class', find: () => cardOf('chart-alloc'), size: 4 },
     { id: 'toppos', title: 'Top positions', find: () => cardOf('top-positions'), size: 6 },
     { id: 'catspend', title: 'Top categories', find: () => cardOf('chart-catspend'), size: 6 },
-    { id: 'recent', title: 'Recent transactions', find: () => cardOf('ov-recent-body'), size: 12, sizes: [6, 8, 12] },
+    { id: 'recent', title: 'Recent expenses', find: () => cardOf('ov-recent-body'), size: 12, sizes: [6, 8, 12] },
     { id: 'nw', title: 'Net worth history', find: () => cardOf('chart-nw-history'), size: 8 },
     { id: 'savrate', title: 'Savings rate history', find: () => cardOf('chart-savrate'), size: 4 },
     { id: 'income', title: 'Income history', find: () => cardOf('chart-income-history'), size: 12 },
@@ -2611,6 +2611,9 @@
         scales: { x: { ticks: { color: cssv('--text3'), maxTicksLimit: 6, maxRotation: 0 } }, y: { position: 'right', ticks: { color: cssv('--text3'), maxTicksLimit: 5 }, grid: {} } } },
     });
   }
+
+  // Shared with js/nexora/views.js (the redesigned Goals, Transactions, Dividends, Cash and allocation views)
+  window.NX_UI = { MI, I, icon, tile, escH, flagIc, CCY, cssv, decorate };
 
   window.addEventListener('load', () => {
     installLoanLogic();

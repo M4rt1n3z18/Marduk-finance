@@ -812,7 +812,7 @@ function renderExpenses() {
   document.getElementById('e-period-sub').textContent = monthLabel;
   document.getElementById('e-stat-salary').textContent = eur(salaryAmt);
   document.getElementById('e-stat-salary-sub').textContent = salaryEntry
-    ? `received ${salaryEntry.receivedDate || salaryEntry.date}`
+    ? `received ${fmtDay(salaryEntry.receivedDate || salaryEntry.date, false)}`
     : 'not logged yet';
   document.getElementById('e-stat-extra').textContent = eur(extraAmt);
   document.getElementById('e-stat-extra-sub').textContent = extraEntries.length + ' entr' + (extraEntries.length === 1 ? 'y' : 'ies');
@@ -889,7 +889,7 @@ function renderExpenses() {
     return `<tr>
       <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};margin-right:8px;"></span>${esc(e.desc)}${e.recurring ? ` <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;" title="Recurring"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5"/></svg>` : ''}</td>
       <td class="muted">${esc(e.cat)}</td>
-      <td class="muted">${e.date}</td>
+      <td class="muted">${fmtDay(e.date, false)}</td>
       <td style="font-weight:600;">${eur(e.amount)}</td>
       <td><button class="del-btn" onclick="delExpense('${e.id}')">✕</button></td>
     </tr>`;
@@ -1213,7 +1213,7 @@ function renderBudget() {
   // Extra income list
   document.getElementById('e-extra-list').innerHTML = extraEntries.length ? extraEntries.sort((a,b) => new Date(b.date)-new Date(a.date)).map(x =>
     `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--border);">
-      <span style="font-size:12px;color:var(--text2);">${x.date}</span>
+      <span style="font-size:12px;color:var(--text2);">${fmtDay(x.date, false)}</span>
       <span style="flex:1;font-size:13px;">${esc(x.desc)}</span>
       <span class="up-text" style="font-weight:600;">${eur(x.amount)}</span>
       <button class="del-btn" onclick="delExtra('${x.id}')">✕</button>

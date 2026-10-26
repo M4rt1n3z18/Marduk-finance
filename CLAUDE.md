@@ -20,6 +20,7 @@ Personal finance dashboard built with Electron. Each profile's data is encrypted
 | `index.html` | Single-page app — all HTML, the original CSS, Chart.js 4.4.1, PDF.js 3.11.174 (CDN); loads `css/nexora.css` and `js/nexora/*` |
 | `css/nexora.css` | The 2.0 look, layered over the original stylesheet (loaded after it, so it wins) |
 | `js/nexora/shell.js` | The 2.0 interface layer: profiles + encryption + start screens, My profile, setup, dashboard customiser, Salary/Budget/Net Worth/FIRE/Risk redesigns, holding side panel, loans with interest, language engine, seasons hooks, Year Wrap data — on top of the app's own render code, which it wraps rather than replaces |
+| `js/nexora/views.js` | Redesigned Goals, Portfolio → Transactions / Dividends / Cash, the allocation strip on the Portfolio overview and the Expenses → Allocations history — drawn after the app's own renderers, which still run (see The shell) |
 | `js/nexora/i18n.js` | Portuguese (PT-PT, "tu") and Chinese text, matched against the app's English as it renders |
 | `js/nexora/holidays.js` | Countries, national public holidays (Easter-based, lunar table to 2032, UK/US substitute days), the seasonal calendar |
 | `js/nexora/seasons.js` | Seasonal decorations and particle effects, the Year Wrap story |
@@ -39,7 +40,7 @@ Personal finance dashboard built with Electron. Each profile's data is encrypted
 
 ```
 index.html
-  └── loads js/nexora/{i18n,holidays,seasons,shell}.js, then js/state.js, utils, charts, render, actions, salary, app, …
+  └── loads js/nexora/{i18n,holidays,seasons,shell,views}.js, then js/state.js, utils, charts, render, actions, salary, app, …
 
 Renderer ──window.electronAPI──► preload.js ──ipcRenderer──► main.js
   shell.js encrypts/decrypts                                   ├── Google Drive/Nexora/profiles.json   (names, avatars, settings — no finances)
@@ -119,6 +120,8 @@ It started as the 2.0 design preview (a browser page that ran the real `index.ht
 - **Chart.js** is wrapped (`window.Chart`): colours mapped to the theme, gradients, rounded bars, donut centre labels, translated labels.
 - **Payday rule**: "business day no. N from the end" (`bizDay`; 1 = last). The app's `secondToLastBusinessDay` is replaced at load by `nthLastBusinessDay(year, month, N, country)`, which skips the profile country's public holidays (`holidays.js`).
 - **Loans** (`installLoanLogic`): payments split into interest and principal; payoff date from the annuity formula.
+- **`views.js`** uses the same pattern, with helpers the shell shares as `window.NX_UI` (`icon`, `tile`, `flagIc`, `escH`, …). Each view hides the old markup once and draws its own root (`#nx-goals`, `#nx-tx`, `#nx-div`, `#nx-cash`, `#nx-alloc-strip`) after the app's renderer runs (`renderGoals`, `renderTransactions`, `renderReceivedDividends`, `renderCashTable`, `renderAllocationStats`, `renderAllocations`). Writes go through the app's own functions where they exist (`delTransaction`, `saveCashEntry`, `removeCashEntry`, `delAllocation`). Dividends "expected" = each payment of the last 12 months repeated a year later on today's shares; Yahoo's `nextPayDate` wins when it has one.
+- **Dates on screen** go through `fmtDay(iso, year = true)` (`utils.js`): "26 Oct 2026" / "26 Oct", the shape `i18n.js` translates. Never print a stored `YYYY-MM-DD` as is.
 
 ## Languages (`js/nexora/i18n.js`)
 

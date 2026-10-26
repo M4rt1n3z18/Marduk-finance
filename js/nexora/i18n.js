@@ -256,6 +256,30 @@
     ['Total', 'Total', '合计'], ['Per year', 'Por ano', '每年'], ['Status', 'Estado', '状态'], ['vs S&P 500 (dashed)', 'vs S&P 500 (tracejado)', '对比 S&P 500（虚线）'],
     ['12 months of daily prices', '12 meses de preços diários', '12 个月的每日价格'], ['3 years of weekly prices', '3 anos de preços semanais', '3 年的每周价格'],
     ['Salary', 'Salário', '薪资'], ['Salaried', 'Assalariado', '工薪'], ['Salary + freelance', 'Salário + freelance', '工资 + 自由职业'], ['Personal', 'Pessoal', '个人'],
+    // ── 2.0.1 presentation pass: Goals, Transactions, Dividends, Cash, allocations
+    ['No deadline', 'Sem prazo', '无截止日期'], ['Due today', 'Termina hoje', '今天到期'], ['Edit goal', 'Editar objetivo', '编辑目标'], ['New goal', 'Novo objetivo', '新目标'],
+    ['e.g. Emergency fund', 'ex.: fundo de emergência', '例如：应急基金'], ['Deadline', 'Prazo', '截止日期'], ['optional', 'opcional', '可选'], ['Remove the deadline', 'Remover o prazo', '移除截止日期'],
+    ['Save', 'Guardar', '保存'], ['Add goal', 'Adicionar objetivo', '添加目标'], ['Goal reached', 'Objetivo alcançado', '目标已达成'], ['to go', 'em falta', '待存'],
+    ['save', 'poupa', '每月存'], ['a month to make it', 'por mês para lá chegares', '即可按时达成'], ['Add money', 'Adicionar dinheiro', '存入'], ['1 goal', '1 objetivo', '1 个目标'],
+    ['Saving for something else?', 'Estás a poupar para outra coisa?', '还在为别的目标存钱？'],
+    ['A trip, a car, a safety net — track what you’re saving for.', 'Uma viagem, um carro, uma reserva — acompanha aquilo para que estás a poupar.', '旅行、买车、应急储备——记录你的储蓄目标。'],
+    ['Give the goal a name.', 'Dá um nome ao objetivo.', '请为目标命名。'], ['Set a target above zero.', 'Define uma meta acima de zero.', '请设置大于零的目标金额。'],
+    ['1 trade', '1 transação', '1 笔交易'], ['Bought', 'Comprado', '买入'], ['Sold', 'Vendido', '卖出'], ['Buys', 'Compras', '买入'], ['Sells', 'Vendas', '卖出'],
+    ['Search ticker or note', 'Procurar ticker ou nota', '搜索代码或备注'], ['Shares × price', 'Quantidade × preço', '数量 × 价格'], ['Delete this trade', 'Eliminar esta transação', '删除此交易'],
+    ['No trades yet — they’re recorded when you add or import a holding.', 'Ainda sem transações — ficam registadas quando adicionas ou importas uma posição.', '还没有交易——添加或导入持仓时会自动记录。'],
+    ['No trades match.', 'Nenhuma transação corresponde.', '没有匹配的交易。'],
+    ['vs this time last year', 'face ao mesmo período do ano passado', '较去年同期'], ['All time', 'Desde sempre', '累计'], ['Expected a year', 'Previsto por ano', '预计每年'],
+    ['A month, on average', 'Por mês, em média', '月均'], ['Portfolio yield', 'Taxa da carteira', '投资组合收益率'], ['Month by month', 'Mês a mês', '逐月'],
+    ['The last 12 months as received; the next 12 repeat them on the shares you hold today.', 'Os últimos 12 meses tal como recebidos; os próximos 12 repetem-nos com as ações que tens hoje.', '过去 12 个月为实际到账；未来 12 个月按你目前的持股数重复这些派息。'],
+    ['Expected', 'Previsto', '预计'], ['By holding', 'Por posição', '按持仓'], ['A year', 'Por ano', '每年'], ['estimated', 'estimado', '估计'], ['Payments', 'Pagamentos', '派息记录'],
+    ['Show fewer', 'Mostrar menos', '收起'],
+    ['Payments appear here as they’re paid — Nexora checks what you held on each payment date.', 'Os pagamentos aparecem aqui à medida que são pagos — a Nexora verifica o que tinhas em cada data de pagamento.', '派息到账后会显示在这里——Nexora 会核对你在每个派息日的持仓。'],
+    ['Uninvested cash', 'Liquidez por investir', '未投资现金'], ['counts toward its value', 'conta para o seu valor', '计入其价值'], ['+ Add cash', '+ Adicionar liquidez', '+ 添加现金'],
+    ['Adding to a currency you already hold tops it up.', 'Se já tens essa moeda, o montante é somado.', '若已持有该货币，金额会累加。'],
+    ['No cash recorded. Money waiting to be invested — in any currency — goes here, and counts toward the portfolio’s value.', 'Sem liquidez registada. O dinheiro à espera de ser investido — em qualquer moeda — fica aqui e conta para o valor da carteira.', '尚无现金记录。等待投资的资金（任何货币）记在这里，并计入投资组合价值。'],
+    ['Set aside to invest', 'Reservado para investir', '预留投资'], ['invested', 'investido', '已投资'], ['Invested beyond what you set aside', 'Investido além do reservado', '超出预留的投资'],
+    ['Manage', 'Gerir', '管理'], ['History', 'Histórico', '历史'], ['Deleted portfolio', 'Carteira eliminada', '已删除的投资组合'], ['Fully used', 'Totalmente usado', '已全部使用'],
+    ['Recent expenses', 'Despesas recentes', '最近支出'], ['Recent Expenses', 'Despesas recentes', '最近支出'], ['No expenses yet.', 'Ainda sem despesas.', '还没有支出。'],
   ];
   const dict = { en: {}, pt: {}, zh: {} };
   for (const [en, pt, zh] of T) { if (pt) dict.pt[en] = pt; if (zh) dict.zh[en] = zh; }
@@ -288,7 +312,7 @@
   const M = '(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)', MM = `(${MONTHS.join('|')})`, WD = `(${DAYS.join('|')})`;
   const both = (pt, zh) => ({ pt, zh });
   const P = [
-    [new RegExp(`^${MM} (\\d{4})$`), L => m => F[L].monthYear(monthI(m[1]), m[2])],
+    [new RegExp(`^${MM} (\\d{4})$`), L => m => F[L].monthYear(monthI(m[1]), m[2]).replace(/^./, c => c.toUpperCase())],   // a heading on its own
     [new RegExp(`^(\\d{1,2}) ${M} (\\d{4})$`), L => m => F[L].dmonY(m[1], monI(m[2]), m[3])],
     [new RegExp(`^(\\d{1,2}) ${MM} (\\d{4})$`), L => m => F[L].dmy(m[1], monthI(m[2]), m[3])],
     [new RegExp(`^(\\d{1,2}) ${M}$`), L => m => F[L].dmon(m[1], monI(m[2]))],
@@ -374,6 +398,28 @@
     [/^Your (\d{4}) in Nexora$/, L => m => ({ pt: `O teu ${m[1]} na Nexora`, zh: `你的 ${m[1]} 年 Nexora 回顾` })[L]],
     [/^Target year: (\d+)$/, L => m => ({ pt: `Ano previsto: ${m[1]}`, zh: `目标年份：${m[1]}` })[L]],
     [/^years \+ (\d+) months?$/, L => m => ({ pt: `anos + ${m[1]} meses`, zh: `年 + ${m[1]} 个月` })[L]],
+    // 2.0.1 presentation pass
+    [new RegExp(`^received (\\d{1,2} ${M})$`), (L, tr) => m => ({ pt: `recebido a ${tr(m[1], L) || m[1]}`, zh: `${tr(m[1], L) || m[1]} 到账` })[L]],
+    [/^(\d+) goals$/, L => m => ({ pt: `${m[1]} objetivos`, zh: `${m[1]} 个目标` })[L]],
+    [/^(\d+) reached$/, L => m => ({ pt: `${m[1]} ${m[1] === '1' ? 'alcançado' : 'alcançados'}`, zh: `已达成 ${m[1]} 个` })[L]],
+    [/^(\d+) days? overdue$/, L => m => ({ pt: `${m[1]} ${m[1] === '1' ? 'dia' : 'dias'} em atraso`, zh: `已逾期 ${m[1]} 天` })[L]],
+    [/^(\d+) (days?|months) left$/, L => m => ({ pt: m[2].startsWith('day') ? (m[1] === '1' ? 'falta 1 dia' : `faltam ${m[1]} dias`) : `faltam ${m[1]} meses`, zh: `还剩 ${m[1]} ${m[2].startsWith('day') ? '天' : '个月'}` })[L]],
+    [new RegExp(`^by (\\d{1,2} ${M} \\d{4})$`), (L, tr) => m => ({ pt: `até ${tr(m[1], L) || m[1]}`, zh: `${tr(m[1], L) || m[1]}前` })[L]],
+    [/^Delete the goal “(.+)”\?$/, L => m => ({ pt: `Eliminar o objetivo “${m[1]}”?`, zh: `删除目标“${m[1]}”？` })[L]],
+    [/^(\d+) trades$/, L => m => ({ pt: `${m[1]} transações`, zh: `${m[1]} 笔交易` })[L]],
+    [/^Show (\d+) more$/, L => m => ({ pt: `Mostrar mais ${m[1]}`, zh: `再显示 ${m[1]} 条` })[L]],
+    [/^(\d+) left$/, L => m => ({ pt: `faltam ${m[1]}`, zh: `还剩 ${m[1]} 条` })[L]],
+    [/^Show all (\d+)$/, L => m => ({ pt: `Mostrar todos (${m[1]})`, zh: `显示全部 ${m[1]} 条` })[L]],
+    [new RegExp(`^Delete this (purchase|sale) of ([\\d.,]+) (\\S+) on (\\d{1,2} ${M} \\d{4})\\? The holding is adjusted to match\\.$`), (L, tr) => m => ({
+      pt: `Eliminar esta ${m[1] === 'sale' ? 'venda' : 'compra'} de ${m[2]} ${m[3]} a ${tr(m[4], L) || m[4]}? A posição é ajustada em conformidade.`,
+      zh: `删除 ${tr(m[4], L) || m[4]} 这笔${m[1] === 'sale' ? '卖出' : '买入'}（${m[2]} 股 ${m[3]}）？持仓会相应调整。` })[L]],
+    [/^Dividends received in (\d{4})$/, L => m => ({ pt: `Dividendos recebidos em ${m[1]}`, zh: `${m[1]} 年已收股息` })[L]],
+    [/^([\d.,]+) sh$/, L => m => ({ pt: `${m[1]} ações`, zh: `${m[1]} 股` })[L]],
+    [/^([\d.,]+) sh × (.+)$/, L => m => ({ pt: `${m[1]} ações × ${m[2]}`, zh: `${m[1]} 股 × ${m[2]}` })[L]],
+    [/^([\d.]+)% of this portfolio$/, L => m => ({ pt: `${m[1]}% desta carteira`, zh: `占该投资组合的 ${m[1]}%` })[L]],
+    [/^(\d+)% of your cash$/, L => m => ({ pt: `${m[1]}% da tua liquidez`, zh: `占你现金的 ${m[1]}%` })[L]],
+    [/^([A-Z]{3}) — (.+)$/, (L, tr) => m => { const x = tr(m[2], L); return x ? `${m[1]} — ${x}` : null; }],
+    [/^Remove the ([A-Z]{3}) cash from this portfolio\?$/, L => m => ({ pt: `Remover a liquidez em ${m[1]} desta carteira?`, zh: `从该投资组合中移除 ${m[1]} 现金？` })[L]],
   ];
   function tr(key, L) {
     if (L === 'en' || !dict[L]) return dict.en[key] ?? null;
