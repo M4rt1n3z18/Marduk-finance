@@ -10,6 +10,17 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '2.0.2',
+    title: 'Close positions like your broker does',
+    items: [
+      'Close a position by ticking the purchases you sold \u2014 all or part of each. The gain you made shows in Transactions.',
+      'Holdings that trade in dollars but whose purchases were saved in euros are flagged \u2014 convert them at each purchase date\u2019s rate in one go.',
+      'Add holding picks the price currency from the ticker.',
+      'A holding without a price is named above the totals.',
+      'Dividends: yearly figures fill in even when Yahoo has none, a deleted holding\u2019s payments no longer count twice, and the cards are evenly spaced.',
+    ],
+  },
+  {
     v: '2.0.1',
     title: 'Page by page, a cleaner look',
     items: [
