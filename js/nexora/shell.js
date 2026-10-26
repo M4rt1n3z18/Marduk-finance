@@ -2492,6 +2492,7 @@
         if (a === 'close') closeHolding();
         if (a === 'window') { const tk = _nxHdTicker; closeHolding(); _nxOrigOpen(tk); }
         if (a === 'more') e.target.closest('.nx-hd-about').classList.toggle('open');
+        if (a === 'closepos') { const tk = _nxHdTicker; closeHolding(); window.nxClosePosition?.(tk); }
         const r = e.target.closest('[data-hdr]');
         if (r) { _nxHdRange = r.dataset.hdr; el.querySelectorAll('[data-hdr]').forEach(b => b.classList.toggle('on', b === r)); nxHdChart(); }
       });
@@ -2550,7 +2551,7 @@
           ${dc != null ? `<span class="nx-delta ${dc >= 0 ? 'up' : 'down'}">${dc >= 0 ? '+' : '−'}${Math.abs(dc).toFixed(2)}% today</span>` : ''}</div>
         ${rp != null ? `<div class="nx-hd-52"><div class="nx-hd-52-track"><i style="left:${(rp * 100).toFixed(1)}%"></i></div>
           <div class="nx-hd-52-lab"><span>${sym}${lo.toFixed(2)}</span><span>52-week range</span><span>${sym}${hi.toFixed(2)}</span></div></div>` : ''}
-        ${shares > 0 ? `<section class="nx-hd-card nx-hd-mine"><h3>Your position</h3><div class="nx-hd-pos">
+        ${shares > 0 ? `<section class="nx-hd-card nx-hd-mine"><h3>Your position<button type="button" class="nx-inc-act nx-hd-closepos" data-act="closepos">Close position</button></h3><div class="nx-hd-pos">
           <div><span>Value</span><b>${eur(val)}</b></div>
           <div><span>Gain</span><b class="${gain >= 0 ? 'up-text' : 'down-text'}">${signed(gain, eur)}</b><small class="${gain >= 0 ? 'up-text' : 'down-text'}">${signed(gainPct, v => v.toFixed(2) + '%')}</small></div>
           <div><span>Of the portfolio</span><b>${portVal ? (val / portVal * 100).toFixed(1) : '0'}%</b></div>

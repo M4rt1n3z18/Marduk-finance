@@ -1,7 +1,6 @@
 // ══════════════ ACTIONS ══════════════
 async function addHolding() {
   const ticker = document.getElementById('h-ticker').value.trim().toUpperCase();
-  const type = document.getElementById('h-type').value;
   const assetClass = document.getElementById('h-class').value;
   const shares = parseFloat(document.getElementById('h-shares').value);
   const buyPriceRaw = parseFloat(document.getElementById('h-buy').value);
@@ -41,33 +40,13 @@ async function addHolding() {
   const port = ap();
   const existing = port.holdings.find(h => h.ticker === ticker);
 
-  if (type === 'Sell') {
-    if (!existing) { nexoraAlert('No existing holding found for ' + ticker + ' to sell.'); return; }
-    const newShares = parseFloat((existing.shares - shares).toFixed(6));
-    if (newShares < 0) { nexoraAlert('Cannot sell more shares than you hold (' + existing.shares + ').'); return; }
-    if (newShares === 0) {
-      port.holdings = port.holdings.filter(h => h.ticker !== ticker);
-    } else {
-      existing.shares = newShares;
-    }
-    port.transactions.push({ id:uid(), type:'Sell', ticker, shares, price:buyPrice, date:buyDate, notes:'via Sell' });
-    // Proceeds go to uninvested cash (always in EUR since buyPrice is stored in EUR)
-    if (!port.cashEntries) port.cashEntries = [];
-    const proceeds = parseFloat((shares * buyPrice).toFixed(2));
-    const eurEntry = port.cashEntries.find(e => e.currency === 'EUR');
-    if (eurEntry) eurEntry.amount = parseFloat((eurEntry.amount + proceeds).toFixed(2));
-    else port.cashEntries.push({ currency: 'EUR', amount: proceeds });
-    port.cash = getCashTotalEur(); // keep legacy field in sync
-  } else {
-    // Buy — cost basis averaging
-    applyBuy(port, { ticker, assetClass, shares, priceEur: buyPrice, priceNative: buyPriceRaw,
-      currency: buyCurrency, fxRate: buyFxRate, date: buyDate,
-      notes: existing
-        ? (buyFxRate ? `avg cost basis updated (${buyCurrency} @ ${buyFxRate})` : 'avg cost basis updated')
-        : (buyFxRate ? `via Add Holding (${buyCurrency} ${buyPriceRaw} @ ${buyFxRate})` : 'via Add Holding') });
-    // New money invested — consume open investment allocations (FIFO)
-    consumeAllocations(port.id, parseFloat((shares * buyPrice).toFixed(2)));
-  }
+  applyBuy(port, { ticker, assetClass, shares, priceEur: buyPrice, priceNative: buyPriceRaw,
+    currency: buyCurrency, fxRate: buyFxRate, date: buyDate,
+    notes: existing
+      ? (buyFxRate ? `avg cost basis updated (${buyCurrency} @ ${buyFxRate})` : 'avg cost basis updated')
+      : (buyFxRate ? `via Add Holding (${buyCurrency} ${buyPriceRaw} @ ${buyFxRate})` : 'via Add Holding') });
+  // New money invested — consume open investment allocations (FIFO)
+  consumeAllocations(port.id, parseFloat((shares * buyPrice).toFixed(2)));
 
   document.getElementById('h-ticker').value = '';
   document.getElementById('h-shares').value = '';
@@ -107,19 +86,82 @@ function applyBuy(port, { ticker, assetClass, shares, priceEur, priceNative, cur
     notes, ...(txExtra || {}) });
 }
 
-function quickSell(ticker, maxShares) {
-  openAddHolding();
-  document.getElementById('h-type').value = 'Sell';
-  const inp = document.getElementById('h-ticker');
-  inp.value = ticker;
-  acAutoDetect(inp);
-  const sharesInp = document.getElementById('h-shares');
-  sharesInp.value = '';
-  sharesInp.placeholder = maxShares; // hint: max they can sell
-  document.getElementById('h-buy').value = '';
-  document.getElementById('add-holding-panel')
-    .scrollIntoView({ behavior: 'smooth', block: 'center' });
-  setTimeout(() => sharesInp.focus(), 300);
+// ── Lots ─────────────────────────────────────────────────────────────────────
+// A holding is its purchases less what was sold. A sale made from the Close
+// dialog names the purchase it closes (`lot`), as a broker closes one position;
+// older sales don't, and take from the oldest purchases first.
+function openLots(port, ticker) {
+  const tx = (port.transactions || []).filter(t => t.ticker === ticker);
+  const byDate = (a, b) => (a.date || '').localeCompare(b.date || '');
+  const lots = tx.filter(t => t.type !== 'Sell').sort(byDate).map(t => ({ id: t.id, date: t.date, shares: t.shares, left: t.shares,
+    priceEur: t.price, priceNative: t.priceOriginal ?? null, currency: t.priceCurrency || null, notes: t.notes || '' }));
+  const sells = tx.filter(t => t.type === 'Sell').sort(byDate);
+  for (const s of sells) { const l = s.lot && lots.find(x => x.id === s.lot); if (l) l.left -= s.shares; }
+  for (const s of sells) {
+    if (s.lot && lots.some(x => x.id === s.lot)) continue;
+    let q = s.shares;
+    for (const l of lots) { if (q <= 1e-9) break; const take = Math.min(Math.max(l.left, 0), q); l.left -= take; q -= take; }
+  }
+  return lots.map(l => ({ ...l, left: +l.left.toFixed(6) })).filter(l => l.left > 1e-6);
+}
+
+// The open lots of a holding, made to add up to it. Shares held from before
+// purchases were recorded become one lot (`id: null`) priced at what's left of
+// the holding's cost; lots that add up to more than the holding are trimmed
+// from the oldest, as untracked sales.
+function positionLots(port, h) {
+  const lots = openLots(port, h.ticker);
+  const inLots = lots.reduce((s, l) => s + l.left, 0), diff = +(h.shares - inLots).toFixed(6);
+  if (diff > 1e-6) {
+    const rest = h.buyPrice * h.shares - lots.reduce((s, l) => s + l.left * l.priceEur, 0);
+    lots.unshift({ id: null, date: h.buyDate || null, shares: diff, left: diff, priceEur: rest > 0 ? rest / diff : h.buyPrice,
+      priceNative: null, currency: null, notes: '', earlier: true });
+  } else if (diff < -1e-6) {
+    let q = -diff;
+    for (const l of lots) { const take = Math.min(l.left, q); l.left = +(l.left - take).toFixed(6); q -= take; if (q <= 1e-9) break; }
+  }
+  return lots.filter(l => l.left > 1e-6);
+}
+
+// Close all or part of chosen lots at one sale price. `picks`: [{ lotId, shares }].
+// Each closed lot is its own Sell, carrying what those shares cost (`costEur`),
+// so the realised gain is known. The holding keeps the cost of the lots left,
+// which is how a broker shows the positions still open.
+function closeLots(port, ticker, picks, { priceEur, priceNative, currency, fxRate, date, toCash }) {
+  const h = port.holdings.find(x => x.ticker === ticker);
+  if (!h || !(priceEur > 0)) return null;
+  const lots = positionLots(port, h), foreign = currency && currency !== 'EUR';
+  let sold = 0, cost = 0;
+  for (const p of picks) {
+    const l = lots.find(x => x.id === p.lotId);
+    const q = l ? +Math.min(p.shares, l.left).toFixed(6) : 0;
+    if (!(q > 0)) continue;
+    l.left = +(l.left - q).toFixed(6); sold += q; cost += q * l.priceEur;
+    port.transactions.push({ id: uid(), type: 'Sell', ticker, shares: q, price: +priceEur.toFixed(4), date,
+      lot: l.id || undefined, costEur: +(q * l.priceEur).toFixed(2),
+      priceOriginal: foreign ? priceNative : undefined, priceCurrency: foreign ? currency : undefined,
+      fxRate: foreign ? fxRate : undefined, toCash: toCash || undefined, notes: 'Closed' });
+  }
+  if (!(sold > 0)) return null;
+  const rest = lots.filter(l => l.left > 1e-6), restShares = rest.reduce((s, l) => s + l.left, 0);
+  if (restShares <= 1e-6) port.holdings = port.holdings.filter(x => x !== h);
+  else {
+    h.shares = +restShares.toFixed(6);
+    h.buyPrice = +(rest.reduce((s, l) => s + l.left * l.priceEur, 0) / restShares).toFixed(4);
+  }
+  const proceeds = +(sold * priceEur).toFixed(2);
+  if (toCash) {
+    if (!port.cashEntries) port.cashEntries = [];
+    const e = port.cashEntries.find(x => x.currency === 'EUR');
+    if (e) e.amount = +(e.amount + proceeds).toFixed(2); else port.cashEntries.push({ currency: 'EUR', amount: proceeds });
+    port.cash = getCashTotalEur();
+  }
+  return { sold: +sold.toFixed(6), proceeds, gain: +(proceeds - cost).toFixed(2) };
+}
+
+// Kept for anything that still calls it: selling is the Close dialog now
+function quickSell(ticker) {
+  if (typeof nxClosePosition === 'function') nxClosePosition(ticker);
 }
 
 async function delHolding(id) {
@@ -290,10 +332,17 @@ function delTransaction(id) {
   // removed the entire holding. Reverse just this lot instead.
   const explained = holding && Math.abs(net(port.transactions.filter(t => t.ticker === ticker)) - holding.shares) < 1e-6;
   port.transactions = port.transactions.filter(t => t.id !== id);
+  // a sale whose money went to cash takes it back out
+  if (tx.type === 'Sell' && tx.toCash) {
+    const e = (port.cashEntries || []).find(x => x.currency === 'EUR');
+    if (e) { e.amount = Math.max(0, +(e.amount - tx.shares * tx.price).toFixed(2)); port.cash = getCashTotalEur(); }
+  }
 
   if (holding && !explained) {
-    if (tx.type === 'Sell') holding.shares = parseFloat((holding.shares + tx.shares).toFixed(6));
-    else {
+    if (tx.type === 'Sell') {
+      if (tx.costEur != null) holding.buyPrice = parseFloat(((holding.buyPrice * holding.shares + tx.costEur) / (holding.shares + tx.shares)).toFixed(4));
+      holding.shares = parseFloat((holding.shares + tx.shares).toFixed(6));
+    } else {
       const left = holding.shares - tx.shares;
       if (left <= 1e-6) port.holdings = port.holdings.filter(h => h !== holding);
       else {
@@ -305,16 +354,17 @@ function delTransaction(id) {
     return;
   }
 
-  // Recalculate the holding for this ticker from remaining transactions
+  // Recalculate the holding for this ticker from remaining transactions: the
+  // shares still open and what those lots cost
   const remaining = port.transactions.filter(t => t.ticker === ticker);
   const buys  = remaining.filter(t => t.type === 'Buy');
-  const netShares = net(remaining);
+  const lots  = openLots(port, ticker);
+  const netShares = lots.reduce((s, l) => s + l.left, 0);
 
   if (netShares <= 1e-6 || buys.length === 0) {
     port.holdings = port.holdings.filter(h => h.ticker !== ticker);
   } else {
-    const totalCost = buys.reduce((s,t) => s + t.shares * t.price, 0);
-    const avgPrice  = totalCost / buys.reduce((s,t) => s + t.shares, 0);
+    const avgPrice  = lots.reduce((s, l) => s + l.left * l.priceEur, 0) / netShares;
     if (holding) {
       holding.shares   = parseFloat(netShares.toFixed(6));
       holding.buyPrice = parseFloat(avgPrice.toFixed(4));

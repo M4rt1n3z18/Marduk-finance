@@ -378,7 +378,19 @@ Portfolio → Holdings → **Import CSV** (also in the Actions menu). **Only the
 - **Duplicates**: same ticker + date + shares and same price (native or EUR) = "Already added"; same ticker + date + shares at a different price = "Possible duplicate" (likely the same buy typed in another currency). Both start unticked.
 - **Undo** — `state.lastHoldingImport` holds one pre-import snapshot (holdings, transactions, and allocations only if the import consumed any) plus a fingerprint of positions after it. Undo is offered only while the fingerprint still matches; price refreshes don't change it (they never touch shares or cost), any manual buy/sell/delete does. Restoring keeps live prices.
 
-The **Add Holding form is folded** into `#add-holding-panel` behind `+ Add holding` on the holdings card's header line; `openAddHolding()` / `toggleAddHolding()`. `quickSell()` opens it first.
+The **Add Holding form is folded** into `#add-holding-panel` behind `+ Add holding` on the holdings card's header line; `openAddHolding()` / `toggleAddHolding()`. It records **buys only** since 2.0.2 — it had a Buy/Sell switch whose sell path returned silently when the price was empty (the field still said "Avg Buy Price").
+
+## Closing positions — lots (`actions.js`, dialog in `views.js`)
+
+Selling is **Close** (holdings table, and the holding side panel): `nxClosePosition(ticker)` lists every purchase still open, like a broker's positions; you tick what you sold (all or part of each), give the sale price (in the holding's trading currency, converted at the ECB rate of the sale date — no rate, no sale) and the date, and optionally send the proceeds to the portfolio's EUR cash.
+
+- `openLots(port, ticker)` — buys less sales. A sale from the dialog names its purchase (`lot: <buy tx id>`); older sales don't and take from the oldest purchases first (FIFO).
+- `positionLots(port, h)` — the open lots made to add up to the holding: shares held from before purchases were recorded become one lot (`id: null`, "Earlier shares") priced at what's left of the holding's cost; lots adding up to more than the holding are trimmed from the oldest.
+- `closeLots(port, ticker, picks, sale)` — one Sell per closed lot with `costEur` (so the realised gain is known), `fxRate`, `toCash`. The holding keeps **the cost of the lots left open** — specific-lot, as XTB shows positions — not the old average-cost rule.
+- `delTransaction` rebuilds a holding from its open lots, gives back a closed lot's cost when its sale is deleted, and takes the proceeds back out of cash when the sale had put them there.
+- `lotsTableFor` shows what's left of each purchase ("3 of 6", "closed") and each sale's realised gain; Transactions shows it under the sale's amount.
+
+**Holdings without a price** count at cost (`currentPrice || buyPrice`), so their gain is missing from every total. `nxPriceNote()` (`views.js`) names them on the Portfolio overview and above the holdings table, plus any price more than 4 days old.
 
 ## Risk View (`js/risk.js`)
 

@@ -415,20 +415,25 @@ function renderPortfolio() {
 function lotsTableFor(h) {
   const lots = (ap().transactions||[]).filter(t => t.ticker === h.ticker)
     .sort((a,b) => new Date(a.date)-new Date(b.date));
+  // what's still open of each purchase — a closed purchase no longer counts toward value or gain
+  const open = new Map(positionLots(ap(), h).map(l => [l.id, l.left]));
   const rows = lots.map(lot => {
-    const lCost = lot.price * lot.shares;
-    const lVal  = (h.currentPrice || lot.price) * lot.shares;
-    const lGain = lot.type === 'Buy' ? lVal - lCost : null;
-    const lGPct = lGain !== null && lCost ? lGain/lCost*100 : null;
+    const buy   = lot.type !== 'Sell';
+    const left  = buy ? (open.get(lot.id) || 0) : 0;
+    const lCost = lot.price * left;
+    const lVal  = (h.currentPrice || lot.price) * left;
+    const lGain = buy && left > 0 ? lVal - lCost : !buy && lot.costEur != null ? lot.price * lot.shares - lot.costEur : null;
+    const base  = buy ? lCost : lot.costEur;
+    const lGPct = lGain !== null && base ? lGain/base*100 : null;
     return `<tr>
       <td>${fmtDay(lot.date)}</td>
-      <td><span class="badge ${lot.type==='Buy'?'buy':'sell'}" style="font-size:10px;padding:2px 7px;">${lot.type}</span></td>
-      <td>${fmtShares(lot.shares)}</td>
+      <td><span class="badge ${buy?'buy':'sell'}" style="font-size:10px;padding:2px 7px;">${buy ? 'Buy' : 'Sell'}</span></td>
+      <td>${buy && left < lot.shares - 1e-6 ? `${left > 0 ? fmtShares(left) : '0'} <span style="font-size:10px;color:var(--text3);">of ${fmtShares(lot.shares)}${left > 0 ? '' : ' · closed'}</span>` : fmtShares(lot.shares)}</td>
       <td>${lot.priceOriginal != null ? `${CURRENCY_SYMBOLS[lot.priceCurrency]||lot.priceCurrency}${lot.priceOriginal} <span style="font-size:10px;color:var(--text3);">(${eur(lot.price)})</span>` : eur(lot.price)}</td>
-      <td class="muted">${lot.type==='Buy'?eurPort(lCost):'—'}</td>
-      <td>${lot.type==='Buy'?eurPort(lVal):'—'}</td>
+      <td class="muted">${buy && left > 0 ? eurPort(lCost) : '—'}</td>
+      <td>${buy && left > 0 ? eurPort(lVal) : '—'}</td>
       <td class="${lGain!==null?(lGain>=0?'up-text':'down-text'):''}">
-        ${lGain!==null ? eurPort(lGain)+' <span style="font-size:10px;">('+pct(lGPct)+')</span>' : '—'}
+        ${lGain!==null ? eurPort(lGain)+' <span style="font-size:10px;">('+pct(lGPct)+')</span>'+(buy ? '' : ' <span style="font-size:10px;color:var(--text3);">realised</span>') : '—'}
       </td>
       <td><button class="del-btn" onclick="event.stopPropagation();delTransaction('${lot.id}')" title="Remove lot">✕</button></td>
     </tr>`;
@@ -493,7 +498,7 @@ function renderHoldingsGeneral() {
         </td>
         <td style="text-align:right;color:var(--text2);font-size:12px;">${portShare.toFixed(1)}%</td>
         <td style="white-space:nowrap;">
-          <button class="btn-ghost" onclick="event.stopPropagation();quickSell('${h.ticker}',${h.shares})" title="Record a sell" style="font-size:10px;padding:4px 8px;">Sell</button>
+          <button class="btn-ghost" onclick="event.stopPropagation();nxClosePosition('${h.ticker}')" title="Close all or part of this position" style="font-size:10px;padding:4px 8px;">Close</button>
           <button class="del-btn" onclick="event.stopPropagation();delHolding('${h.id}')" title="Delete">✕</button>
         </td>
       </tr>

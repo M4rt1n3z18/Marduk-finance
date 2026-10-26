@@ -1326,3 +1326,57 @@ body[data-theme="light"] .nx-tx-open { color: var(--gold); }
 .nx-al-left { justify-self: end; font-size: 12.5px; color: var(--text3); white-space: nowrap; }
 .nx-al-left.open b { color: var(--up); font-weight: 650; }
 .nx-al-left.used { padding: 3px 9px; border-radius: 999px; background: var(--bg3); font-weight: 600; font-size: 11.5px; }
+
+/* Close a position */
+#nx-close { position: fixed; inset: 0; z-index: 9000; display: none; align-items: center; justify-content: center; padding: 24px;
+  background: color-mix(in srgb, var(--bg) 55%, rgba(5,10,30,.45)); backdrop-filter: blur(6px); }
+#nx-close.open { display: flex; }
+.nx-close-panel { width: 680px; max-width: 100%; max-height: calc(100vh - 48px); overflow: auto; display: flex; flex-direction: column; gap: 14px; padding: 22px 24px;
+  background: var(--bg2); border: 1px solid var(--border-strong); border-radius: 20px; box-shadow: 0 30px 80px rgba(5,10,30,.35); }
+.nx-close-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.nx-close-title { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+.nx-close-sub { font-size: 13px; color: var(--text3); margin-top: 3px; }
+.nx-close-sub b { color: var(--gold-light); font-weight: 650; }
+body[data-theme="light"] .nx-close-sub b { color: var(--gold); }
+.nx-close-help { font-size: 13px; color: var(--text2); margin: -4px 0 0; }
+.nx-close-lots { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.nx-close-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) minmax(0, 1.1fr) 104px 96px; align-items: center; gap: 12px; padding: 11px 14px; font-size: 13.5px; cursor: pointer; }
+.nx-close-row + .nx-close-row { border-top: 1px solid var(--border); }
+.nx-close-row input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--gold); cursor: pointer; }
+.nx-close-cols { background: var(--bg3); font-size: 12px; font-weight: 600; color: var(--text3); padding-top: 9px; padding-bottom: 9px; }
+.nx-close-cols span:nth-child(4), .nx-close-cols span:nth-child(5) { text-align: right; }
+.nx-close-lot { transition: background .12s; }
+.nx-close-lot:hover { background: rgba(var(--accent-rgb), .04); }
+.nx-close-lot.on { background: rgba(var(--accent-rgb), .07); }
+.nx-close-when { display: flex; flex-direction: column; min-width: 0; }
+.nx-close-when b { font-weight: 600; color: var(--text); }
+.nx-close-when small { font-size: 11.5px; color: var(--text3); }
+.nx-close-qty { color: var(--text2); font-variant-numeric: tabular-nums; }
+.nx-close-gain { display: flex; flex-direction: column; align-items: flex-end; font-weight: 650; font-variant-numeric: tabular-nums; }
+.nx-close-gain small { font-size: 11.5px; font-weight: 500; }
+.nx-close-n { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg2); color: var(--text); font-size: 13px; font-family: inherit; text-align: right; outline: none; font-variant-numeric: tabular-nums; }
+.nx-close-n:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .15); }
+.nx-close-lot:not(.on) .nx-close-n { opacity: .45; }
+.nx-close-sale { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 12px; }
+.nx-close-px { display: flex; gap: 8px; }
+.nx-close-px select { width: 92px; flex-shrink: 0; }
+.nx-close-px input { flex: 1; min-width: 0; }
+.nx-close-cash { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--text2); cursor: pointer; }
+.nx-close-cash input { width: 16px; height: 16px; margin: 0; accent-color: var(--gold); }
+.nx-close-sum { font-size: 13.5px; color: var(--text3); padding: 12px 14px; border-radius: 12px; background: var(--bg3); font-variant-numeric: tabular-nums; }
+.nx-close-sum b { color: var(--text); font-weight: 650; }
+.nx-close-sum b.up-text { color: var(--up); } .nx-close-sum b.down-text { color: var(--down); }
+.nx-close-panel .nx-auth-err:empty { display: none; }
+.nx-tx-amt small { display: block; font-size: 11.5px; font-weight: 600; }
+.nx-tx-amt small span { font-weight: 500; }
+.nx-hd-mine h3 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+@media (max-width: 640px) { .nx-close-row { grid-template-columns: 20px minmax(0, 1fr) 88px 80px; } .nx-close-row > :nth-child(3) { display: none; } .nx-close-sale { grid-template-columns: 1fr; } }
+
+/* A holding without a price */
+.nx-price-note { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; margin: -8px 0 16px; border-radius: 14px; font-size: 13px; color: var(--text2);
+  border: 1px solid rgba(245,184,75,.45); background: rgba(245,184,75,.09); }
+.nx-price-note .nx-ic { margin: 0; flex-shrink: 0; }
+.nx-price-note p { margin: 0; line-height: 1.5; }
+.nx-price-note b { color: var(--text); font-weight: 650; }
+.nx-price-note-how { color: var(--text3); font-size: 12.5px; margin-top: 2px !important; }
+#nx-price-note-hd { margin: 0 0 14px; }

@@ -194,7 +194,7 @@
           <span class="nx-tx-tk"><button type="button" class="nx-tx-open" data-open="${escH(t.ticker)}">${escH(t.ticker)}</button>${t.notes ? `<small>${escH(t.notes)}</small>` : ''}</span>
           <span class="nx-tx-date">${fmtDay(t.date, false)}</span>
           <span class="nx-tx-qty">${fmtShares(t.shares)} × ${eur(t.price)}</span>
-          <span class="nx-tx-amt">${eur(t.price * t.shares)}</span>
+          <span class="nx-tx-amt">${eur(t.price * t.shares)}${sell && t.costEur != null ? (g => `<small class="${g >= 0 ? 'up-text' : 'down-text'}">${g >= 0 ? '+' : '−'}${eur(Math.abs(g))} <span>gain</span></small>`)(t.price * t.shares - t.costEur) : ''}</span>
           <button type="button" class="nx-row-del" data-act="del" title="Delete this trade">${icon('trash', 14)}</button></div>`;
       }).join('');
     }
@@ -478,6 +478,141 @@
       </div>`; }).join('')}</div>`;
   }
 
+  // ══════════════ CLOSE A POSITION ══════════════
+  // Every purchase still open is listed, like a broker's positions: tick the ones
+  // sold (all or part of each), give the sale price and date. Each one is
+  // recorded as its own sale, with what it cost, by closeLots() in actions.js.
+  let _close = null;    // { ticker, lots }
+  const num = (v, d = 2) => (+v).toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: Math.max(d, 4) });
+  const ccyOf = c => c === 'GBp' ? 'GBP' : c;
+  function nxClosePosition(ticker) {
+    const port = ap(), h = (port.holdings || []).find(x => x.ticker === ticker);
+    if (!h) return;
+    const lots = positionLots(port, h);
+    _close = { ticker, lots };
+    let el = document.getElementById('nx-close');
+    if (!el) {
+      el = Object.assign(document.createElement('div'), { id: 'nx-close' });
+      document.body.appendChild(el);
+      el.addEventListener('click', e => { if (e.target === el || e.target.closest('[data-act="cancel"]')) closeDialog(); });
+      el.addEventListener('input', e => {
+        if (e.target.type === 'checkbox') return;   // ticks are handled on change, after the box has its new state
+        if (e.target.name === 'q') { const r = e.target.closest('.nx-close-lot'); r.querySelector('[name="pick"]').checked = true; r.classList.add('on'); }   // typing a number ticks the row
+        closeSummary();
+      });
+      el.addEventListener('change', e => {
+        if (e.target.name === 'all') el.querySelectorAll('input[name="pick"]').forEach(c => { c.checked = e.target.checked; });
+        if (e.target.name === 'pick' || e.target.name === 'all') el.querySelectorAll('.nx-close-lot').forEach(r => r.classList.toggle('on', r.querySelector('[name="pick"]').checked));
+        closeSummary();
+      });
+      el.addEventListener('submit', onCloseSubmit);
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && el.classList.contains('open') && !document.getElementById('cal-popup')?.classList.contains('open')) closeDialog(); });
+    }
+    // the sale price starts at today's price, in the currency the holding trades in
+    const qc = h.priceCurrency || lots.find(l => l.currency)?.currency || 'EUR', ccy = CURRENCY_SYMBOLS[ccyOf(qc)] ? ccyOf(qc) : 'EUR';
+    let px = ccy === 'EUR' ? h.currentPrice : h.currentPriceNative;
+    if (qc === 'GBp' && px) px /= 100;
+    const sym = c => CURRENCY_SYMBOLS[c] || c + ' ';
+    const lotPx = l => l.priceNative != null && l.currency ? `${sym(ccyOf(l.currency))}${num(l.currency === 'GBp' ? l.priceNative / 100 : l.priceNative)}` : eur(l.priceEur);
+    el.innerHTML = `<form class="nx-close-panel" novalidate>
+      <div class="nx-close-head"><div><div class="nx-close-title">Close a position</div>
+        <div class="nx-close-sub"><b>${escH(ticker)}</b> · <span>${fmtShares(h.shares)} sh</span> · <span>${lots.length === 1 ? '1 purchase open' : lots.length + ' purchases open'}</span></div></div>
+        <button type="button" class="nx-row-del" data-act="cancel" title="Cancel">${icon('close', 16)}</button></div>
+      <p class="nx-close-help">Tick what you sold. To sell part of a purchase, change its number of shares.</p>
+      <div class="nx-close-lots">
+        <label class="nx-close-row nx-close-cols"><input type="checkbox" name="all"${lots.length === 1 ? ' checked' : ''}><span>Bought</span><span>Shares × price</span><span>Gain now</span><span>Shares to sell</span></label>
+        ${lots.map((l, i) => {
+          const g = h.currentPrice ? (h.currentPrice - l.priceEur) * l.left : null, gp = g != null && l.priceEur ? (h.currentPrice / l.priceEur - 1) * 100 : null;
+          return `<label class="nx-close-row nx-close-lot${lots.length === 1 ? ' on' : ''}" data-i="${i}"><input type="checkbox" name="pick" value="${i}"${lots.length === 1 ? ' checked' : ''}>
+            <span class="nx-close-when">${l.earlier ? '<b>Earlier shares</b><small>before purchases were recorded</small>' : `<b>${fmtDay(l.date)}</b>${l.left < l.shares - 1e-6 ? `<small><span>${fmtShares(l.left)} of ${fmtShares(l.shares)} left</span></small>` : ''}`}</span>
+            <span class="nx-close-qty">${fmtShares(l.left)} × ${lotPx(l)}</span>
+            <span class="nx-close-gain ${g == null ? '' : g >= 0 ? 'up-text' : 'down-text'}">${g == null ? '' : `${g >= 0 ? '+' : '−'}${eur(Math.abs(g))}<small>${gp >= 0 ? '+' : '−'}${Math.abs(gp).toFixed(1)}%</small>`}</span>
+            <input class="nx-close-n" name="q" type="number" min="0" step="any" max="${l.left}" value="${l.left}" aria-label="Shares to sell"></label>`;
+        }).join('')}
+      </div>
+      <div class="nx-close-sale">
+        <label class="nx-f"><span>Sale price per share</span><span class="nx-close-px"><select name="ccy" class="nx-select">${Object.keys(CURRENCY_SYMBOLS).map(c => `<option value="${c}"${c === ccy ? ' selected' : ''}>${c}</option>`).join('')}</select>
+          <input name="px" type="number" min="0" step="any" value="${px ? +(+px).toFixed(4) : ''}" placeholder="0.00"></span></label>
+        <label class="nx-f"><span>Date sold</span><input id="nx-close-date" class="date-field" readonly placeholder="Select date…"></label>
+      </div>
+      <label class="nx-close-cash"><input type="checkbox" name="cash" checked><span>Add what the sale brought in to this portfolio’s cash</span></label>
+      <div class="nx-close-sum"></div>
+      <div class="nx-auth-err"></div>
+      <div class="nx-nw-form-btns"><button type="button" class="btn-ghost" data-act="cancel">Cancel</button><button class="btn" type="submit">Close position</button></div>
+    </form>`;
+    setDateField('nx-close-date', localIso());
+    el.classList.add('open');
+    closeSummary();
+  }
+  // what's picked: [{ lot, shares }]
+  function closePicks(el) {
+    return [...el.querySelectorAll('.nx-close-lot')].map(r => {
+      const l = _close.lots[+r.dataset.i], n = parseFloat(r.querySelector('[name="q"]').value);
+      return { l, n, on: r.querySelector('[name="pick"]').checked };
+    }).filter(p => p.on);
+  }
+  function closeSummary() {
+    const el = document.getElementById('nx-close'); if (!el || !_close) return;
+    const f = el.querySelector('form'), picks = closePicks(el), sum = el.querySelector('.nx-close-sum');
+    const all = el.querySelector('[name="all"]'), boxes = [...el.querySelectorAll('[name="pick"]')];
+    if (all) { all.checked = boxes.length > 0 && boxes.every(c => c.checked); all.indeterminate = !all.checked && boxes.some(c => c.checked); }
+    const n = picks.reduce((s, p) => s + (p.n > 0 ? Math.min(p.n, p.l.left) : 0), 0), cost = picks.reduce((s, p) => s + (p.n > 0 ? Math.min(p.n, p.l.left) * p.l.priceEur : 0), 0);
+    const pxEur = nativeToEur(parseFloat(f.elements.px.value), f.elements.ccy.value);
+    const total = _close.lots.reduce((s, l) => s + l.left, 0);
+    f.querySelector('button[type="submit"]').textContent = n > 0 && n >= total - 1e-6 ? 'Close position' : picks.length > 1 ? `Close ${picks.length} purchases` : 'Close purchase';
+    if (!(n > 0)) { sum.innerHTML = '<span>Nothing ticked yet.</span>'; return; }
+    const proceeds = pxEur > 0 ? n * pxEur : null, gain = proceeds != null ? proceeds - cost : null;
+    sum.innerHTML = `<span>Selling</span> <b>${fmtShares(n)}</b> <span>of</span> ${fmtShares(total)} <span>shares</span>${proceeds != null ? ` · <span>about</span> <b>${eur(proceeds)}</b> · <b class="${gain >= 0 ? 'up-text' : 'down-text'}">${gain >= 0 ? '+' : '−'}${eur(Math.abs(gain))}</b> <span>gain</span>` : ''}`;
+  }
+  async function onCloseSubmit(e) {
+    e.preventDefault();
+    const el = document.getElementById('nx-close'), f = e.target, err = s => { f.querySelector('.nx-auth-err').textContent = s; };
+    const picks = closePicks(el);
+    if (!picks.length) return err('Tick at least one purchase to close.');
+    const bad = picks.find(p => !(p.n > 0) || p.n > p.l.left + 1e-6);
+    if (bad) return err(`Shares to sell must be more than 0 and at most ${fmtShares(bad.l.left)} for that purchase.`);
+    const px = parseFloat(f.elements.px.value), ccy = f.elements.ccy.value, date = getDateRaw('nx-close-date') || localIso();
+    if (!(px > 0)) return err('Add the price you sold at.');
+    let rate = 1;
+    if (ccy !== 'EUR') {
+      const btn = f.querySelector('button[type="submit"]'), label = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Converting…';
+      try { rate = await window.electronAPI?.fetchFxRate?.({ date, fromCurrency: ccy }); } catch (x) { rate = null; }
+      btn.disabled = false; btn.textContent = label;
+      // never a guessed rate: without one the sale's value in euros isn't known
+      if (!(rate > 0)) return err(`Couldn’t get the ${ccy}→EUR rate for ${fmtDay(date)}. Check your connection and try again, or give the price in EUR.`);
+    }
+    const ticker = _close.ticker;
+    const res = closeLots(ap(), ticker, picks.map(p => ({ lotId: p.l.id, shares: p.n })),
+      { priceEur: px / rate, priceNative: px, currency: ccy, fxRate: ccy !== 'EUR' ? +(+rate).toFixed(6) : null, date, toCash: f.elements.cash.checked });
+    if (!res) return err('Nothing was closed — check the shares and the price.');
+    closeDialog();
+    save(); renderAll();
+    showToast(`Closed ${fmtShares(res.sold)} ${ticker} · ${res.gain >= 0 ? '+' : '−'}${eur(Math.abs(res.gain))} gain`);
+  }
+  function closeDialog() { document.getElementById('nx-close')?.classList.remove('open'); _close = null; }
+  window.nxClosePosition = nxClosePosition;
+
+  // ══════════════ HOLDINGS WITHOUT A PRICE ══════════════
+  // A holding Yahoo hasn't priced counts at what it cost, so its gain is simply
+  // missing from the totals — which looked like Nexora disagreeing with the
+  // broker. Say so, by name, on the Overview and above the holdings table.
+  function nxPriceNote() {
+    const port = ap(), now = Date.now();
+    const none = (port.holdings || []).filter(h => !h.currentPrice).map(h => h.ticker);
+    const old = (port.holdings || []).filter(h => h.currentPrice && h.priceUpdatedAt && now - new Date(h.priceUpdatedAt).getTime() > 4 * dayMs).map(h => h.ticker);
+    const list = a => a.length === 1 ? a[0] : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+    const html = !none.length && !old.length ? '' : `${tileI('amber', 'alert')}<div>${none.length ? `<p><b>${escH(list(none))}</b> ${none.length === 1 ? 'has' : 'have'} no price yet, so ${none.length === 1 ? 'it counts' : 'they count'} at what you paid and ${none.length === 1 ? 'its' : 'their'} gain isn’t in these totals.</p>` : ''}
+      ${old.length ? `<p>The price${old.length === 1 ? '' : 's'} of <b>${escH(list(old))}</b> ${old.length === 1 ? 'is' : 'are'} more than 4 days old.</p>` : ''}
+      <p class="nx-price-note-how">Refresh prices from Actions; if it stays, check the symbol — European listings need their exchange suffix, like VWCE.DE.</p></div>`;
+    for (const [id, anchor] of [['nx-price-note-ov', document.querySelector('#psub-portfolio-overview > .stats-grid')], ['nx-price-note-hd', document.getElementById('holdings-table-wrap')]]) {
+      if (!anchor) continue;
+      let n = document.getElementById(id);
+      if (!n) { n = Object.assign(document.createElement('div'), { id, className: 'nx-price-note' }); id.endsWith('ov') ? anchor.after(n) : anchor.before(n); }
+      n.innerHTML = html; n.style.display = html ? '' : 'none';
+    }
+  }
+
   // ══════════════ wiring ══════════════
   const after = (name, fn) => {
     const orig = window[name]; if (typeof orig !== 'function') return;
@@ -490,5 +625,6 @@
     after('renderCashTable', nxCash);
     after('renderAllocationStats', nxAllocStrip);
     after('renderAllocations', nxAllocHistory);
+    after('renderPortfolio', nxPriceNote);
   });
 })();
