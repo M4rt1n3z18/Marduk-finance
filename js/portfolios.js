@@ -93,6 +93,7 @@ async function deletePortfolio() {
   const port = ap();
   if (!await nexoraConfirm(`Delete "${port.name}" and all its holdings? This cannot be undone.`)) return;
   state.portfolios = state.portfolios.filter(p => p.id !== port.id);
+  state.dividendLog = (state.dividendLog || []).filter(d => d.portfolioId !== port.id);
   state.activePortfolioId = state.portfolios[0].id;
   save();
   ['port-donut','pnl-bar','port-history','port-dynamics'].forEach(k => destroyChart(k));

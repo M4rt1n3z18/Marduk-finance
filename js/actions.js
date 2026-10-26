@@ -129,6 +129,7 @@ async function delHolding(id) {
   if (!await nexoraConfirm(`Remove ${holding.ticker} holding and its transaction history?`)) return;
   port.holdings = port.holdings.filter(h => h.id !== id);
   port.transactions = port.transactions.filter(t => t.ticker !== holding.ticker);
+  state.dividendLog = (state.dividendLog || []).filter(d => !(d.portfolioId === port.id && d.ticker === holding.ticker));
   save(); renderAll();
 }
 

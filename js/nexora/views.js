@@ -247,30 +247,37 @@
     ['div-received-card', 'div-analysis-card', 'div-calendar-card'].forEach(id => hide(document.getElementById(id)));
     const port = ap(), t = todayNoon(), yr = t.getFullYear();
     const log = (state.dividendLog || []).filter(d => d.portfolioId === port.id).sort((a, b) => b.date.localeCompare(a.date));
-    const payers = (port.holdings || []).filter(h => (h.dividendPerShare || 0) > 0);
+    const proj = divProjection(port, log), next12 = proj.filter(p => noon(p.date) >= t);
+    // what a holding pays a year: Yahoo's dividend per share when it has one, else the next 12 months of the projection
+    const yearOf = h => (h.dividendPerShare || 0) > 0 ? h.dividendPerShare * h.shares
+      : next12.filter(p => p.ticker === h.ticker).reduce((s, p) => s + p.amountEur, 0);
+    const payers = (port.holdings || []).filter(h => yearOf(h) > 0);
     if (!log.length && !payers.length) { root.innerHTML = ''; if (_divChart) { _divChart.destroy(); _divChart = null; } return; }
     hide(document.getElementById('psub-div-empty'));
 
     const value = h => (h.currentPrice || h.buyPrice) * h.shares;
     const portValue = (port.holdings || []).reduce((s, h) => s + value(h), 0);
-    const annual = payers.reduce((s, h) => s + h.dividendPerShare * h.shares, 0);
+    const annual = payers.reduce((s, h) => s + yearOf(h), 0);
     const ytd = log.filter(d => d.date.startsWith(String(yr))).reduce((s, d) => s + d.amountEur, 0);
     const sameDayLastYear = `${yr - 1}${localIso(t).slice(4)}`;
     const lastYtd = log.filter(d => d.date.startsWith(String(yr - 1)) && d.date <= sameDayLastYear).reduce((s, d) => s + d.amountEur, 0);
     const allTime = log.reduce((s, d) => s + d.amountEur, 0);
-    const proj = divProjection(port, log), next12 = proj.filter(p => noon(p.date) >= t);
     const delta = lastYtd > 0 ? ytd - lastYtd : null;
 
     // by holding: what it pays a year, what it has paid, when it pays next
     const rows = [...new Set([...payers.map(h => h.ticker), ...log.map(d => d.ticker)])].map(tk => {
       const h = (port.holdings || []).find(x => x.ticker === tk);
-      const perYear = h && h.dividendPerShare > 0 ? h.dividendPerShare * h.shares : 0;
-      const yieldPct = h && h.dividendPerShare > 0 ? (h.forwardYield != null ? h.forwardYield * 100 : (h.currentPrice ? h.dividendPerShare / h.currentPrice * 100 : null)) : null;
+      const perYear = h ? yearOf(h) : 0;
+      const yieldPct = !h || !perYear ? null
+        : h.dividendPerShare > 0 && h.forwardYield != null ? h.forwardYield * 100
+        : value(h) > 0 ? perYear / value(h) * 100 : null;
       const yahooNext = h?.nextPayDate && noon(h.nextPayDate) >= t ? h.nextPayDate : null;
       const next = yahooNext || next12.find(p => p.ticker === tk)?.date || null;
       return { tk, h, perYear, yieldPct, received: log.filter(d => d.ticker === tk).reduce((s, d) => s + d.amountEur, 0), next, estimated: !yahooNext && !!next };
     }).filter(r => r.h || r.received > 0).sort((a, b) => b.perYear - a.perYear || b.received - a.received);
-    const anyNext = rows.some(r => r.next);
+    // a column only when some row has something to put in it
+    const has = { yield: rows.some(r => r.yieldPct != null), year: rows.some(r => r.perYear > 0), next: rows.some(r => r.next) };
+    const cols = ['minmax(0, 1.1fr)', has.yield && '64px', has.year && 'minmax(0, 1.3fr)', '96px', has.next && '108px'].filter(Boolean).join(' ');
     const maxYear = Math.max(...rows.map(r => r.perYear), 1);
 
     const recent = divAll ? log : log.slice(0, 6);
@@ -282,11 +289,11 @@
           <div class="nx-nw-chips">${delta != null ? `<span class="nx-delta ${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '+' : '−'}${eur(Math.abs(delta), 0)} <span>vs this time last year</span></span>` : ''}
             ${allTime > ytd ? `<span class="nx-delta nx-delta-flat"><span>All time</span> ${eur(allTime, 0)}</span>` : ''}</div>
         </div>
-        <div class="nx-div-figs">
+        ${annual > 0 ? `<div class="nx-div-figs">
           <div class="nx-div-fig">${tile('mint', 'coins')}<div><small>Expected a year</small><b>${eur(annual)}</b></div></div>
           <div class="nx-div-fig">${tileI('blue', 'cal')}<div><small>A month, on average</small><b>${eur(annual / 12)}</b></div></div>
           <div class="nx-div-fig">${tile('amber', 'pie')}<div><small>Portfolio yield</small><b>${portValue ? (annual / portValue * 100).toFixed(2) : '0.00'}%</b></div></div>
-        </div>
+        </div>` : ''}
       </div>
       <div class="card">
         <div class="nx-nw-head"><div><div class="card-title" style="margin:0;">Month by month</div>
@@ -297,14 +304,14 @@
       <div class="nx-div-grid">
         <div class="card">
           <div class="card-title">By holding</div>
-          <div class="nx-div-table${anyNext ? '' : ' no-next'}">
-            <div class="nx-div-row nx-div-cols"><span>Holding</span><span>Yield</span><span>A year</span><span>Received</span>${anyNext ? '<span>Next payment</span>' : ''}</div>
+          <div class="nx-div-table" style="--div-cols:${cols};">
+            <div class="nx-div-row nx-div-cols"><span>Holding</span>${has.yield ? '<span class="r">Yield</span>' : ''}${has.year ? '<span>A year</span>' : ''}<span class="r">Received</span>${has.next ? '<span>Next payment</span>' : ''}</div>
             ${rows.map(r => `<div class="nx-div-row">
               <span class="nx-div-tk"><button type="button" class="nx-tx-open" data-open="${escH(r.tk)}">${escH(r.tk)}</button>${r.h ? `<small>${fmtShares(r.h.shares)} sh</small>` : '<small>Sold</small>'}</span>
-              <span class="nx-div-num">${r.yieldPct != null ? r.yieldPct.toFixed(2) + '%' : ''}</span>
-              <span class="nx-div-year"><b>${r.perYear ? eur(r.perYear) : ''}</b>${r.perYear ? `<i><em style="width:${(r.perYear / maxYear * 100).toFixed(1)}%"></em></i>` : ''}</span>
+              ${has.yield ? `<span class="nx-div-num">${r.yieldPct != null ? r.yieldPct.toFixed(2) + '%' : ''}</span>` : ''}
+              ${has.year ? `<span class="nx-div-year">${r.perYear ? `<b>${eur(r.perYear)}</b><i><em style="width:${(r.perYear / maxYear * 100).toFixed(1)}%"></em></i>` : ''}</span>` : ''}
               <span class="nx-div-num nx-div-rec">${r.received ? eur(r.received) : ''}</span>
-              ${anyNext ? `<span class="nx-div-next">${r.next ? `<span>${fmtDay(r.next)}</span>${r.estimated ? '<small>estimated</small>' : ''}` : ''}</span>` : ''}
+              ${has.next ? `<span class="nx-div-next">${r.next ? `<span>${fmtDay(r.next)}</span>${r.estimated ? '<small>estimated</small>' : ''}` : ''}</span>` : ''}
             </div>`).join('')}
           </div>
         </div>

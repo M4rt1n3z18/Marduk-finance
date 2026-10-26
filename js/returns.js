@@ -28,19 +28,37 @@ let _divSyncRunning = false;
 let _divSyncLastRun = 0;
 const DIV_SYNC_COOLDOWN = 6 * 60 * 60 * 1000;
 
+// A payment is kept only while the portfolio still has trades (or a holding)
+// under that ticker. Deleting a holding used to leave its payments behind, so
+// re-adding the same position under its exchange symbol (EDP → EDP.LS) counted
+// every payment twice — in the totals, True Return and the Year Wrap.
+function pruneDividendLog() {
+  if (!(state.dividendLog || []).length) return false;
+  const backed = new Set();
+  for (const p of state.portfolios || []) {
+    for (const t of p.transactions || []) backed.add(p.id + '|' + t.ticker);
+    for (const h of p.holdings || []) backed.add(p.id + '|' + h.ticker);
+  }
+  const before = state.dividendLog.length;
+  state.dividendLog = state.dividendLog.filter(d => backed.has(d.portfolioId + '|' + d.ticker));
+  return state.dividendLog.length !== before;
+}
+
 async function syncDividendLog(force = false) {
-  if (!window.electronAPI?.fetchDividendHistory || _divSyncRunning) return false;
-  if (!force && Date.now() - _divSyncLastRun < DIV_SYNC_COOLDOWN) return false;
+  const pruned = pruneDividendLog();
+  if (pruned) save();
+  if (!window.electronAPI?.fetchDividendHistory || _divSyncRunning) return pruned;
+  if (!force && Date.now() - _divSyncLastRun < DIV_SYNC_COOLDOWN) return pruned;
   const ports = (state.portfolios || []).filter(p => (p.transactions || []).length);
-  if (!ports.length) return false;
+  if (!ports.length) return pruned;
   _divSyncRunning = true;
   _divSyncLastRun = Date.now();
-  let changed = false;
+  let changed = pruned;
 
   try {
     const allTickers = [...new Set(ports.flatMap(p => (p.transactions || []).map(t => t.ticker)))];
     const history = await window.electronAPI.fetchDividendHistory(allTickers);
-    if (!history || !Object.keys(history).length) { _divSyncRunning = false; return false; }
+    if (!history || !Object.keys(history).length) { _divSyncRunning = false; return pruned; }
 
     if (!state.dividendLog) state.dividendLog = [];
     const existing = new Set(state.dividendLog.map(d => `${d.portfolioId}|${d.ticker}|${d.date}`));
