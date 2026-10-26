@@ -287,7 +287,7 @@ Reserve money for investing without counting it as an expense. Entity in `state.
 - **Create**: "Investment Allocation" card in Expenses tab (`addAllocation()` in `actions.js`). Reduces the month's Remaining budget in Expenses + Budget tabs (via `allocationTotalForMonth`), counts as savings in the savings rate.
 - **Consume**: `consumeAllocations(portfolioId, amountEur)` — FIFO on open allocations, called from `addHolding()` (manual buys) and the holdings CSV import. Never goes negative; excess accumulates in `state.unallocatedInvestment[portfolioId]` ("Unallocated Investment").
 - **Import guard**: only imported buys dated on/after `earliestOpenAllocationDate(portfolioId)` consume allocations — historical bulk imports don't.
-- **UI**: allocation history table in Expenses; stat card row `#alloc-stats-row` (Allocated / Invested / Remaining / Unallocated) at top of Portfolio tab (`renderAllocationStats()` in `render.js`).
+- **UI**: allocation history in Expenses → Allocations (one row per allocation with an invested/allocated bar); on the Portfolio overview, one strip `#nx-alloc-strip` (invested of allocated, what's left, anything invested beyond it) — both drawn by `views.js` after `renderAllocations()` / `renderAllocationStats()`, whose old table and `#alloc-stats-row` cards stay hidden.
 
 ## Other AI features (all optional — need the AI key)
 
@@ -316,7 +316,7 @@ Header "Settings" dropdown (`#settings-menu` in `index.html`, logic in `js/app.j
 
 ## True Returns & Automatic Dividend Log (`js/returns.js`)
 
-**Automatic received-dividends log** — `syncDividendLog()` (6h cooldown, forced from the Dividends sub-view): IPC `fetch-dividend-history` pulls 10y of actual per-share payment events from Yahoo (`events=dividends`), crossed with `sharesHeldAt(port, ticker, date)` reconstructed from transactions. New entries land in `state.dividendLog` (`{id, portfolioId, ticker, date, perShare, shares, amountEur, currency, detectedAt}`), and `holding.dividends` is kept in sync (feeds Total Gain). No manual entry; cash is deliberately NOT auto-credited (would double-count with manual cash management). UI: `#div-received-card` in the Dividends sub-view (stats, cumulative chart `chart-div-received`, last-12 table) via `renderReceivedDividends()`.
+**Automatic received-dividends log** — `syncDividendLog()` (6h cooldown, forced from the Dividends sub-view): IPC `fetch-dividend-history` pulls 10y of actual per-share payment events from Yahoo (`events=dividends`), crossed with `sharesHeldAt(port, ticker, date)` reconstructed from transactions. New entries land in `state.dividendLog` (`{id, portfolioId, ticker, date, perShare, shares, amountEur, currency, detectedAt}`), and `holding.dividends` is kept in sync (feeds Total Gain). No manual entry; cash is deliberately NOT auto-credited (would double-count with manual cash management). UI: since 2.0.1 the Dividends sub-view is one view, `#nx-div` (`views.js`, drawn after `renderReceivedDividends()`): received this year vs the same point last year, expected a year (`dividendPerShare × shares`), a 24-month chart (12 received + 12 expected — each payment of the last 12 months repeated a year later on today's shares), by holding (yield, a year, received, next payment — Yahoo's `nextPayDate`, else the estimate), payments. `#div-received-card`, `#div-analysis-card` and `#div-calendar-card` are still filled by the app but hidden.
 
 **True Return card** — `buildReturnsCard()` renders `#returns-card` in the Portfolio Overview sub-view (hidden until ≥1 buy and ≥90 days of history):
 - **XIRR** (`_xirr`, bisection solver): cashflows = buys (−), sells (+), received dividends (+), current holdings value (+, today). Cash excluded by design.
@@ -338,7 +338,7 @@ Header "Settings" dropdown (`#settings-menu` in `index.html`, logic in `js/app.j
 
 ## Dividend Calendar
 
-`renderDividendCalendar()` in `render.js` — card `#div-calendar-card` in Portfolio tab. Lists holdings with `dividendPerShare > 0`, sorted by `nextPayDate` (soonest first, "in Nd" badge within 14 days), shows projected annual income (`dps × shares`). Hidden when no dividend payers.
+*Hidden since 2.0.1 — the next payment is a column of the Dividends view (see True Returns & Automatic Dividend Log).* `renderDividendCalendar()` in `render.js` — card `#div-calendar-card` in Portfolio tab. Lists holdings with `dividendPerShare > 0`, sorted by `nextPayDate` (soonest first, "in Nd" badge within 14 days), shows projected annual income (`dps × shares`). Hidden when no dividend payers.
 
 ## Tabs and State
 
@@ -427,10 +427,10 @@ The Portfolio tab is split into 6 sub-views — only one visible at a time (`.ps
 |---|---|
 | `psub-overview` | stat cards, allocation cards, donut + P&L charts, value history + benchmark, monthly returns, holdings performance, sector allocation |
 | `psub-holdings` | Add Holding form + holdings table (General/Dividends/Returns sub-tabs) |
-| `psub-dividends` | Dividend Analysis + Dividend Calendar (`refreshDividendsSection()` force-fetches metadata; `#psub-div-empty` empty state) |
+| `psub-dividends` | `#nx-div` (`views.js`): received / expected / month by month / by holding / payments (`refreshDividendsSection()` force-fetches metadata; `#psub-div-empty` empty state) |
 | `psub-risk` | Risk view — see Risk View (`js/risk.js`) |
-| `psub-cash` | Uninvested Cash card |
-| `psub-transactions` | Transaction History |
+| `psub-cash` | Uninvested cash: `#nx-cash`, a tile per currency, amounts editable in place (`views.js`; adds/removes go through `saveCashEntry`/`removeCashEntry`) |
+| `psub-transactions` | `#nx-tx` (`views.js`): trades by month with totals, Buy/Sell filter, search, confirm before `delTransaction` |
 
 - Hovering the **Portfolio nav button** shows a dropdown (`.nav-drop`, CSS `:hover`) linking to each sub-view via `navToPortfolioSub(name)`. The open rule is `:hover, :has(:focus-visible)` — never `:focus-within`, which leaves the menu pinned open after a mouse click because the clicked button keeps focus.
 - The portfolio switcher bar stays global above the sub-views — switching portfolio keeps the current sub-view.

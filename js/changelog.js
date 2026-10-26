@@ -10,6 +10,20 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '2.0.1',
+    title: 'Page by page, a cleaner look',
+    items: [
+      'Goals show what\u2019s left and how much to save each month to make the deadline \u2014 add money right on the card.',
+      'Transactions are grouped by month with what each trade cost, and you can filter and search them. Deleting one asks first.',
+      'Dividends on one page: received this year, expected a year, month by month and by holding.',
+      'Cash shows a card per currency \u2014 click an amount to change it.',
+      'Money set aside to invest is one bar on the Portfolio overview, and each allocation shows how much of it is invested.',
+      'Dates read \u201c26 Oct 2026\u201d everywhere, and Recent expenses show their category.',
+      'Top Positions and Sector Allocation line their numbers up, and Top Categories shows your five biggest.',
+      'Squarer avatars, and seasonal touches on every page.',
+    ],
+  },
+  {
     v: '2.0.0',
     title: 'Marduk is now Nexora',
     items: [
