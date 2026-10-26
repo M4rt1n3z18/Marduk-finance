@@ -1328,9 +1328,9 @@ body[data-theme="light"] .nx-tx-open { color: var(--gold); }
 .nx-al-left.used { padding: 3px 9px; border-radius: 999px; background: var(--bg3); font-weight: 600; font-size: 11.5px; }
 
 /* Close a position */
-#nx-close { position: fixed; inset: 0; z-index: 9000; display: none; align-items: center; justify-content: center; padding: 24px;
+.nx-dialog { position: fixed; inset: 0; z-index: 9000; display: none; align-items: center; justify-content: center; padding: 24px;
   background: color-mix(in srgb, var(--bg) 55%, rgba(5,10,30,.45)); backdrop-filter: blur(6px); }
-#nx-close.open { display: flex; }
+.nx-dialog.open { display: flex; }
 .nx-close-panel { width: 680px; max-width: 100%; max-height: calc(100vh - 48px); overflow: auto; display: flex; flex-direction: column; gap: 14px; padding: 22px 24px;
   background: var(--bg2); border: 1px solid var(--border-strong); border-radius: 20px; box-shadow: 0 30px 80px rgba(5,10,30,.35); }
 .nx-close-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -1380,3 +1380,17 @@ body[data-theme="light"] .nx-close-sub b { color: var(--gold); }
 .nx-price-note b { color: var(--text); font-weight: 650; }
 .nx-price-note-how { color: var(--text3); font-size: 12.5px; margin-top: 2px !important; }
 #nx-price-note-hd { margin: 0 0 14px; }
+
+/* Check purchase currencies */
+.nx-fx-row { grid-template-columns: 20px minmax(0, 1fr) minmax(0, .9fr) minmax(0, .9fr) minmax(0, 1.2fr); }
+.nx-fx-row .nx-close-qty small, .nx-fx-row .nx-close-qty { font-variant-numeric: tabular-nums; }
+.nx-fx-row .nx-close-qty small { color: var(--text3); font-size: 11.5px; }
+.nx-fx-gain { text-align: right; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nx-fx-arrow { color: var(--text3); font-weight: 400; margin: 0 2px; }
+.nx-fx-row input:disabled + .nx-close-when { opacity: .5; }
+.nx-close-cols.nx-fx-row span:nth-child(5) { text-align: right; }
+.nx-note-act { align-self: center; margin-left: auto; flex-shrink: 0; }
+/* Dividends: the same 20px between cards as everywhere else */
+#nx-div { display: flex; flex-direction: column; gap: 20px; }
+#nx-div > .card { margin: 0; }
+.nx-close-cols.nx-fx-row span:nth-child(4) { text-align: left; }

@@ -112,12 +112,25 @@ function acSelect(ticker, cls) {
   const entry = TICKER_DB.find(x => x.t === ticker);
   const assetClass = (entry && entry.c) || cls || 'Stock';
   setClassBadge(assetClass);
+  syncBuyCurrency(ticker);
 }
 function acAutoDetect(input) {
   const ticker = input.value.trim().toUpperCase();
   if (!ticker) return;
   const entry = TICKER_DB.find(x => x.t === ticker);
   if (entry && entry.c) setClassBadge(entry.c);
+  syncBuyCurrency(ticker);
+}
+// The price currency follows the ticker: what Yahoo quotes a held one in, else
+// its exchange (no suffix = a US listing, in dollars). It stayed on euros, so a
+// dollar price typed from a broker statement was saved as that many euros.
+// London (pence) is left alone — pence or pounds can't be told apart.
+function syncBuyCurrency(ticker) {
+  const sel = document.getElementById('h-buy-currency');
+  if (!sel || !ticker) return;
+  const held = (ap().holdings || []).find(h => h.ticker === ticker)?.priceCurrency;
+  const c = held || (typeof hiSuffixCcy === 'function' ? hiSuffixCcy(ticker) : null);
+  if (c && c !== 'GBp' && [...sel.options].some(o => o.value === c)) { sel.value = c; updateBuyLabel(); }
 }
 function acKey(e) {
   const drop = document.getElementById('ac-drop');

@@ -293,6 +293,15 @@
     ['have no price yet, so they count at what you paid and their gain isn’t in these totals.', 'ainda não têm preço, por isso contam pelo que pagaste e o ganho não entra nestes totais.', '还没有价格，因此按买入成本计算，其收益未计入这些合计。'],
     ['The price of', 'O preço de', '价格：'], ['The prices of', 'Os preços de', '价格：'], ['is more than 4 days old.', 'tem mais de 4 dias.', '已超过 4 天未更新。'], ['are more than 4 days old.', 'têm mais de 4 dias.', '已超过 4 天未更新。'],
     ['Refresh prices from Actions; if it stays, check the symbol — European listings need their exchange suffix, like VWCE.DE.', 'Atualiza os preços em Ferramentas; se continuar, verifica o símbolo — as cotações europeias precisam do sufixo da bolsa, como VWCE.DE.', '请在“操作”中刷新价格；若仍如此，请检查代码——欧洲上市的证券需要交易所后缀，例如 VWCE.DE。'],
+    // ── Purchases saved in euros
+    ['Check them', 'Verificar', '检查'], ['Check purchase currencies', 'Verificar a moeda das compras', '检查买入货币'],
+    ['Getting the ECB rates for each purchase date…', 'A obter as taxas do BCE de cada data de compra…', '正在获取每个买入日期的欧洲央行汇率…'],
+    ['Tick each holding whose prices you entered in the currency it trades in. They’re converted at the ECB rate of each purchase date. The ones you leave unticked stay in euros and won’t be flagged again.', 'Marca cada posição cujos preços introduziste na moeda em que é negociada. São convertidos à taxa do BCE de cada data de compra. As que deixares por marcar ficam em euros e não voltam a ser assinaladas.', '勾选那些你按其交易货币填写价格的持仓。它们将按每个买入日期的欧洲央行汇率换算。未勾选的保持为欧元，且不会再被提示。'],
+    ['Couldn’t get the ECB rates. Check your connection and try again.', 'Não foi possível obter as taxas do BCE. Verifica a ligação e tenta de novo.', '无法获取欧洲央行汇率。请检查网络后重试。'],
+    ['Saved as', 'Guardado como', '保存为'], ['In its currency', 'Na sua moeda', '按其货币'], ['a share', 'por ação', '每股'], ['1 purchase', '1 compra', '1 笔买入'],
+    ['no purchases recorded', 'sem compras registadas', '无买入记录'], ['no rate', 'sem taxa', '无汇率'], ['1 holding', '1 posição', '1 个持仓'],
+    ['Their gain', 'O ganho delas', '其收益'], ['becomes', 'passa a', '变为'], ['Nothing ticked: every holding listed stays in euros.', 'Nada marcado: todas as posições da lista ficam em euros.', '未勾选：列出的持仓都保持为欧元。'],
+    ['Keep them in euros', 'Manter em euros', '保持为欧元'], ['Convert 1 holding', 'Converter 1 posição', '换算 1 个持仓'], ['Converted 1 holding', '1 posição convertida', '已换算 1 个持仓'], ['Kept in euros', 'Mantidas em euros', '已保持为欧元'],
     ['Recent expenses', 'Despesas recentes', '最近支出'], ['Recent Expenses', 'Despesas recentes', '最近支出'], ['No expenses yet.', 'Ainda sem despesas.', '还没有支出。'],
   ];
   const dict = { en: {}, pt: {}, zh: {} };
@@ -421,6 +430,16 @@
     [/^Shares to sell must be more than 0 and at most (.+) for that purchase\.$/, L => m => ({ pt: `As ações a vender têm de ser mais de 0 e no máximo ${m[1]} nessa compra.`, zh: `卖出股数须大于 0 且不超过该笔的 ${m[1]}。` })[L]],
     [/^Couldn’t get the (\w+)→EUR rate for (.+)\. Check your connection and try again, or give the price in EUR\.$/, (L, tr) => m => ({ pt: `Não foi possível obter a taxa ${m[1]}→EUR de ${tr(m[2], L) || m[2]}. Verifica a ligação e tenta de novo, ou indica o preço em EUR.`, zh: `无法获取 ${tr(m[2], L) || m[2]} 的 ${m[1]}→EUR 汇率。请检查网络后重试，或以欧元填写价格。` })[L]],
     [/^Closed ([\d.,]+) (\S+) · ([+−]€[\d.,]+) gain$/, L => m => ({ pt: `Fechadas ${m[1]} ${m[2]} · ${m[3]} de ganho`, zh: `已平仓 ${m[1]} 股 ${m[2]} · 收益 ${m[3]}` })[L]],
+    [/^(\d+) purchases$/, L => m => ({ pt: `${m[1]} compras`, zh: `${m[1]} 笔买入` })[L]],
+    [/^(\d+) holdings$/, L => m => ({ pt: `${m[1]} posições`, zh: `${m[1]} 个持仓` })[L]],
+    [/^Convert (\d+) holdings$/, L => m => ({ pt: `Converter ${m[1]} posições`, zh: `换算 ${m[1]} 个持仓` })[L]],
+    [/^Converted (\d+) holdings$/, L => m => ({ pt: `${m[1]} posições convertidas`, zh: `已换算 ${m[1]} 个持仓` })[L]],
+    [/^(trades?) in (.+), but (?:its|their) purchases were saved in euros\.$/, L => m => {
+      const w = { dollars: ['em dólares', '美元'], pounds: ['em libras', '英镑'], 'Swiss francs': ['em francos suíços', '瑞士法郎'], reais: ['em reais', '雷亚尔'], 'other currencies': ['noutras moedas', '其他货币'] }[m[2]] || [`em ${m[2]}`, m[2]];
+      return ({ pt: `${m[1] === 'trades' ? 'é negociada' : 'são negociadas'} ${w[0]}, mas as compras foram guardadas em euros.`, zh: `以${w[1]}交易，但其买入记录以欧元保存。` })[L]; }],
+    [/^If the prices you entered were in (.+), what (it|they) cost is overstated and the gain understated\.$/, L => m => {
+      const w = { dollars: ['dólares', '美元'], pounds: ['libras', '英镑'], 'Swiss francs': ['francos suíços', '瑞士法郎'], reais: ['reais', '雷亚尔'], 'those currencies': ['essas moedas', '这些货币'] }[m[1]] || [m[1], m[1]];
+      return ({ pt: `Se os preços que introduziste eram em ${w[0]}, o custo está inflacionado e o ganho subestimado.`, zh: `如果你填写的价格是${w[1]}，那么成本被高估、收益被低估了。` })[L]; }],
     [/^(\d+) goals$/, L => m => ({ pt: `${m[1]} objetivos`, zh: `${m[1]} 个目标` })[L]],
     [/^(\d+) reached$/, L => m => ({ pt: `${m[1]} ${m[1] === '1' ? 'alcançado' : 'alcançados'}`, zh: `已达成 ${m[1]} 个` })[L]],
     [/^(\d+) days? overdue$/, L => m => ({ pt: `${m[1]} ${m[1] === '1' ? 'dia' : 'dias'} em atraso`, zh: `已逾期 ${m[1]} 天` })[L]],

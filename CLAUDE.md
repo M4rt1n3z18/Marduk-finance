@@ -390,6 +390,8 @@ Selling is **Close** (holdings table, and the holding side panel): `nxClosePosit
 - `delTransaction` rebuilds a holding from its open lots, gives back a closed lot's cost when its sale is deleted, and takes the proceeds back out of cash when the sale had put them there.
 - `lotsTableFor` shows what's left of each purchase ("3 of 6", "closed") and each sale's realised gain; Transactions shows it under the sale's amount.
 
+**Purchases saved in euros for a foreign holding** — Add Holding's price currency defaulted to EUR whatever the ticker, so a dollar price copied from XTB was stored as that many euros: cost ~10% high, gain that much low (found 2026-10-26 on real data: every USD holding's € cost per share equalled XTB's dollar open price, and the ~€590 gap to XTB's profit was exactly that). Now `syncBuyCurrency()` (`utils.js`) sets the currency from the ticker (held → Yahoo's quote currency; else the suffix via `hiSuffixCcy`, bare = USD; London pence left alone). Existing data: `purchasesSavedAsEur(port)` flags holdings whose quote currency isn't EUR and whose buys carry no `priceCurrency` (not GBp; dismissals in `state.fxCheckDismissed`); `nxFxCheck()` (`views.js`) fetches ECB history once, previews each conversion on a copy, and `convertPurchasesFrom()` converts only what's ticked — each buy at its own date's rate, closed lots' `costEur` follow, the holding keeps its open lots' cost.
+
 **Holdings without a price** count at cost (`currentPrice || buyPrice`), so their gain is missing from every total. `nxPriceNote()` (`views.js`) names them on the Portfolio overview and above the holdings table, plus any price more than 4 days old.
 
 ## Risk View (`js/risk.js`)

@@ -492,7 +492,7 @@
     _close = { ticker, lots };
     let el = document.getElementById('nx-close');
     if (!el) {
-      el = Object.assign(document.createElement('div'), { id: 'nx-close' });
+      el = Object.assign(document.createElement('div'), { id: 'nx-close', className: 'nx-dialog' });
       document.body.appendChild(el);
       el.addEventListener('click', e => { if (e.target === el || e.target.closest('[data-act="cancel"]')) closeDialog(); });
       el.addEventListener('input', e => {
@@ -613,6 +613,106 @@
     }
   }
 
+  // ══════════════ PURCHASES SAVED IN EUROS ══════════════
+  // purchasesSavedAsEur() (actions.js) finds holdings that trade in another
+  // currency whose purchases were taken as euros; this names them and lets you
+  // convert the ones whose prices were really in that currency.
+  const CCY_WORD = { USD: 'dollars', GBP: 'pounds', CHF: 'Swiss francs', BRL: 'reais', CAD: 'Canadian dollars', HKD: 'Hong Kong dollars', JPY: 'yen', DKK: 'Danish kroner', SEK: 'Swedish kronor', NOK: 'Norwegian kroner', AUD: 'Australian dollars', PLN: 'złoty' };
+  const listOf = a => a.length === 1 ? a[0] : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+  function nxFxNote() {
+    const items = purchasesSavedAsEur(ap()), ccys = [...new Set(items.map(x => x.currency))];
+    const word = ccys.length === 1 ? (CCY_WORD[ccys[0]] || ccys[0]) : null;
+    const html = !items.length ? '' : `${tileI('amber', 'alert')}<div><p><b>${escH(listOf(items.map(x => x.h.ticker)))}</b> ${items.length === 1 ? 'trades' : 'trade'} in ${word || 'other currencies'}, but ${items.length === 1 ? 'its purchases were' : 'their purchases were'} saved in euros.</p>
+      <p class="nx-price-note-how">If the prices you entered were in ${word || 'those currencies'}, what ${items.length === 1 ? 'it' : 'they'} cost is overstated and the gain understated.</p></div>
+      <button type="button" class="nx-inc-act nx-note-act" onclick="nxFxCheck()">Check them</button>`;
+    for (const [id, anchor] of [['nx-fx-note-ov', document.querySelector('#psub-portfolio-overview > .stats-grid')], ['nx-fx-note-hd', document.getElementById('holdings-table-wrap')]]) {
+      if (!anchor) continue;
+      let n = document.getElementById(id);
+      if (!n) { n = Object.assign(document.createElement('div'), { id, className: 'nx-price-note' }); id.endsWith('ov') ? anchor.after(n) : anchor.before(n); }
+      n.innerHTML = html; n.style.display = html ? '' : 'none';
+    }
+  }
+  let _fx = null;   // { items, rateOn }
+  async function nxFxCheck() {
+    const port = ap(), items = purchasesSavedAsEur(port);
+    if (!items.length) return;
+    let el = document.getElementById('nx-fxfix');
+    if (!el) {
+      el = Object.assign(document.createElement('div'), { id: 'nx-fxfix', className: 'nx-dialog' });
+      document.body.appendChild(el);
+      el.addEventListener('click', e => { if (e.target === el || e.target.closest('[data-act="cancel"]')) el.classList.remove('open'); });
+      el.addEventListener('change', e => {
+        if (e.target.name === 'all') el.querySelectorAll('[name="pick"]').forEach(c => { c.checked = e.target.checked; });
+        fxSummary();
+      });
+      el.addEventListener('submit', onFxSubmit);
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && el.classList.contains('open')) el.classList.remove('open'); });
+    }
+    el.innerHTML = `<div class="nx-close-panel"><div class="nx-close-head"><div class="nx-close-title">Check purchase currencies</div>
+      <button type="button" class="nx-row-del" data-act="cancel" title="Cancel">${icon('close', 16)}</button></div>
+      <div class="nx-close-sum"><span>Getting the ECB rates for each purchase date…</span></div></div>`;
+    el.classList.add('open');
+    // one ECB request for every currency and date involved
+    const dates = items.flatMap(x => x.buys.map(t => t.date).concat(x.h.buyDate || [])).filter(Boolean).sort();
+    const from = new Date(dates[0] + 'T12:00:00Z'); from.setUTCDate(from.getUTCDate() - 10);
+    let hist = null;
+    try { hist = await window.electronAPI?.fetchFxHistory?.({ currencies: [...new Set(items.map(x => x.currency))], from: from.toISOString().slice(0, 10), to: dates[dates.length - 1] }); } catch (x) {}
+    const rateOn = c => date => { const m = hist?.[c]; if (!m || !date) return null; const d = new Date(date + 'T12:00:00Z');
+      for (let k = 0; k <= 10; k++) { const v = m[d.toISOString().slice(0, 10)]; if (v) return v; d.setUTCDate(d.getUTCDate() - 1); } return null; };
+    const rows = items.map(x => {
+      const copy = structuredClone(port), ok = convertPurchasesFrom(copy, x.h.ticker, x.currency, rateOn(x.currency));
+      const nb = ok ? copy.holdings.find(h => h.ticker === x.h.ticker).buyPrice : null, cp = x.h.currentPrice;
+      return { ...x, ok, nb, gain: cp ? (cp - x.h.buyPrice) * x.h.shares : null, gainAfter: cp && ok ? (cp - nb) * x.h.shares : null };
+    });
+    _fx = { rows, rateOn };
+    const signed = v => v == null ? '' : `<span class="${v >= 0 ? 'up-text' : 'down-text'}">${v >= 0 ? '+' : '−'}${eur(Math.abs(v), 0)}</span>`;
+    el.innerHTML = `<form class="nx-close-panel" novalidate>
+      <div class="nx-close-head"><div><div class="nx-close-title">Check purchase currencies</div>
+        <div class="nx-close-sub"><span>${port.name ? escH(port.name) + ' · ' : ''}</span><span>${rows.length === 1 ? '1 holding' : rows.length + ' holdings'}</span></div></div>
+        <button type="button" class="nx-row-del" data-act="cancel" title="Cancel">${icon('close', 16)}</button></div>
+      <p class="nx-close-help">Tick each holding whose prices you entered in the currency it trades in. They’re converted at the ECB rate of each purchase date. The ones you leave unticked stay in euros and won’t be flagged again.</p>
+      ${!hist || hist.error ? '<div class="nx-auth-err">Couldn’t get the ECB rates. Check your connection and try again.</div>' : ''}
+      <div class="nx-close-lots">
+        <label class="nx-close-row nx-fx-row nx-close-cols"><input type="checkbox" name="all"><span>Holding</span><span>Saved as</span><span>In its currency</span><span>Gain now</span></label>
+        ${rows.map((r, i) => `<label class="nx-close-row nx-fx-row nx-close-lot" data-i="${i}"><input type="checkbox" name="pick" value="${i}"${r.ok ? '' : ' disabled'}>
+          <span class="nx-close-when"><b>${escH(r.h.ticker)}</b><small><span>${r.buys.length === 1 ? '1 purchase' : r.buys.length ? r.buys.length + ' purchases' : 'no purchases recorded'}</span> · ${r.currency}</small></span>
+          <span class="nx-close-qty">${eur(r.h.buyPrice)} <small>a share</small></span>
+          <span class="nx-close-qty">${r.ok ? `${eur(r.nb)} <small>a share</small>` : '<small>no rate</small>'}</span>
+          <span class="nx-fx-gain">${signed(r.gain)}${r.ok && r.gainAfter != null ? ` <span class="nx-fx-arrow">→</span> ${signed(r.gainAfter)}` : ''}</span></label>`).join('')}
+      </div>
+      <div class="nx-close-sum"></div>
+      <div class="nx-auth-err"></div>
+      <div class="nx-nw-form-btns"><button type="button" class="btn-ghost" data-act="cancel">Cancel</button><button class="btn" type="submit">Save</button></div>
+    </form>`;
+    fxSummary();
+  }
+  function fxSummary() {
+    const el = document.getElementById('nx-fxfix'); if (!el || !_fx) return;
+    const picks = [...el.querySelectorAll('[name="pick"]')].filter(c => c.checked).map(c => _fx.rows[+c.value]);
+    const all = el.querySelector('[name="all"]'), boxes = [...el.querySelectorAll('[name="pick"]:not(:disabled)')];
+    if (all) { all.checked = boxes.length > 0 && boxes.every(c => c.checked); all.indeterminate = !all.checked && boxes.some(c => c.checked); }
+    const before = _fx.rows.reduce((s, r) => s + (r.gain || 0), 0), after = _fx.rows.reduce((s, r) => s + ((picks.includes(r) ? r.gainAfter : r.gain) || 0), 0);
+    const sum = el.querySelector('.nx-close-sum'), btn = el.querySelector('button[type="submit"]');
+    if (btn) btn.textContent = picks.length ? (picks.length === 1 ? 'Convert 1 holding' : `Convert ${picks.length} holdings`) : 'Keep them in euros';
+    if (sum) sum.innerHTML = picks.length ? `<span>Their gain</span> <b>${before >= 0 ? '+' : '−'}${eur(Math.abs(before), 0)}</b> <span>becomes</span> <b class="${after >= 0 ? 'up-text' : 'down-text'}">${after >= 0 ? '+' : '−'}${eur(Math.abs(after), 0)}</b>`
+      : '<span>Nothing ticked: every holding listed stays in euros.</span>';
+  }
+  function onFxSubmit(e) {
+    e.preventDefault();
+    const el = document.getElementById('nx-fxfix'), port = ap();
+    const picked = new Set([...el.querySelectorAll('[name="pick"]')].filter(c => c.checked).map(c => +c.value));
+    let n = 0;
+    state.fxCheckDismissed = state.fxCheckDismissed || {};
+    _fx.rows.forEach((r, i) => {
+      if (picked.has(i)) { if (convertPurchasesFrom(port, r.h.ticker, r.currency, _fx.rateOn(r.currency))) n++; }
+      else state.fxCheckDismissed[port.id + '|' + r.h.ticker] = true;
+    });
+    el.classList.remove('open'); _fx = null;
+    save(); renderAll();
+    showToast(n ? (n === 1 ? 'Converted 1 holding' : `Converted ${n} holdings`) : 'Kept in euros');
+  }
+  window.nxFxCheck = nxFxCheck;
+
   // ══════════════ wiring ══════════════
   const after = (name, fn) => {
     const orig = window[name]; if (typeof orig !== 'function') return;
@@ -626,5 +726,6 @@
     after('renderAllocationStats', nxAllocStrip);
     after('renderAllocations', nxAllocHistory);
     after('renderPortfolio', nxPriceNote);
+    after('renderPortfolio', nxFxNote);
   });
 })();

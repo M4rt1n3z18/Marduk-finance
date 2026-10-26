@@ -159,6 +159,48 @@ function closeLots(port, ticker, picks, { priceEur, priceNative, currency, fxRat
   return { sold: +sold.toFixed(6), proceeds, gain: +(proceeds - cost).toFixed(2) };
 }
 
+// ── Purchases saved in euros that look like foreign prices ───────────────────
+// The holding trades in another currency (Yahoo's quote currency) but its
+// purchases carry no currency of their own, so they were taken as euros. Add
+// Holding's price used to default to euros whatever the ticker: a dollar price
+// copied from a broker was stored as that many euros, putting the cost ~10%
+// too high and the gain that much too low. Flagged only; converted on request.
+function purchasesSavedAsEur(port) {
+  const dismissed = state.fxCheckDismissed || {};
+  return (port.holdings || []).map(h => {
+    const ccy = h.priceCurrency;
+    if (!ccy || ccy === 'EUR' || ccy === 'GBp' || dismissed[port.id + '|' + h.ticker]) return null;   // pence vs pounds is too ambiguous to guess
+    const buys = (port.transactions || []).filter(t => t.ticker === h.ticker && t.type !== 'Sell');
+    const asEur = buys.filter(t => !t.priceCurrency);
+    if (buys.length ? !asEur.length : (h.buyCurrency || !h.buyDate)) return null;
+    return { h, currency: ccy, buys: asEur };
+  }).filter(Boolean);
+}
+
+// Read a holding's euro-saved purchases as prices in `currency`, each converted
+// at the ECB rate of its own date (`rateOn(date)` → units per EUR). Every rate
+// is checked before anything changes. Closed lots' costs follow, and the
+// holding keeps the cost of what's still open.
+function convertPurchasesFrom(port, ticker, currency, rateOn) {
+  const h = port.holdings.find(x => x.ticker === ticker);
+  if (!h) return false;
+  const open = positionLots(port, h);
+  const buys = (port.transactions || []).filter(t => t.ticker === ticker && t.type !== 'Sell' && !t.priceCurrency);
+  const earlyDate = h.buyDate || buys.map(t => t.date).sort()[0];
+  const needs = buys.map(t => t.date).concat(open.some(l => l.id === null) ? [earlyDate] : []);
+  if (!needs.length || needs.some(d => !(rateOn(d) > 0))) return false;
+  const price = new Map();
+  for (const t of buys) {
+    const r = rateOn(t.date);
+    Object.assign(t, { priceOriginal: t.price, priceCurrency: currency, fxRate: +(+r).toFixed(6), price: +(t.price / r).toFixed(4) });
+    price.set(t.id, t.price);
+  }
+  for (const s of port.transactions) if (s.type === 'Sell' && s.lot && price.has(s.lot)) s.costEur = +(s.shares * price.get(s.lot)).toFixed(2);
+  const cost = open.reduce((s, l) => s + l.left * (l.id === null ? l.priceEur / rateOn(earlyDate) : price.get(l.id) ?? l.priceEur), 0);
+  h.buyPrice = +(cost / h.shares).toFixed(4);
+  return true;
+}
+
 // Kept for anything that still calls it: selling is the Close dialog now
 function quickSell(ticker) {
   if (typeof nxClosePosition === 'function') nxClosePosition(ticker);
