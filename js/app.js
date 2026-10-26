@@ -380,7 +380,7 @@ function addCategory() {
 async function delCategory(cat) {
   const expenseCount = state.expenses.filter(e => e.cat === cat).length;
   const msg = expenseCount > 0
-    ? `Delete "${cat}"? It has ${expenseCount} expense${expenseCount > 1 ? 's' : ''} — they will keep the label but won't show in budget. Continue?`
+    ? `Delete "${cat}"? It has ${expenseCount} expense${expenseCount > 1 ? 's' : ''}. They will keep the label but won't show in the budget. Continue?`
     : `Delete category "${cat}"?`;
   if (!await nexoraConfirm(msg)) return;
   state.categories = (state.categories || CATS).filter(c => c !== cat);
@@ -504,10 +504,10 @@ function renderFire() {
   // ── 8. Update DOM ────────────────────────────────────────────────────────
   const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 
-  setEl('fire-number',  fireNumber > 0 ? eur(fireNumber) : '—');
+  setEl('fire-number',  fireNumber > 0 ? eur(fireNumber) : '–');
   setEl('fire-nw',      eur(nw));
-  setEl('fire-ann-exp', annualExp > 0 ? eur(annualExp) : '—');
-  setEl('fire-ann-sav', annualSav > 0 ? eur(annualSav) : (avgMonthlyInc > 0 ? eur(0) : '—'));
+  setEl('fire-ann-exp', annualExp > 0 ? eur(annualExp) : '–');
+  setEl('fire-ann-sav', annualSav > 0 ? eur(annualSav) : (avgMonthlyInc > 0 ? eur(0) : '–'));
 
   // Progress bar
   const pctVal = fireNumber > 0 ? Math.min(nw / fireNumber * 100, 100) : 0;
@@ -994,7 +994,7 @@ async function renderAiSummaryCard() {
   if (masked) {
     card.style.display = '';
     document.getElementById('ai-summary-text').innerHTML =
-      '<span style="color:var(--text3);">No summary for this month yet — click Regenerate to create one.</span>';
+      '<span style="color:var(--text3);">No summary for this month yet. Click Regenerate to create one.</span>';
     document.getElementById('ai-summary-meta').textContent = '';
   } else {
     card.style.display = 'none';
@@ -1014,7 +1014,7 @@ async function renderAiSummaryCard() {
   const progressFill = document.getElementById('update-progress-fill');
 
   window.electronAPI.onUpdateAvailable((version) => {
-    msg.textContent        = `New version ${version} available — downloading…`;
+    msg.textContent        = `New version ${version} available, downloading…`;
     pct.textContent        = '0%';
     installBtn.style.display  = 'none';
     progressBar.style.display = 'block';

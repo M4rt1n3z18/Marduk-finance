@@ -158,7 +158,7 @@ ipcMain.handle('install-update', async () => {
         if (mountOut.status === 0 && mountPoint) spawnSync('hdiutil', ['detach', mountPoint, '-quiet'], { timeout: 10000 });
         fs.unlink(global._pendingDmg, () => {});
         global._pendingDmg = null;               // force a fresh download next check
-        return fail('Could not open the downloaded update — it will download again on the next check.');
+        return fail('Could not open the downloaded update. It will download again on the next check.');
       }
 
       // Install next to the bundle we are actually running from, not a hardcoded
@@ -451,7 +451,7 @@ ipcMain.handle('get-ai-key-status', () => {
 ipcMain.handle('set-ai-key', (event, key) => {
   key = String(key || '').trim();
   if (!key.startsWith('sk-ant-') || key.length < 20) {
-    return { ok: false, error: 'That does not look like an Anthropic API key — it should start with "sk-ant-".' };
+    return { ok: false, error: 'That does not look like an Anthropic API key. It should start with "sk-ant-".' };
   }
   try { fs.writeFileSync(AI_KEY_FILE, key, 'utf8'); return { ok: true }; }
   catch (e) { return { ok: false, error: e.message }; }
@@ -1870,8 +1870,8 @@ ipcMain.handle('ai-monthly-summary', async (event, payload) => {
   } catch (e) {
     // Was a silent null — every failure looked identical to "no summary yet"
     console.error('[AI] monthly summary failed:', e.status || '', e.message);
-    return { error: e.status === 401 ? 'API key rejected — check Settings → AI.'
-           : e.status === 429 ? 'Rate limited by the API — try again shortly.'
+    return { error: e.status === 401 ? 'API key rejected. Check Settings → AI.'
+           : e.status === 429 ? 'Rate limited by the API. Try again shortly.'
            : (e.message || 'Request failed') };
   }
 });
@@ -1920,7 +1920,7 @@ ipcMain.handle('read-statement', async (event, droppedPath) => {
       // and saving produces one. Say what to do, not just what is wrong.
       const isNumbers = /\.numbers$/i.test(filePath);
       return { fileName: path.basename(filePath), rows: [], error: isNumbers
-        ? 'Numbers files can\'t be read directly.\n\nIn Numbers: File → Export To → CSV…\nOr use the original .csv / .xlsx your bank gave you — it is often saved in the same folder.'
+        ? 'Numbers files can\'t be read directly.\n\nIn Numbers: File → Export To → CSV…\nOr use the original .csv / .xlsx your bank gave you; it is often saved in the same folder.'
         : 'Needs a spreadsheet: .xlsx, .xls or .csv' };
     }
   } else {

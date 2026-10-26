@@ -84,7 +84,7 @@ function acTicker(input) {
       // null = rate limited (couldn't ask). [] = asked, genuinely nothing found.
       if (live === null) {
         renderAcDrop(local, input, local.length
-          ? 'Live search unavailable — showing known tickers only'
+          ? 'Live search unavailable, showing known tickers only'
           : 'Live search rate-limited. Type the exact ticker and continue.');
         return;
       }

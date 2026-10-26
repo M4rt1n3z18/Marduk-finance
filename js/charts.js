@@ -291,7 +291,7 @@ function renderAll() {
 // day, say so — an out-of-date number that looks current is worse than no number.
 function priceAgeBadge(h) {
   if (!h.currentPrice) return '';
-  if (!h.priceUpdatedAt) return ' <span title="Price age unknown — refresh to update" style="color:var(--gold);">·</span>';
+  if (!h.priceUpdatedAt) return ' <span title="Price age unknown, refresh to update" style="color:var(--gold);">·</span>';
   const hours = (Date.now() - new Date(h.priceUpdatedAt).getTime()) / 3600000;
   if (hours < 24) return '';
   const label = hours < 48 ? '1d old' : `${Math.floor(hours / 24)}d old`;
@@ -413,35 +413,63 @@ function renderPortfolio() {
 
 // ══════════════ HOLDINGS TABLE SUB-TABS ══════════════
 function lotsTableFor(h) {
-  const lots = (ap().transactions||[]).filter(t => t.ticker === h.ticker)
-    .sort((a,b) => new Date(a.date)-new Date(b.date));
-  // what's still open of each purchase — a closed purchase no longer counts toward value or gain
-  const open = new Map(positionLots(ap(), h).map(l => [l.id, l.left]));
+  const port = ap();
+  const lots = (port.transactions||[]).filter(t => t.ticker === h.ticker)
+    .sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  // what's still open of each purchase: a closed purchase no longer counts toward value or gain
+  const open = new Map(positionLots(port, h).map(l => [l.id, l.left]));
+  const buys = lots.filter(t => t.type !== 'Sell');
+  const head = `<div class="nx-lots-head"><div><div class="nx-lots-title">Purchases</div>
+      <div class="nx-lots-sub">${buys.length ? `<span>${buys.length === 1 ? '1 purchase' : buys.length + ' purchases'}</span> · <span>since</span> ${fmtDay(buys[0].date)} · <span>average</span> ${eurPort(h.buyPrice)}` : '<span>No purchases recorded for this holding.</span>'}</div></div>
+    <button type="button" class="nx-inc-act" onclick="event.stopPropagation();addPurchaseFor('${h.ticker}')">+ Add purchase</button></div>`;
+  if (!lots.length) return `<div class="nx-lots">${head}</div>`;
+  const trash = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+  let year = null;
   const rows = lots.map(lot => {
     const buy   = lot.type !== 'Sell';
     const left  = buy ? (open.get(lot.id) || 0) : 0;
+    const closed = buy && left <= 1e-6;
     const lCost = lot.price * left;
     const lVal  = (h.currentPrice || lot.price) * left;
     const lGain = buy && left > 0 ? lVal - lCost : !buy && lot.costEur != null ? lot.price * lot.shares - lot.costEur : null;
     const base  = buy ? lCost : lot.costEur;
     const lGPct = lGain !== null && base ? lGain/base*100 : null;
-    return `<tr>
-      <td>${fmtDay(lot.date)}</td>
-      <td><span class="badge ${buy?'buy':'sell'}" style="font-size:10px;padding:2px 7px;">${buy ? 'Buy' : 'Sell'}</span></td>
-      <td>${buy && left < lot.shares - 1e-6 ? `${left > 0 ? fmtShares(left) : '0'} <span style="font-size:10px;color:var(--text3);">of ${fmtShares(lot.shares)}${left > 0 ? '' : ' · closed'}</span>` : fmtShares(lot.shares)}</td>
-      <td>${lot.priceOriginal != null ? `${CURRENCY_SYMBOLS[lot.priceCurrency]||lot.priceCurrency}${lot.priceOriginal} <span style="font-size:10px;color:var(--text3);">(${eur(lot.price)})</span>` : eur(lot.price)}</td>
-      <td class="muted">${buy && left > 0 ? eurPort(lCost) : '—'}</td>
-      <td>${buy && left > 0 ? eurPort(lVal) : '—'}</td>
-      <td class="${lGain!==null?(lGain>=0?'up-text':'down-text'):''}">
-        ${lGain!==null ? eurPort(lGain)+' <span style="font-size:10px;">('+pct(lGPct)+')</span>'+(buy ? '' : ' <span style="font-size:10px;color:var(--text3);">realised</span>') : '—'}
-      </td>
-      <td><button class="del-btn" onclick="event.stopPropagation();delTransaction('${lot.id}')" title="Remove lot">✕</button></td>
-    </tr>`;
-  }).join('') || `<tr><td colspan="8" class="empty" style="padding:10px 0;">No lots recorded.</td></tr>`;
-  return `<div class="lots-wrap"><table class="lots-table">
-    <thead><tr><th>Date</th><th>Type</th><th>Shares</th><th>Price</th><th>Total Cost</th><th>Mkt Value</th><th>Gain/Loss</th><th></th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div>`;
+    const y = (lot.date || '').slice(0, 4);
+    const sep = y !== year ? `<div class="nx-lot-year">${(year = y)}</div>` : '';
+    const native = lot.priceOriginal != null && lot.priceCurrency
+      ? `<small>${CURRENCY_SYMBOLS[lot.priceCurrency] || lot.priceCurrency + ' '}${(+lot.priceOriginal).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</small>` : '';
+    return sep + `<div class="nx-lot-row${closed ? ' closed' : ''}">
+      <span class="nx-lot-date">${fmtDay(lot.date, false)}</span>
+      <span><span class="nx-tx-type ${buy ? 'buy' : 'sell'}">${buy ? 'Buy' : 'Sell'}</span></span>
+      <span class="nx-lot-num">${buy && left < lot.shares - 1e-6 ? `${left > 0 ? fmtShares(left) : '0'}<small>of ${fmtShares(lot.shares)}${closed ? ' · closed' : ''}</small>` : fmtShares(lot.shares)}</span>
+      <span class="nx-lot-num">${eurPort(lot.price)}${native}</span>
+      <span class="nx-lot-num">${buy && left > 0 ? eurPort(lCost) : ''}</span>
+      <span class="nx-lot-num">${buy && left > 0 ? eurPort(lVal) : ''}</span>
+      <span class="nx-lot-gain ${lGain === null ? '' : lGain >= 0 ? 'up' : 'down'}">${lGain !== null ? `${lGain >= 0 ? '+' : '−'}${eurPort(Math.abs(lGain))}<small>${lGPct >= 0 ? '+' : '−'}${Math.abs(lGPct).toFixed(2)}%${buy ? '' : ' realised'}</small>` : ''}</span>
+      <button type="button" class="nx-row-del" onclick="event.stopPropagation();removeLot('${lot.id}')" title="${buy ? 'Remove this purchase' : 'Remove this sale'}">${trash}</button>
+    </div>`;
+  }).join('');
+  return `<div class="nx-lots">${head}
+    <div class="nx-lot-row nx-lot-cols"><span>Date</span><span>Type</span><span>Shares</span><span>Price</span><span>Cost</span><span>Value now</span><span>Gain</span><span></span></div>
+    ${rows}</div>`;
+}
+
+// Removing a purchase or a sale changes the holding, so it asks first
+async function removeLot(id) {
+  const t = (ap().transactions || []).find(x => x.id === id);
+  if (!t) return;
+  if (!await nexoraConfirm(`${t.type === 'Sell' ? 'Remove this sale' : 'Remove this purchase'} of ${fmtShares(t.shares)} ${t.ticker} on ${fmtDay(t.date)}? The holding is adjusted to match.`)) return;
+  delTransaction(id);
+}
+
+// Another purchase of a holding: the Add holding form, ready for it
+function addPurchaseFor(ticker) {
+  openAddHolding();
+  const inp = document.getElementById('h-ticker');
+  inp.value = ticker;
+  acAutoDetect(inp);
+  document.getElementById('add-holding-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => document.getElementById('h-shares').focus(), 300);
 }
 
 function renderHoldingsTable() {
@@ -485,12 +513,12 @@ function renderHoldingsGeneral() {
           <div style="font-size:11px;color:var(--text3);">${eurPort(h.buyPrice)}/sh</div>
         </td>
         <td style="text-align:right;">
-          ${h.currentPrice ? `<div style="font-weight:600;">${eurPort(val)}</div><div style="font-size:11px;color:var(--text3);">${eurPort(h.currentPrice)}/sh${priceAgeBadge(h)}</div>` : '<span class="muted">—</span>'}
+          ${h.currentPrice ? `<div style="font-weight:600;">${eurPort(val)}</div><div style="font-size:11px;color:var(--text3);">${eurPort(h.currentPrice)}/sh${priceAgeBadge(h)}</div>` : '<span class="muted">–</span>'}
         </td>
         <td class="${h.dayChangePct != null && h.currentPrice ? (h.dayChangePct >= 0 ? 'up-text' : 'down-text') : ''}" style="font-weight:600;text-align:right;">
           ${h.dayChangePct != null && h.currentPrice
             ? `<div>${eurPort(val - val / (1 + h.dayChangePct / 100))}</div><div style="font-size:11px;">(${pct(h.dayChangePct)})</div>`
-            : '<span class="muted">—</span>'}
+            : '<span class="muted">–</span>'}
         </td>
         <td class="${gain>=0?'up-text':'down-text'}" style="font-weight:600;text-align:right;">
           <div>${eurPort(gain)}</div>
@@ -505,7 +533,7 @@ function renderHoldingsGeneral() {
       <tr class="holding-detail" id="hdetail-${h.id}" style="display:none;">
         <td colspan="8">${lotsTableFor(h)}</td>
       </tr>`;
-  }).join('') || '<tr><td colspan="8" class="empty">No holdings yet — use Import CSV or + Add holding above.</td></tr>';
+  }).join('') || '<tr><td colspan="8" class="empty">No holdings yet. Use Import CSV or + Add holding above.</td></tr>';
 
   return `<table class="data-table">
     <thead><tr>
@@ -525,13 +553,13 @@ function renderHoldingsDividends() {
     const cost = h.buyPrice * h.shares;
     const dps  = h.dividendPerShare || 0;
     const annualDivs = dps * h.shares;
-    const fwdYield   = h.forwardYield  ? (h.forwardYield  * 100).toFixed(2) + '%' : (dps && h.currentPrice ? (dps / h.currentPrice * 100).toFixed(2) + '%' : '—');
-    const yieldOnCost = dps && cost ? (annualDivs / cost * 100).toFixed(2) + '%' : '—';
+    const fwdYield   = h.forwardYield  ? (h.forwardYield  * 100).toFixed(2) + '%' : (dps && h.currentPrice ? (dps / h.currentPrice * 100).toFixed(2) + '%' : '–');
+    const yieldOnCost = dps && cost ? (annualDivs / cost * 100).toFixed(2) + '%' : '–';
     const exDiv  = h.exDivDate  || null;
     const nextPay = h.nextPayDate || null;
     const nextEarnings = h.nextEarningsDate || null;
     const fmtD = d => {
-      if (!d) return '<span class="muted">—</span>';
+      if (!d) return '<span class="muted">–</span>';
       const dt = new Date(d + 'T12:00:00Z');
       return dt.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
     };
@@ -551,7 +579,7 @@ function renderHoldingsDividends() {
         <td style="text-align:right;font-weight:600;">${eurPort(val)}</td>
         <td style="text-align:right;">
           ${dps > 0 ? `<div class="up-text" style="font-weight:600;">${eurPort(annualDivs)}</div>
-            <div style="font-size:11px;color:var(--text3);">${eurPort(dps)}/sh</div>` : '<span class="muted">—</span>'}
+            <div style="font-size:11px;color:var(--text3);">${eurPort(dps)}/sh</div>` : '<span class="muted">–</span>'}
         </td>
         <td style="text-align:right;">
           <div style="font-weight:600;${dps>0?'color:var(--up)':''}">${fwdYield}</div>
@@ -616,7 +644,7 @@ function renderHoldingsReturns() {
           <div>${eurPort(gain)}</div><div style="font-size:11px;">(${pct(gainPct)})</div>
         </td>
         <td style="text-align:right;font-weight:600;${annReturn!==null?(annReturn>=0?'color:var(--up)':'color:var(--down)'):''}">
-          ${annReturn !== null ? (annReturn >= 0 ? '+' : '') + annReturn.toFixed(2) + '%/yr' : '<span class="muted">—</span>'}
+          ${annReturn !== null ? (annReturn >= 0 ? '+' : '') + annReturn.toFixed(2) + '%/yr' : '<span class="muted">–</span>'}
         </td>
         <td style="text-align:right;">
           <button class="del-btn" onclick="event.stopPropagation();delHolding('${h.id}')" title="Delete">✕</button>

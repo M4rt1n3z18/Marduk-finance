@@ -454,7 +454,7 @@
     _accounts = structuredClone(list);
     const json = JSON.stringify({ format: 'nexora-profiles', version: 1, profiles: _accounts });
     _accSave = _accSave.then(() => api?.profilesWrite(json))
-      .then(ok => { if (ok === false) showToast('Couldn’t save your profile settings — check that the Google Drive folder is available', 8000); })
+      .then(ok => { if (ok === false) showToast('Couldn’t save your profile settings. Check that the Google Drive folder is available', 8000); })
       .catch(e => console.error(e));
   };
   async function loadAccounts() {
@@ -571,7 +571,7 @@
     { id: 'name',  title: 'Welcome to Nexora', sub: 'A few questions so Nexora fits the way you handle money. You can change any answer later.', skip: s => s._fromSignup },
     { id: 'income', title: 'How are you paid?', sub: 'Nexora shows the tools that match.' },
     { id: 'payday', title: 'When does your salary arrive?', sub: 'Your budget month will start on that day.', skip: s => s.income === 'freelance' },
-    { id: 'invest', title: 'Do you invest?', sub: 'Portfolios, dividends and risk — or hide them.' },
+    { id: 'invest', title: 'Do you invest?', sub: 'Portfolios, dividends and risk, or hide them.' },
     { id: 'currency', title: 'Your main currency', sub: 'Used to show your figures.' },
     { id: 'done',  title: 'You’re all set', sub: 'Here’s what Nexora set up for you.' },
   ];
@@ -593,13 +593,13 @@
       <input id="nx-name" class="nx-input" placeholder="Your first name" value="${escH(_setup.name || '')}" oninput="nxSet('name', this.value, true)">`;
     if (id === 'income') return opt('income', 'salary', 'Salary', 'A monthly payslip from an employer', SETUP_IC.salary) +
       opt('income', 'freelance', 'Freelance', 'Invoices and irregular income', SETUP_IC.freelance) + opt('income', 'both', 'Both', 'A salary plus side income', SETUP_IC.both);
-    if (id === 'payday') return opt('payday', 'auto', 'A business day near the end of the month', `Business day no. <input class="nx-day" type="number" min="1" max="10" value="${bizN(_setup)}" onclick="event.stopPropagation()" oninput="nxSet('bizDay', +this.value, true)"> from the end — 1 is the last`, SETUP_IC.auto) +
+    if (id === 'payday') return opt('payday', 'auto', 'A business day near the end of the month', `Business day no. <input class="nx-day" type="number" min="1" max="10" value="${bizN(_setup)}" onclick="event.stopPropagation()" oninput="nxSet('bizDay', +this.value, true)"> from the end (1 is the last)`, SETUP_IC.auto) +
       opt('payday', 'fixed', 'A fixed day', `On day <input class="nx-day" type="number" min="1" max="31" value="${_setup.day || 25}" onclick="event.stopPropagation()" oninput="nxSet('day', +this.value, true)"> of each month`, SETUP_IC.fixed) +
       opt('payday', 'calendar', 'Start of the month', 'Budget months follow the calendar', SETUP_IC.calendar);
-    if (id === 'invest') return opt('invests', true, 'Yes, I invest', 'Show Portfolio, Dividends and Risk', SETUP_IC.yes) + opt('invests', false, 'Not right now', 'Hide them — you can turn them on later', SETUP_IC.no);
+    if (id === 'invest') return opt('invests', true, 'Yes, I invest', 'Show Portfolio, Dividends and Risk', SETUP_IC.yes) + opt('invests', false, 'Not right now', 'Hide them. You can turn them on later', SETUP_IC.no);
     if (id === 'currency') return `<div class="nx-ccy-grid">${CCY.map(([c, , n]) => `<button class="nx-ccy-card${(_setup.currency || 'EUR') === c ? ' sel' : ''}" onclick="nxSet('currency','${c}')">${flagIc(c, 22)}<span class="nx-ccy-text"><span class="nx-ccy-name">${n}</span><span class="nx-ccy-code">${c}</span></span></button>`).join('')}</div>`;
     const lines = [
-      `Hello${_setup.name ? ', ' + escH(_setup.name) : ''} — your dashboard greets you by name`,
+      `Hello${_setup.name ? ', ' + escH(_setup.name) : ''}. Your dashboard greets you by name`,
       _setup.income === 'freelance' ? 'Salary tab hidden; Extra income first' : 'Salary tab and payslip import ready',
       _setup.income !== 'freelance' ? ({ auto: `Budget months start on the ${bizLabel(bizN(_setup))}`, fixed: `Budget months start on day ${_setup.day || 25}`, calendar: 'Budget months follow the calendar' }[_setup.payday || 'auto']) : null,
       _setup.invests === false ? 'Investing tabs hidden' : 'Portfolio, Dividends and Risk on',
@@ -747,7 +747,7 @@
   const WIDGETS = [
     { id: 'kpis', title: 'Key figures', find: () => document.querySelector('#tab-overview .stats-grid'), size: 12, sizes: [12] },
     { id: 'ai', title: 'Your month in review', find: () => document.getElementById('ai-summary-card'), size: 12, sizes: [6, 12] },
-    { id: 'spending', title: 'Spending — last 6 months', find: () => cardOf('chart-spending'), size: 8 },
+    { id: 'spending', title: 'Spending · last 6 months', find: () => cardOf('chart-spending'), size: 8 },
     { id: 'alloc', title: 'Allocation by class', find: () => cardOf('chart-alloc'), size: 4 },
     { id: 'toppos', title: 'Top positions', find: () => cardOf('top-positions'), size: 6 },
     { id: 'catspend', title: 'Top categories', find: () => cardOf('chart-catspend'), size: 6 },
@@ -1098,7 +1098,7 @@
   const STR = {
     en: {
       tag: 'Your money,<br>clearly.', p1: 'Budgets that start on payday', p2: 'Portfolios in euros, with risk and dividends', p3: 'Payslips read for you',
-      chip: 'All your money in one place', foot: 'Spending, budgets, investments, salary and goals — in one app.',
+      chip: 'All your money in one place', foot: 'Spending, budgets, investments, salary and goals, all in one app.',
       welcome_t: 'Welcome to Nexora', welcome_s: 'Create your profile to get started. It takes about a minute.', create: 'Create account',
       back: 'Back', back_login: 'Back to log in',
       signup_t: 'Create your account', signup_s: 'Your profile stays on this computer, and your data is encrypted with your password.',
@@ -1109,23 +1109,23 @@
       locked_t: 'Nexora is locked', locked_s: 'Enter your password to continue, {name}.', unlock: 'Unlock', not_you: 'Not {name}?', sign_out: 'Sign out',
       forgot_t: 'Reset your password', forgot_s: 'Enter the recovery key you saved when you created your profile. Your data stays exactly as it is.',
       rk: 'Recovery key', rk_ph: 'XXXX-XXXX-XXXX-XXXX-XXXX-XXXX', new_pw: 'New password', confirm_new: 'Confirm new password', set_new: 'Set new password',
-      lost_both: 'Lost the recovery key too? Then the data can’t be opened by anyone — that’s what keeps it private.',
+      lost_both: 'Lost the recovery key too? Then the data can’t be opened by anyone. That’s what keeps it private.',
       rk_t: 'Save your recovery key', rk_s: 'It’s the only way back in if you forget your password. Not even Nexora can reset it without this key.',
-      rk_where: 'Keep it away from this computer — in a password manager, or printed and put somewhere safe.',
+      rk_where: 'Keep it away from this computer: in a password manager, or printed and put somewhere safe.',
       copy: 'Copy', copied: 'Copied', download: 'Download', rk_confirm: 'Type the last group to confirm you saved it', continue: 'Continue',
       creating: 'Encrypting your profile…', unlocking: 'Unlocking…', caps: 'Caps Lock is on',
       err_name: 'Please add your name.', err_email: 'That email doesn’t look right.', err_pw8: 'Use at least 8 characters for your password.',
       err_match: 'The two passwords don’t match.', err_wrong: 'Wrong password.', err_left: '{n} more before a pause.', err_wait: 'Too many attempts. Try again in {t}.',
       err_key: 'That recovery key doesn’t open this profile.', err_last: 'That isn’t the last group of your key.', err_pick: 'Choose a profile first.', err_pw: 'Enter your password.',
       strength: ['', 'Too weak', 'Fair', 'Strong'], steps_new: ['Account', 'Recovery key', 'Your setup'], steps_upg: ['Unlock', 'About you', 'Recovery key'],
-      upg_t: 'Marduk is now Nexora', upg_s: 'Enter your Marduk password once. Your data moves into your new profile and is saved encrypted from now on — nothing is lost.',
+      upg_t: 'Marduk is now Nexora', upg_s: 'Enter your Marduk password once. Your data moves into your new profile and is saved encrypted from now on. Nothing is lost.',
       cur_pw: 'Current password', you_t: 'Tell us about you', you_s: 'You’ll keep the same password.',
       done_toast: 'Your data is now encrypted', pw_changed: 'Password changed. You’re in.',
-      upg_s_nopw: 'Choose a password. Your Marduk data moves into your new profile and is saved encrypted with it from now on.', fresh_instead: 'Start with an empty profile instead', unreadable_t: 'Your profiles can’t be read right now', unreadable_s: 'Google Drive may still be syncing the Nexora folder. Nothing has been changed — close Nexora and open it again in a minute.', err_write: 'Couldn’t save — check that the Google Drive folder is available.', upg_check_fail: 'The new profile couldn’t be checked, so nothing was changed — your Marduk data is untouched. Try again.', upg_gone: 'Marduk’s data file isn’t there any more — it may already have been moved into a Nexora profile.', upg_unreadable: 'Marduk’s data file couldn’t be read — it may still be syncing from Google Drive. Try again in a minute.',
+      upg_s_nopw: 'Choose a password. Your Marduk data moves into your new profile and is saved encrypted with it from now on.', fresh_instead: 'Start with an empty profile instead', unreadable_t: 'Your profiles can’t be read right now', unreadable_s: 'Google Drive may still be syncing the Nexora folder. Nothing has been changed. Close Nexora and open it again in a minute.', err_write: 'Couldn’t save. Check that the Google Drive folder is available.', upg_check_fail: 'The new profile couldn’t be checked, so nothing was changed. Your Marduk data is untouched. Try again.', upg_gone: 'Marduk’s data file isn’t there any more. It may already have been moved into a Nexora profile.', upg_unreadable: 'Marduk’s data file couldn’t be read. It may still be syncing from Google Drive. Try again in a minute.',
     },
     pt: {   // PT-PT, tratamento por "tu"
       tag: 'O teu dinheiro,<br>com clareza.', p1: 'Orçamentos que começam no dia do salário', p2: 'Carteiras em euros, com risco e dividendos', p3: 'Recibos de vencimento lidos por ti',
-      chip: 'Todo o teu dinheiro num só lugar', foot: 'Despesas, orçamentos, investimentos, salário e objetivos — numa só app.',
+      chip: 'Todo o teu dinheiro num só lugar', foot: 'Despesas, orçamentos, investimentos, salário e objetivos, tudo numa só app.',
       welcome_t: 'Bem-vindo à Nexora', welcome_s: 'Cria o teu perfil para começar. Demora cerca de um minuto.', create: 'Criar conta',
       back: 'Voltar', back_login: 'Voltar ao início de sessão',
       signup_t: 'Cria a tua conta', signup_s: 'O teu perfil fica neste computador e os teus dados são encriptados com a tua palavra-passe.',
@@ -1136,24 +1136,24 @@
       locked_t: 'A Nexora está bloqueada', locked_s: 'Introduz a tua palavra-passe para continuar, {name}.', unlock: 'Desbloquear', not_you: 'Não és {name}?', sign_out: 'Terminar sessão',
       forgot_t: 'Repor a palavra-passe', forgot_s: 'Introduz a chave de recuperação que guardaste quando criaste o perfil. Os teus dados ficam exatamente como estão.',
       rk: 'Chave de recuperação', rk_ph: 'XXXX-XXXX-XXXX-XXXX-XXXX-XXXX', new_pw: 'Nova palavra-passe', confirm_new: 'Confirmar nova palavra-passe', set_new: 'Definir nova palavra-passe',
-      lost_both: 'Também perdeste a chave? Então ninguém consegue abrir os dados — é isso que os mantém privados.',
+      lost_both: 'Também perdeste a chave? Então ninguém consegue abrir os dados. É isso que os mantém privados.',
       rk_t: 'Guarda a tua chave de recuperação', rk_s: 'É a única forma de voltares a entrar se te esqueceres da palavra-passe. Nem a Nexora a consegue repor sem esta chave.',
-      rk_where: 'Guarda-a fora deste computador — num gestor de palavras-passe, ou impressa e num sítio seguro.',
+      rk_where: 'Guarda-a fora deste computador: num gestor de palavras-passe, ou impressa e num sítio seguro.',
       copy: 'Copiar', copied: 'Copiada', download: 'Transferir', rk_confirm: 'Escreve o último grupo para confirmares que a guardaste', continue: 'Continuar',
       creating: 'A encriptar o teu perfil…', unlocking: 'A desbloquear…', caps: 'O Caps Lock está ativo',
       err_name: 'Indica o teu nome.', err_email: 'Esse e-mail não parece estar certo.', err_pw8: 'Usa pelo menos 8 caracteres na palavra-passe.',
       err_match: 'As duas palavras-passe não coincidem.', err_wrong: 'Palavra-passe errada.', err_left: 'Mais {n} antes de uma pausa.', err_wait: 'Demasiadas tentativas. Tenta outra vez daqui a {t}.',
       err_key: 'Essa chave de recuperação não abre este perfil.', err_last: 'Esse não é o último grupo da tua chave.', err_pick: 'Escolhe primeiro um perfil.', err_pw: 'Introduz a tua palavra-passe.',
       strength: ['', 'Muito fraca', 'Razoável', 'Forte'], steps_new: ['Conta', 'Chave de recuperação', 'Configuração'], steps_upg: ['Desbloquear', 'Sobre ti', 'Chave de recuperação'],
-      upg_t: 'O Marduk agora é a Nexora', upg_s: 'Introduz a tua palavra-passe do Marduk uma vez. Os teus dados passam para o teu novo perfil e ficam guardados encriptados a partir de agora — não se perde nada.',
+      upg_t: 'O Marduk agora é a Nexora', upg_s: 'Introduz a tua palavra-passe do Marduk uma vez. Os teus dados passam para o teu novo perfil e ficam guardados encriptados a partir de agora. Não se perde nada.',
       cur_pw: 'Palavra-passe atual', you_t: 'Fala-nos de ti', you_s: 'Mantens a mesma palavra-passe.',
       done_toast: 'Os teus dados estão agora encriptados', pw_changed: 'Palavra-passe alterada. Já entraste.',
-      upg_s_nopw: 'Escolhe uma palavra-passe. Os teus dados do Marduk passam para o teu novo perfil e ficam encriptados com ela a partir de agora.', fresh_instead: 'Começar antes com um perfil vazio', unreadable_t: 'Não é possível ler os teus perfis agora', unreadable_s: 'O Google Drive ainda pode estar a sincronizar a pasta Nexora. Nada foi alterado — fecha a Nexora e abre-a outra vez daqui a um minuto.', err_write: 'Não foi possível guardar — confirma que a pasta do Google Drive está disponível.', upg_check_fail: 'Não foi possível verificar o novo perfil, por isso nada foi alterado — os teus dados do Marduk estão intactos. Tenta outra vez.', upg_gone: 'O ficheiro de dados do Marduk já não está lá — pode já ter passado para um perfil da Nexora.', upg_unreadable: 'Não foi possível ler o ficheiro de dados do Marduk — pode ainda estar a sincronizar com o Google Drive. Tenta outra vez daqui a um minuto.',
+      upg_s_nopw: 'Escolhe uma palavra-passe. Os teus dados do Marduk passam para o teu novo perfil e ficam encriptados com ela a partir de agora.', fresh_instead: 'Começar antes com um perfil vazio', unreadable_t: 'Não é possível ler os teus perfis agora', unreadable_s: 'O Google Drive ainda pode estar a sincronizar a pasta Nexora. Nada foi alterado. Fecha a Nexora e abre-a outra vez daqui a um minuto.', err_write: 'Não foi possível guardar. Confirma que a pasta do Google Drive está disponível.', upg_check_fail: 'Não foi possível verificar o novo perfil, por isso nada foi alterado. Os teus dados do Marduk estão intactos. Tenta outra vez.', upg_gone: 'O ficheiro de dados do Marduk já não está lá. Pode já ter passado para um perfil da Nexora.', upg_unreadable: 'Não foi possível ler o ficheiro de dados do Marduk. Pode ainda estar a sincronizar com o Google Drive. Tenta outra vez daqui a um minuto.',
     },
   };
   STR.zh = {   // 简体中文
     tag: '你的财务，<br>一目了然。', p1: '从发薪日开始的预算', p2: '以欧元计价的投资组合，含风险与股息', p3: '自动读取工资单',
-    chip: '所有资金尽在一处', foot: '支出、预算、投资、薪资和目标——一个应用全搞定。',
+    chip: '所有资金尽在一处', foot: '支出、预算、投资、薪资和目标，一个应用全搞定。',
     welcome_t: '欢迎使用 Nexora', welcome_s: '创建你的资料即可开始，大约只需一分钟。', create: '创建账户',
     back: '返回', back_login: '返回登录',
     signup_t: '创建你的账户', signup_s: '你的资料保存在此电脑上，数据用你的密码加密。',
@@ -1164,19 +1164,19 @@
     locked_t: 'Nexora 已锁定', locked_s: '输入密码以继续，{name}。', unlock: '解锁', not_you: '不是 {name}？', sign_out: '退出登录',
     forgot_t: '重置密码', forgot_s: '输入你创建资料时保存的恢复密钥。你的数据保持不变。',
     rk: '恢复密钥', rk_ph: 'XXXX-XXXX-XXXX-XXXX-XXXX-XXXX', new_pw: '新密码', confirm_new: '确认新密码', set_new: '设置新密码',
-    lost_both: '恢复密钥也丢了？那么任何人都无法打开这些数据——这正是它们保持私密的原因。',
+    lost_both: '恢复密钥也丢了？那么任何人都无法打开这些数据。这正是它们保持私密的原因。',
     rk_t: '保存你的恢复密钥', rk_s: '忘记密码时，这是重新进入的唯一方式。没有它，连 Nexora 也无法重置。',
-    rk_where: '把它保存在这台电脑之外——放进密码管理器，或打印出来放在安全的地方。',
+    rk_where: '把它保存在这台电脑之外：放进密码管理器，或打印出来放在安全的地方。',
     copy: '复制', copied: '已复制', download: '下载', rk_confirm: '输入最后一组字符，确认你已保存', continue: '继续',
     creating: '正在加密你的资料…', unlocking: '正在解锁…', caps: '大写锁定已开启',
     err_name: '请填写你的名字。', err_email: '这个邮箱看起来不正确。', err_pw8: '密码至少需要 8 个字符。',
     err_match: '两次输入的密码不一致。', err_wrong: '密码错误。', err_left: '再错 {n} 次将暂停。', err_wait: '尝试次数过多，请在 {t} 后重试。',
     err_key: '这个恢复密钥无法打开此资料。', err_last: '这不是你密钥的最后一组。', err_pick: '请先选择一个资料。', err_pw: '请输入你的密码。',
     strength: ['', '太弱', '一般', '强'], steps_new: ['账户', '恢复密钥', '设置'], steps_upg: ['解锁', '关于你', '恢复密钥'],
-    upg_t: 'Marduk 现已更名为 Nexora', upg_s: '输入一次你的 Marduk 密码。你的数据将转入新资料，从此加密保存——不会丢失任何内容。',
+    upg_t: 'Marduk 现已更名为 Nexora', upg_s: '输入一次你的 Marduk 密码。你的数据将转入新资料，从此加密保存，不会丢失任何内容。',
     cur_pw: '当前密码', you_t: '介绍一下你自己', you_s: '你将继续使用相同的密码。',
     done_toast: '你的数据现已加密', pw_changed: '密码已更改，你已登录。',
-    upg_s_nopw: '设置一个密码。你的 Marduk 数据将转入新资料，并从此用它加密保存。', fresh_instead: '改为从空白资料开始', unreadable_t: '暂时无法读取你的资料', unreadable_s: 'Google 云端硬盘可能仍在同步 Nexora 文件夹。没有任何更改——请关闭 Nexora，一分钟后再打开。', err_write: '无法保存——请检查 Google 云端硬盘文件夹是否可用。', upg_check_fail: '无法验证新资料，因此没有做任何更改——你的 Marduk 数据完好无损。请重试。', upg_gone: '找不到 Marduk 的数据文件——它可能已转入 Nexora 资料。', upg_unreadable: '无法读取 Marduk 的数据文件——它可能仍在从 Google 云端硬盘同步。请一分钟后重试。',
+    upg_s_nopw: '设置一个密码。你的 Marduk 数据将转入新资料，并从此用它加密保存。', fresh_instead: '改为从空白资料开始', unreadable_t: '暂时无法读取你的资料', unreadable_s: 'Google 云端硬盘可能仍在同步 Nexora 文件夹。没有任何更改。请关闭 Nexora，一分钟后再打开。', err_write: '无法保存。请检查 Google 云端硬盘文件夹是否可用。', upg_check_fail: '无法验证新资料，因此没有做任何更改。你的 Marduk 数据完好无损。请重试。', upg_gone: '找不到 Marduk 的数据文件。它可能已转入 Nexora 资料。', upg_unreadable: '无法读取 Marduk 的数据文件。它可能仍在从 Google 云端硬盘同步。请一分钟后重试。',
   };
   const T = (k, vars) => { let s = STR[LANG]?.[k] ?? STR.en[k] ?? k; if (vars && typeof s === 'string') for (const [a, b] of Object.entries(vars)) s = s.replace('{' + a + '}', b); return s; };
 
@@ -1430,7 +1430,7 @@
     if (act === 'rk-copy') { navigator.clipboard?.writeText(_rk).then(() => { const s = t.closest('button').querySelector('span'); if (s) s.textContent = T('copied'); }).catch(() => {}); return; }
     if (act === 'rk-dl') {
       const who = currentAccount()?.name || '';
-      const txt = `Nexora recovery key${who ? ' — ' + who : ''}\n\n${_rk}\n\nCreated ${new Date().toLocaleDateString('en-GB')}.\nIt opens your Nexora data if you forget your password. Keep it somewhere safe, away from this computer.\n`;
+      const txt = `Nexora recovery key${who ? ': ' + who : ''}\n\n${_rk}\n\nCreated ${new Date().toLocaleDateString('en-GB')}.\nIt opens your Nexora data if you forget your password. Keep it somewhere safe, away from this computer.\n`;
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([txt], { type: 'text/plain' })), download: `Nexora recovery key${who ? ' - ' + who : ''}.txt` });
       a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); return;
     }
@@ -1630,7 +1630,7 @@
       ui.innerHTML = `
         <div class="nx-fire-head"><span class="nx-ic coral"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${I.flame}</svg></span>
           <div><div class="card-title">FIRE</div><div class="nx-fire-sub">Financial independence · retire early</div></div>
-          <span class="nx-fire-basis">Based on the last 12 months<span class="info-tip">i<span class="tip-body">The 4% rule: investments worth 25 times your yearly spending have historically been able to pay for that spending for 30 years or more. Returns here are real — after inflation.</span></span></span></div>
+          <span class="nx-fire-basis">Based on the last 12 months<span class="info-tip">i<span class="tip-body">The 4% rule: investments worth 25 times your yearly spending have historically been able to pay for that spending for 30 years or more. Returns here are real, after inflation.</span></span></span></div>
         <div class="nx-fire-top"><div class="nx-fire-answer"></div>
           <div class="nx-fire-chart"><div class="nx-fire-chart-head"><span>Your path</span><span class="nx-fire-legend"><i class="a"></i><span>Projected net worth</span><i class="b"></i><span>FIRE number</span></span></div>
             <div class="nx-fire-canvas"><canvas id="nx-fire-chart"></canvas></div></div></div>
@@ -1658,7 +1658,7 @@
     const n = fireYears(F.nw, F.target, S, r), pct = F.target > 0 ? Math.min(100, F.nw / F.target * 100) : 0;
     const unit = (v, one, many) => `<b>${v}</b> <span>${v === 1 ? one : many}</span>`;
     let answer;
-    if (n == null) answer = `<div class="nx-fire-k">Your path to financial independence</div><div class="nx-fire-big nx-fire-none">—</div><p>Log a few months of expenses to see your path.</p>`;
+    if (n == null) answer = `<div class="nx-fire-k">Your path to financial independence</div><div class="nx-fire-big nx-fire-none">–</div><p>Log a few months of expenses to see your path.</p>`;
     else if (n === 0) answer = `<div class="nx-fire-k">You’ve reached financial independence</div><div class="nx-fire-big">100%</div><p>Your investments could cover your spending from here on.</p>`;
     else if (!isFinite(n) || n > 80) answer = `<div class="nx-fire-k">At this rate</div><div class="nx-fire-big nx-fire-none">Not yet in sight</div><p>Save more each month or expect a higher return.</p>`;
     else {
@@ -1672,8 +1672,8 @@
         <div class="nx-limit-track"><div class="nx-limit-fill nx-fire-fill" style="width:${pct.toFixed(1)}%"></div></div></div>` : '');
     const fig = (label, v, sub) => `<div class="nx-fire-fig"><span>${label}</span><b>${v}</b><small>${sub}</small></div>`;
     ui.querySelector('.nx-fire-figs').innerHTML =
-      fig('FIRE number', F.target > 0 ? eur(F.target, 0) : '—', '25× yearly spending') + fig('Net worth now', eur(F.nw, 0), 'assets − debts') +
-      fig('Yearly spending', F.annualExp > 0 ? eur(F.annualExp, 0) : '—', '12-month average') + fig('Yearly savings', F.avgInc > 0 ? eur(F.annualSav, 0) : '—', 'income − spending');
+      fig('FIRE number', F.target > 0 ? eur(F.target, 0) : '–', '25× yearly spending') + fig('Net worth now', eur(F.nw, 0), 'assets − debts') +
+      fig('Yearly spending', F.annualExp > 0 ? eur(F.annualExp, 0) : '–', '12-month average') + fig('Yearly savings', F.avgInc > 0 ? eur(F.annualSav, 0) : '–', 'income − spending');
     const ret = ui.querySelector('#nx-fire-ret'), sav = ui.querySelector('#nx-fire-sav');
     ui.querySelector('#nx-fire-ret-v').textContent = fireRet.toFixed(1) + '%';
     ui.querySelector('#nx-fire-sav-v').textContent = eur(fireSav || 0, 0);
@@ -1854,7 +1854,7 @@
   // ══════════════ MY PROFILE ══════════════
   let meSec = 'profile', meRk = null, mePeek = false, mePeekText = '', meAvTab = 'initials';
   const ME_SECTIONS = [['profile', 'user', 'Profile'], ['security', 'shieldCheck', 'Security'], ['prefs', 'sliders', 'Preferences'], ['data', 'database', 'Data & privacy']];
-  const fmtLong = iso => iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+  const fmtLong = iso => iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '–';
   const seg = (name, cur, opts) => `<div class="nx-seg" data-seg="${name}">${opts.map(([v, l]) => `<button type="button" data-v="${v}" class="${String(cur) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   function meBody() {
     const a = currentAccount(), p = loadProfile() || {};
@@ -1880,13 +1880,13 @@
           <div class="nx-me-2col">${pwField('pw', 'New password', 'At least 8 characters', 'new-password', true)}${pwField('pw2', 'Confirm new password', '', 'new-password', false)}</div>
           <div class="nx-auth-err"></div><div class="nx-me-foot"><span></span><button class="btn" type="submit">Update password</button></div>
         </form></div>
-      <div class="nx-me-group"><h3>Recovery key</h3><p>Opens your data if you forget your password. Made ${a.rkCreatedAt ? fmtLong(a.rkCreatedAt) : '—'}. Lost it? Make a new one — the old one stops working.</p>
+      <div class="nx-me-group"><h3>Recovery key</h3><p>Opens your data if you forget your password. Made ${a.rkCreatedAt ? fmtLong(a.rkCreatedAt) : '–'}. Lost it? Make a new one, and the old one stops working.</p>
         ${meRk ? `<div class="nx-rk nx-rk-me"><code>${meRk}</code><div class="nx-rk-btns"><button type="button" class="btn-ghost" data-act="me-rk-copy">${icon('card', 15)}<span>Copy</span></button><button type="button" class="btn-ghost" data-act="me-rk-dl">${icon('download', 15)}Download</button></div></div>
-          <p class="nx-me-warn">${icon('shieldCheck', 14)}Save it now — it won’t be shown again.</p>`
+          <p class="nx-me-warn">${icon('shieldCheck', 14)}Save it now. It won’t be shown again.</p>`
         : `<form id="nx-me-rk" novalidate class="nx-me-rk-form">${pwField('cur', 'Your password', '', 'current-password', false)}<button class="btn-ghost" type="submit">Make a new recovery key</button><div class="nx-auth-err"></div></form>`}</div>
       <div class="nx-me-group"><h3>Auto-lock</h3><p>Lock Nexora after this long without activity.</p>
         ${seg('autolock', al, [['5', '5 min'], ['10', '10 min'], ['30', '30 min'], ['off', 'Never']])}</div>
-      <div class="nx-me-group nx-me-inline"><div><h3>Session</h3><p>Last log in: ${a.lastLogin ? new Date(a.lastLogin).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</p></div>
+      <div class="nx-me-group nx-me-inline"><div><h3>Session</h3><p>Last log in: ${a.lastLogin ? new Date(a.lastLogin).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '–'}</p></div>
         <button type="button" class="btn-ghost nx-me-signout" data-act="signout">${icon('logout', 15)}Sign out</button></div>`; }
     if (meSec === 'prefs') return `
       <div class="nx-me-row"><div><h4>Language</h4><p>The whole app, including the log-in screens.</p></div>
@@ -1902,7 +1902,7 @@
       <div class="nx-me-row"><div><h4>Investing</h4><p>Portfolio, Dividends and Risk.</p></div><button type="button" class="nx-switch${p.invests === false ? '' : ' on'}" data-toggle="invests" role="switch" aria-checked="${p.invests !== false}"><i></i></button></div>
       <div class="nx-me-row"><div><h4>Main currency</h4><p>How your figures are shown.</p></div>
         <div class="nx-me-ccy">${CCY.map(([c, , n]) => `<button type="button" data-ccy-pick="${c}" class="${(p.currency || 'EUR') === c ? 'on' : ''}" title="${n}">${flagIc(c, 14)}${c}</button>`).join('')}</div></div>
-      <div class="nx-me-row"><div><h4>Seasonal themes</h4><p>Christmas, Halloween, New Year and your country’s festivities — at the edges, never over your numbers.</p>${seasonLine(p)}</div>
+      <div class="nx-me-row"><div><h4>Seasonal themes</h4><p>Christmas, Halloween, New Year and your country’s festivities, at the edges and never over your numbers.</p>${seasonLine(p)}</div>
         <button type="button" class="nx-switch${p.seasonal === false ? '' : ' on'}" data-toggle="seasonal" role="switch" aria-checked="${p.seasonal !== false}"><i></i></button></div>
       <button type="button" class="nx-me-link" data-act="setup">${icon('refresh', 14)}Answer the setup questions again</button>`;
     return `
@@ -1912,9 +1912,9 @@
         <button type="button" data-act="backups">${tile('amber', 'archive')}<b>Backups</b><small>Daily copies, last 10 days</small></button>
       </div>
       <div class="nx-me-group"><h3>Where your data lives</h3>
-        <ul class="nx-me-facts"><li>${icon('lock', 15)}<span><b>Your finances</b> — encrypted on this computer with your password, then saved as one file in your Google Drive folder. Without your password or recovery key it’s unreadable, to Google too.</span></li>
-          <li>${icon('shieldCheck', 15)}<span><b>Your password</b> — never stored anywhere. It only unlocks the key that opens your file.</span></li>
-          <li>${icon('sparkles', 15)}<span><b>AI features</b> — off unless you add a key; they receive totals, never your transactions.</span></li></ul>
+        <ul class="nx-me-facts"><li>${icon('lock', 15)}<span><b>Your finances</b>: encrypted on this computer with your password, then saved as one file in your Google Drive folder. Without your password or recovery key it’s unreadable, to Google too.</span></li>
+          <li>${icon('shieldCheck', 15)}<span><b>Your password</b>: never stored anywhere. It only unlocks the key that opens your file.</span></li>
+          <li>${icon('sparkles', 15)}<span><b>AI features</b>: off unless you add a key; they receive totals, never your transactions.</span></li></ul>
         <button type="button" class="nx-me-link" data-act="peek">${icon('eye', 14)}${mePeek ? 'Hide' : 'See'} what’s saved in your Drive</button>
         ${mePeek ? `<pre class="nx-me-peek">${escH(mePeekText)}…</pre>` : ''}</div>
       <div class="nx-me-danger"><div><h3>Delete profile</h3><p>Removes ${escH(a.name)}'s profile from this computer.</p></div><button type="button" class="nx-btn-danger" data-act="delete">Delete profile</button></div>`;
@@ -2014,7 +2014,7 @@
         const act = t.closest('[data-act]')?.dataset.act;
         if (act === 'close') { el.classList.remove('open'); meRk = null; }
         if (act === 'me-rk-copy') { navigator.clipboard?.writeText(meRk).then(() => { const s = t.closest('button').querySelector('span'); if (s) s.textContent = 'Copied'; }).catch(() => {}); }
-        if (act === 'me-rk-dl') { const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([`Nexora recovery key — ${currentAccount().name}\n\n${meRk}\n\nCreated ${new Date().toLocaleDateString('en-GB')}. Keep it somewhere safe, away from this computer.\n`], { type: 'text/plain' })), download: `Nexora recovery key - ${currentAccount().name}.txt` }); a.click(); }
+        if (act === 'me-rk-dl') { const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([`Nexora recovery key: ${currentAccount().name}\n\n${meRk}\n\nCreated ${new Date().toLocaleDateString('en-GB')}. Keep it somewhere safe, away from this computer.\n`], { type: 'text/plain' })), download: `Nexora recovery key - ${currentAccount().name}.txt` }); a.click(); }
         if (act === 'peek') { mePeek = !mePeek; if (mePeek) mePeekText = JSON.stringify(await readFile(currentId) || {}, null, 1).slice(0, 520); renderMe(); }
         if (act === 'photo-pick') document.getElementById('nx-av-file')?.click();
         if (act === 'photo-remove') { updateAccount(currentId, { avatar: { kind: 'initials' } }); meAvTab = 'initials'; applyProfile(); renderMe(); }
@@ -2049,14 +2049,14 @@
           let opened = null; try { opened = await openFile(currentId, f.elements.cur.value); } catch (x) {}
           if (!opened) return err('Your current password isn’t right.');
           // only the key is re-wrapped; the data stays as it is
-          if (!await rekey(currentId, 'password', pw)) return err('Couldn’t save — check that the Google Drive folder is available.');
+          if (!await rekey(currentId, 'password', pw)) return err('Couldn’t save. Check that the Google Drive folder is available.');
           renderMe(); showToast('Password updated');
         }
         if (f.id === 'nx-me-rk') {
           let opened = null; try { opened = await openFile(currentId, f.elements.cur.value); } catch (x) {}
           if (!opened) return err('That password isn’t right.');
           const rk = newRecoveryKey();
-          if (!await rekey(currentId, 'recovery', normKey(rk))) return err('Couldn’t save — check that the Google Drive folder is available.');
+          if (!await rekey(currentId, 'recovery', normKey(rk))) return err('Couldn’t save. Check that the Google Drive folder is available.');
           updateAccount(currentId, { rkCreatedAt: new Date().toISOString() });
           meRk = rk; renderMe();
         }
@@ -2202,7 +2202,7 @@
     const ownRows = owned.sort((a, b) => b.value - a.value).map(a => {
       const [lab, ic, cls] = ASSET_TYPES[a.type], stale = !a.live && staleDays(a.updatedAt) > 90;
       return `<div class="nx-nw-row">${tile(cls, ic)}<div class="nx-nw-main"><b>${escH(a.name)}</b>
-          <small>${lab} · ${a.live ? 'updates with prices' : a.updatedAt ? `<span class="${stale ? 'nx-stale' : ''}">updated ${ago(a.updatedAt)}${stale ? ' — still right?' : ''}</span>` : 'date not recorded'}</small></div>
+          <small>${lab} · ${a.live ? 'updates with prices' : a.updatedAt ? `<span class="${stale ? 'nx-stale' : ''}">updated ${ago(a.updatedAt)}${stale ? '. Still right?' : ''}</span>` : 'date not recorded'}</small></div>
         ${a.live ? `<button type="button" class="nx-nw-val nx-nw-link" data-act="portfolio">${eur(a.value)}</button><span class="nx-nw-x-ph"></span>`
                  : `${editable('asset', a.id, eur(a.value))}<button type="button" class="nx-row-del" data-del="asset:${escH(a.id)}" title="Remove">${icon('trash', 14)}</button>`}</div>`;
     }).join('');
@@ -2234,7 +2234,7 @@
         <label class="nx-f"><span>Value (€)</span><input name="value" type="number" min="0" step="0.01" placeholder="0.00"></label>
         <div class="nx-auth-err"></div><div class="nx-nw-form-btns"><button type="button" class="btn-ghost" data-act="cancel">Cancel</button><button class="btn" type="submit">Add</button></div></form>`;
     const debtForm = nwForm !== 'debt' ? '' : `<form class="nx-nw-form" id="nx-nw-debt" novalidate>
-        <label class="nx-f nx-nw-wide"><span>Name</span><input name="name" placeholder="e.g. Mortgage — CGD"></label>
+        <label class="nx-f nx-nw-wide"><span>Name</span><input name="name" placeholder="e.g. Mortgage at CGD"></label>
         <label class="nx-f"><span>Type</span><select name="kind" class="nx-select">${typeOpts(DEBT_TYPES, nwDebtKind)}</select></label>
         <label class="nx-f"><span>${isLoan ? 'Still owed (€)' : 'Balance (€)'}</span><input name="value" type="number" min="0" step="0.01" placeholder="0.00"></label>
         ${isLoan ? `<label class="nx-f"><span>Original loan (€)</span><input name="orig" type="number" min="0" step="0.01" placeholder="e.g. 150000"></label>
@@ -2441,10 +2441,10 @@
       <div class="card">
         <div class="card-title">When the market moves<span class="info-tip">i<span class="tip-body">Capture compares your average gain on days ${escH(benchName)} rose, and your average loss on days it fell, with its own. 100% means you move exactly like it.</span></span></div>
         ${cap && cap.up != null && cap.down != null ? capRow(`On days ${escH(benchName)} rose`, cap.up, cap.up >= 1 ? true : null,
-            cap.up < 0 ? 'On those days you fell slightly, on average.' : `You rose ${Math.round(cap.up * 100)}% as much as it did${cap.up >= 1 ? ' — more than the market' : ''}.`) +
+            cap.up < 0 ? 'On those days you fell slightly, on average.' : `You rose ${Math.round(cap.up * 100)}% as much as it did${cap.up >= 1 ? ', more than the market' : ''}.`) +
           capRow(`On days ${escH(benchName)} fell`, cap.down, cap.down <= 1,
-            cap.down < 0 ? 'On those days you rose slightly, on average.' : `You fell ${Math.round(cap.down * 100)}% as much as it did${cap.down < 1 ? ' — a cushion' : ' — harder than the market'}.`) : '<div class="muted" style="font-size:12px;">Needs the benchmark’s prices.</div>'}
-        <div class="nx-stress"><div class="nx-stress-title">If ${escH(benchName)} fell…<span class="info-tip">i<span class="tip-body">An estimate from your beta over this period (${beta != null ? beta.toFixed(2) : '—'}). Real falls rarely follow beta exactly — sectors and currencies move on their own.</span></span></div>${stress}</div>
+            cap.down < 0 ? 'On those days you rose slightly, on average.' : `You fell ${Math.round(cap.down * 100)}% as much as it did${cap.down < 1 ? ', a cushion' : ', harder than the market'}.`) : '<div class="muted" style="font-size:12px;">Needs the benchmark’s prices.</div>'}
+        <div class="nx-stress"><div class="nx-stress-title">If ${escH(benchName)} fell…<span class="info-tip">i<span class="tip-body">An estimate from your beta over this period (${beta != null ? beta.toFixed(2) : '–'}). Real falls rarely follow beta exactly: sectors and currencies move on their own.</span></span></div>${stress}</div>
       </div>
       <div class="card">
         <div class="card-title">Falls and recoveries<span class="info-tip">i<span class="tip-body">How far below its previous high the portfolio was on each day, and how long its worst fall took to recover.</span></span></div>
@@ -2532,7 +2532,7 @@
     ]).filter(f => f[1]);
     const dps = +info.dps || 0, accumulating = isEtf && /accum/i.test(info.distribution || '');
     const divHtml = accumulating
-      ? `<div class="nx-hd-note">${icon('refresh', 15)}<span><b>Accumulating fund.</b> Dividends are reinvested inside the fund, so nothing is paid out — they show up in the price.</span></div>`
+      ? `<div class="nx-hd-note">${icon('refresh', 15)}<span><b>Accumulating fund.</b> Dividends are reinvested inside the fund, so nothing is paid out. They show up in the price.</span></div>`
       : dps > 0 ? `<section class="nx-hd-card"><h3>Dividends</h3><div class="nx-hd-facts">
           ${[['Yield', info.dividendYield ? (info.dividendYield * 100).toFixed(2) + '%' : null], ['Per share, a year', `${sym}${dps.toFixed(2)}`],
              ['Next payment', fmtDay(info.nextPayDate)], ['Your yearly income', shares ? eur((nativeToEur(dps, cur) || 0) * shares) : null],
@@ -2547,7 +2547,7 @@
       </header>
       <div class="nx-hd-body">
         <div class="nx-hd-chips"><span class="nx-hd-chip">${isEtf ? 'ETF' : 'Stock'}</span>${info.sector && !isEtf ? `<span class="nx-hd-chip">${escH(info.sector)}</span>` : ''}</div>
-        <div class="nx-hd-price"><b>${sym}${px != null ? (+px).toFixed(2) : '—'}</b>
+        <div class="nx-hd-price"><b>${sym}${px != null ? (+px).toFixed(2) : '–'}</b>
           ${dc != null ? `<span class="nx-delta ${dc >= 0 ? 'up' : 'down'}">${dc >= 0 ? '+' : '−'}${Math.abs(dc).toFixed(2)}% today</span>` : ''}</div>
         ${rp != null ? `<div class="nx-hd-52"><div class="nx-hd-52-track"><i style="left:${(rp * 100).toFixed(1)}%"></i></div>
           <div class="nx-hd-52-lab"><span>${sym}${lo.toFixed(2)}</span><span>52-week range</span><span>${sym}${hi.toFixed(2)}</span></div></div>` : ''}
@@ -2557,7 +2557,7 @@
           <div><span>Of the portfolio</span><b>${portVal ? (val / portVal * 100).toFixed(1) : '0'}%</b></div>
           <div><span>Shares</span><b>${fmtShares(shares)}</b></div>
           <div><span>Average cost</span><b>${eur(avg)}</b></div>
-          <div><span>Dividends received</span><b>${divRecv ? eur(divRecv) : accumulating ? 'Reinvested' : '—'}</b></div>
+          <div><span>Dividends received</span><b>${divRecv ? eur(divRecv) : accumulating ? 'Reinvested' : '–'}</b></div>
         </div></section>` : ''}
         <section class="nx-hd-card">
           <div class="nx-hd-chart-head"><h3>Price</h3>

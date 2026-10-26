@@ -72,21 +72,21 @@ async function openCompanyModal(ticker) {
   if (!info.exDivDate  && holding.exDivDate)             info.exDivDate  = holding.exDivDate;
   if (!info.nextPayDate && holding.nextPayDate)           info.nextPayDate = holding.nextPayDate;
 
-  const fmtN = (n, decimals=2) => n != null ? n.toFixed(decimals) : '—';
-  const fmtPct = n => n != null ? (n * 100).toFixed(2) + '%' : '—';
+  const fmtN = (n, decimals=2) => n != null ? n.toFixed(decimals) : '–';
+  const fmtPct = n => n != null ? (n * 100).toFixed(2) + '%' : '–';
   const fmtBig = n => {
-    if (n == null) return '—';
+    if (n == null) return '–';
     if (n >= 1e12) return (n/1e12).toFixed(2) + 'T';
     if (n >= 1e9)  return (n/1e9).toFixed(2)  + 'B';
     if (n >= 1e6)  return (n/1e6).toFixed(2)  + 'M';
     return n.toLocaleString();
   };
   const fmtDate = d => {
-    if (!d) return '—';
+    if (!d) return '–';
     return new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
   };
   const fmtRec = r => {
-    if (!r) return '—';
+    if (!r) return '–';
     const cls = r.toLowerCase().replace(/\s+/g,'_');
     return `<span class="cmod-rec ${cls}">${r.replace(/_/g,' ').replace(/\b\w/g, c=>c.toUpperCase())}</span>`;
   };
@@ -122,7 +122,7 @@ async function openCompanyModal(ticker) {
       ${dayChgHtml}
     </div>` : '';
 
-  // Market data grid — only stats that actually have data (no "—" boxes)
+  // Market data grid — only stats that actually have data (no "–" boxes)
   const statDefs = [
     { label: 'Market Cap',     val: info.marketCapFmt || (info.marketCap != null ? fmtBig(info.marketCap) : null), sub: '' },
     { label: 'P/E (trailing)', val: info.trailingPE != null ? fmtN(info.trailingPE) : null, sub: info.forwardPE ? `Fwd: ${fmtN(info.forwardPE)}` : '' },
@@ -143,10 +143,10 @@ async function openCompanyModal(ticker) {
   // Dividends
   const hasDividend = (info.dps || 0) > 0;
   const divFields = [
-    ['Annual Div/Share', hasDividend ? `${fmtN(info.dps)}/sh` : '—'],
-    ['Dividend Yield',   hasDividend ? fmtPct(info.dividendYield) : '—'],
-    ['Forward Yield',    hasDividend ? fmtPct(info.forwardYield)  : '—'],
-    ['Payout Ratio',     hasDividend ? fmtPct(info.payoutRatio)   : '—'],
+    ['Annual Div/Share', hasDividend ? `${fmtN(info.dps)}/sh` : '–'],
+    ['Dividend Yield',   hasDividend ? fmtPct(info.dividendYield) : '–'],
+    ['Forward Yield',    hasDividend ? fmtPct(info.forwardYield)  : '–'],
+    ['Payout Ratio',     hasDividend ? fmtPct(info.payoutRatio)   : '–'],
     ['Ex-Dividend Date', fmtDate(info.exDivDate)],
     ['Next Pay Date',    fmtDate(info.nextPayDate)],
   ].map(([l,v]) => `<div class="cmod-field">
@@ -171,7 +171,7 @@ async function openCompanyModal(ticker) {
     <div class="cmod-field"><span class="cmod-field-label">Recommendation</span>
       <span class="cmod-field-val">${fmtRec(info.recommendation)}</span></div>
     <div class="cmod-field"><span class="cmod-field-label">Coverage</span>
-      <span class="cmod-field-val">${info.numberOfAnalysts != null ? info.numberOfAnalysts + ' analysts' : '—'}</span></div>` : '';
+      <span class="cmod-field-val">${info.numberOfAnalysts != null ? info.numberOfAnalysts + ' analysts' : '–'}</span></div>` : '';
 
   const rightPanelHtml = (hasEarnings || hasAnalyst) ? `
         <div class="cmod-panel">
@@ -409,7 +409,7 @@ function renderCashTable() {
         return `<tr>
           <td style="font-weight:600;color:var(--gold);">${sym[e.currency] || ''} ${e.currency}</td>
           <td>${(sym[e.currency]||'')}${e.amount.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-          <td class="muted">${e.currency === 'EUR' ? '—' : rate.toFixed(4)}</td>
+          <td class="muted">${e.currency === 'EUR' ? '–' : rate.toFixed(4)}</td>
           <td style="font-weight:600;">${eur(eurEq)}</td>
           <td><button class="del-btn" onclick="removeCashEntry(${i})" title="Remove">✕</button></td>
         </tr>`;
@@ -1041,7 +1041,7 @@ function renderDividendCalendar() {
 
   const fmtDate = d => d
     ? new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '—';
+    : '–';
   const daysUntil = d => d ? Math.ceil((new Date(d + 'T12:00:00Z') - new Date()) / 86400000) : null;
 
   // Sort: upcoming pay dates first (soonest on top), then no-date holdings by income
@@ -1063,7 +1063,7 @@ function renderDividendCalendar() {
         const soonBadge = days !== null && days >= 0 && days <= 14
           ? ` <span style="font-size:10px;background:rgba(76,175,130,0.15);border:1px solid rgba(76,175,130,0.4);color:var(--up);border-radius:20px;padding:1px 8px;">in ${days}d</span>` : '';
         const yieldPct = h.forwardYield != null ? (h.forwardYield * 100).toFixed(2) + '%'
-          : (h.currentPrice ? (h.dividendPerShare / h.currentPrice * 100).toFixed(2) + '%' : '—');
+          : (h.currentPrice ? (h.dividendPerShare / h.currentPrice * 100).toFixed(2) + '%' : '–');
         return `<tr>
           <td style="font-weight:600;color:var(--gold);">${h.ticker}<span class="muted" style="font-weight:400;font-size:11px;"> · ${fmtShares(h.shares)} sh</span></td>
           <td class="muted">${fmtDate(h.exDivDate)}</td>
@@ -1303,7 +1303,7 @@ function renderBudget() {
         <div class="budget-track">
           ${r.limit > 0 ? `<div class="budget-fill" style="width:${pct}%;background:${barCol};"></div>` : ''}
         </div>
-        <input type="number" value="${r.limit || ''}" placeholder="—" title="Monthly limit"
+        <input type="number" value="${r.limit || ''}" placeholder="–" title="Monthly limit"
           onchange="setBudget('${r.cat.replace(/'/g,"\\'")}',this.value)" class="budget-limit-input">
         <button onclick="delCategory('${r.cat.replace(/'/g,"\\'")}')" class="del-btn budget-del" title="Delete category">✕</button>
       </div>`;

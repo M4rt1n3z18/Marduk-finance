@@ -84,7 +84,7 @@ async function checkStockSplits(manual = false) {
       const dates = [...new Set(byTicker[t].flatMap(g => g.lots.map(l => l.date)))].sort();
       return { ticker: t, from: dates[0], dates };
     }));
-    if (res?.rateLimited && manual) { showToast('Yahoo is rate-limiting requests — try again in a few minutes'); return; }
+    if (res?.rateLimited && manual) { showToast('Yahoo is rate-limiting requests. Try again in a few minutes'); return; }
     try { localStorage.setItem(SPLIT_CHECK_KEY, String(Date.now())); } catch (e) {}
 
     if (!state.splitDismissed) state.splitDismissed = {};
@@ -116,7 +116,7 @@ async function checkStockSplits(manual = false) {
         const ok = await nexoraConfirm(
           `${ticker}${portName} had a ${what}.\n\n` +
           `Your position was recorded before it: ${fmtShares(oldShares)} shares at ${eur(g.h.buyPrice)} each. ` +
-          `In today's terms that is ${fmtShares(newShares)} shares at ${eur(newAvg)} each — the total cost stays ${eur(g.h.buyPrice * oldShares)}.\n\n` +
+          `In today's terms that is ${fmtShares(newShares)} shares at ${eur(newAvg)} each. The total cost stays ${eur(g.h.buyPrice * oldShares)}.\n\n` +
           'Adjust the holding and its lots?', 'STOCK SPLIT');
         if (!ok) { state.splitDismissed[key] = true; save(); continue; }
 

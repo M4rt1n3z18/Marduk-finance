@@ -22,7 +22,7 @@ async function openAiSettings() {
     statusEl.innerHTML = `Status: <strong style="color:var(--up);">Active</strong> · key ${masked}`;
     removeBtn.style.display = '';
   } else {
-    statusEl.innerHTML = 'Status: <strong style="color:var(--text3);">Not configured</strong> — using the built-in pattern parser';
+    statusEl.innerHTML = 'Status: <strong style="color:var(--text3);">Not configured</strong>, using the built-in pattern parser';
     removeBtn.style.display = 'none';
   }
   modal.style.display = 'flex';
@@ -37,7 +37,7 @@ async function saveAiKey() {
   if (!key) { closeAiSettings(); return; }
   const res = await window.electronAPI.setAiKey(key);
   if (res?.ok) {
-    showToast('✓ AI key saved — payslips will now be parsed with Claude');
+    showToast('✓ AI key saved. Payslips will now be parsed with Claude');
     closeAiSettings();
   } else {
     nexoraAlert(res?.error || 'Could not save the key.');
@@ -432,7 +432,7 @@ function renderSalary() {
   };
   const naCard = (label, note) => `<div class="stat-card">
     <div class="stat-label">${label}</div>
-    <div class="stat-val" style="font-size:20px;color:var(--text3);">—</div>
+    <div class="stat-val" style="font-size:20px;color:var(--text3);">–</div>
     <div class="stat-sub">${note}</div>
   </div>`;
 

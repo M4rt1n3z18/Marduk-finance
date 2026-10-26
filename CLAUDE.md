@@ -117,6 +117,8 @@ Tested on a copy of real data (126 expenses, 15 holdings, 60 transactions…): c
 
 It started as the 2.0 design preview (a browser page that ran the real `index.html` with demo data) and was moved into the app. It **wraps** the app's functions at load (`renderNetWorth`, `renderBudget`, `renderOverview`, `renderSalary`, `renderFire`, `buildRiskView`, `computeRisk`, `showTab`, `lockApp`, `openCompanyModal`, `secondToLastBusinessDay`, …) and adds UI through a MutationObserver (`decorate()`: tiled icons, drawn icons instead of text glyphs, Marduk's hard-coded gold re-coloured at load by `degoldStyles`/`degoldInline`). New code should keep that split: the app's own files compute, the shell presents. CSS classes and ids are `nx-`.
 
+**No em dashes (—) in anything the user reads** (the user's rule, 2026-10-26: "it's a dash that adds nothing"). Write a comma, colon, full stop or brackets instead; an empty cell is an en dash (–); a heading joins with a middle dot (·). Translations follow the same rule (Chinese uses ，：。). The bank import's four special choices keep `— Ignore —`-style *values* because learned merchant rules store them, but show as plain labels via `impLabel()`. Code comments are untouched.
+
 - **Chart.js** is wrapped (`window.Chart`): colours mapped to the theme, gradients, rounded bars, donut centre labels, translated labels.
 - **Payday rule**: "business day no. N from the end" (`bizDay`; 1 = last). The app's `secondToLastBusinessDay` is replaced at load by `nthLastBusinessDay(year, month, N, country)`, which skips the profile country's public holidays (`holidays.js`).
 - **Loans** (`installLoanLogic`): payments split into interest and principal; payoff date from the annuity formula.

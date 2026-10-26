@@ -65,7 +65,7 @@ function save() {
       Promise.resolve(window.NexoraVault.save(json)).then(ok => {
         if (ok === false && Date.now() - _saveWarnedAt > 60000) {
           _saveWarnedAt = Date.now();
-          showToast('⚠ Couldn’t save your data — check that the Google Drive folder is available', 8000);
+          showToast('⚠ Couldn’t save your data. Check that the Google Drive folder is available', 8000);
         }
       }).catch(() => {});
     } else {
@@ -87,7 +87,7 @@ async function load() {
     state = JSON.parse(d);
   } catch(e) {
     _loadFailed = true;
-    nexoraAlert('Your data file could not be read — it may still be syncing from Google Drive.\n\n' +
+    nexoraAlert('Your data file could not be read. It may still be syncing from Google Drive.\n\n' +
       'Nothing will be saved until this is fixed, so your data is safe. Restart Nexora in a minute, ' +
       'or restore yesterday\'s copy from Settings → Backups.', 'DATA FILE UNREADABLE');
   }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Nexora — Personal Finance</title>
+<title>Nexora · Personal Finance</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -1018,14 +1018,14 @@
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:460px;max-width:92vw;padding:24px;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
     <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M12 4.5 13.8 10 19.5 12l-5.7 2L12 19.5 10.2 14 4.5 12l5.7-2z"/><path d="M18.5 3.5v3M17 5h3"/></svg> AI PAYSLIP PARSING</div>
     <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px;">
-      With an Anthropic API key, payslips are read by Claude AI — any language, any format, any company.
+      With an Anthropic API key, payslips are read by Claude AI: any language, any format, any company.
       Without a key, Nexora uses the built-in pattern parser. Costs a few cents per payslip.
       Get a key at <strong style="color:var(--text);">console.anthropic.com</strong>.
     </div>
     <div id="ai-key-status" style="font-size:12px;margin-bottom:10px;color:var(--text2);"></div>
     <input id="ai-key-input" type="password" placeholder="sk-ant-…" autocomplete="off"
            style="width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;margin-bottom:6px;">
-    <div style="font-size:11px;color:var(--text3);margin-bottom:18px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> The key is stored only on this computer — never synced to Google Drive.</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:18px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> The key is stored only on this computer and never synced to Google Drive.</div>
     <div style="display:flex;align-items:center;">
       <button id="ai-key-remove" class="btn-ghost" style="font-size:12px;color:var(--down);display:none;" onclick="removeAiKey()">Remove key</button>
       <div style="display:flex;gap:10px;margin-left:auto;">
@@ -1268,7 +1268,7 @@
 
   <div class="chart-grid-3">
     <div class="card">
-      <div class="card-title">Spending — Last 6 Months</div>
+      <div class="card-title">Spending · Last 6 Months</div>
       <div class="chart-wrap"><canvas id="chart-spending"></canvas></div>
     </div>
     <div class="card" style="display:flex;flex-direction:column;">
@@ -1314,7 +1314,7 @@
   </div>
 
   <div class="card" style="margin-bottom:0;">
-    <div class="card-title">Income History — Last 6 Months</div>
+    <div class="card-title">Income History · Last 6 Months</div>
     <div class="chart-wrap"><canvas id="chart-income-history"></canvas></div>
   </div>
 </div>
@@ -1327,7 +1327,7 @@
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);" title="Next automatic price refresh">
         <span id="live-dot" style="color:var(--up);font-size:9px;">●</span>
-        <span id="live-countdown" style="font-variant-numeric:tabular-nums;min-width:42px;">—</span>
+        <span id="live-countdown" style="font-variant-numeric:tabular-nums;min-width:42px;">–</span>
       </span>
       <!-- Portfolio actions dropdown -->
       <div class="settings-wrap" id="actions-wrap">
@@ -1430,8 +1430,8 @@
   <div class="card" id="returns-card" style="display:none;margin-bottom:20px;border-color:rgba(201,168,76,0.25);">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap;">
       <div style="min-width:230px;">
-        <div class="card-title" style="margin-bottom:10px;">True Return<span class="info-tip">i<span class="tip-body">Money-weighted annual return (XIRR) — accounts for exactly when each euro entered the portfolio, unlike the raw Total Gain.</span></span></div>
-        <div class="stat-val up-text" id="ret-xirr" style="font-size:30px;">—</div>
+        <div class="card-title" style="margin-bottom:10px;">True Return<span class="info-tip">i<span class="tip-body">Money-weighted annual return (XIRR). It accounts for exactly when each euro entered the portfolio, unlike the raw Total Gain.</span></span></div>
+        <div class="stat-val up-text" id="ret-xirr" style="font-size:30px;">–</div>
         <div class="stat-sub" id="ret-xirr-sub">annualized (XIRR)</div>
       </div>
       <div style="flex:1;min-width:280px;">
@@ -1478,7 +1478,7 @@
       </div>
     </div>
     <div class="chart-wrap"><canvas id="chart-port-history"></canvas></div>
-    <div id="port-history-empty" class="empty" style="display:none;padding:20px;">No history yet — values are recorded each time you refresh prices.</div>
+    <div id="port-history-empty" class="empty" style="display:none;padding:20px;">No history yet. Values are recorded each time you refresh prices.</div>
   </div>
 
   <!-- Monthly Dynamics -->
@@ -1487,9 +1487,9 @@
       <div class="card-title" style="margin-bottom:0;">Monthly Returns</div>
       <span id="port-dynamics-bm-label" style="font-size:11px;color:var(--text3);"></span>
     </div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Month-by-month portfolio performance — last 24 months</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Month-by-month portfolio performance over the last 24 months</div>
     <div class="chart-wrap" style="height:160px;"><canvas id="chart-port-dynamics"></canvas></div>
-    <div id="port-dynamics-empty" class="empty" style="display:none;padding:16px 0;">No data — refresh prices first.</div>
+    <div id="port-dynamics-empty" class="empty" style="display:none;padding:16px 0;">No data yet. Refresh prices first.</div>
   </div>
 
   <!-- Holdings Performance -->
@@ -1506,7 +1506,7 @@
       </div>
     </div>
     <div id="hperf-chart-wrap" style="min-height:60px;"></div>
-    <div id="hperf-empty" class="empty" style="display:none;padding:16px 0;">No data — refresh prices first.</div>
+    <div id="hperf-empty" class="empty" style="display:none;padding:16px 0;">No data yet. Refresh prices first.</div>
   </div>
 
   <div class="card" style="margin-bottom:16px;">
@@ -1612,7 +1612,7 @@
       <div class="div-stat-card">
         <div class="div-stat-label">Last Payment</div>
         <div class="div-stat-val" id="divr-last">€0</div>
-        <div class="div-stat-sub" id="divr-last-sub">—</div>
+        <div class="div-stat-sub" id="divr-last-sub">–</div>
       </div>
     </div>
     <div style="font-size:12px;color:var(--text2);margin:14px 0 8px;font-weight:600;">Cumulative Passive Income</div>
@@ -1666,29 +1666,29 @@
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-label">Volatility<span class="info-tip">i<span class="tip-body">How much the portfolio's value swings, as the standard deviation of its returns scaled to a year. 15% means a typical year lands within about ±15% of its average. Broad stock indices usually sit around 15–20%.</span></span></div>
-          <div class="stat-val" id="risk-vol">—</div>
+          <div class="stat-val" id="risk-vol">–</div>
           <div class="stat-sub" id="risk-vol-sub">per year</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Max Drawdown<span class="info-tip">i<span class="tip-body">The largest fall from a high point to a later low during the period, for the holdings you have now — the worst stretch you would have sat through.</span></span></div>
-          <div class="stat-val" id="risk-dd">—</div>
+          <div class="stat-label">Max Drawdown<span class="info-tip">i<span class="tip-body">The largest fall from a high point to a later low during the period, for the holdings you have now: the worst stretch you would have sat through.</span></span></div>
+          <div class="stat-val" id="risk-dd">–</div>
           <div class="stat-sub" id="risk-dd-sub">&nbsp;</div>
         </div>
         <div class="stat-card">
           <div class="stat-label"><span id="risk-beta-label">Beta vs S&amp;P 500</span><span class="info-tip">i<span class="tip-body">How much the portfolio moves with the benchmark: 1.0 moves in step, 1.3 moves 30% more, 0.7 moves 30% less. Correlation says how closely it follows at all (1 = always the same direction). The benchmark is the one picked on the Overview's value chart.</span></span></div>
-          <div class="stat-val" id="risk-beta">—</div>
+          <div class="stat-val" id="risk-beta">–</div>
           <div class="stat-sub" id="risk-beta-sub">&nbsp;</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Effective Holdings<span class="info-tip">i<span class="tip-body">How many equally sized holdings would give the same concentration (1 ÷ the sum of squared weights). Fifteen holdings with one at 40% behave like far fewer than fifteen.</span></span></div>
-          <div class="stat-val" id="risk-effn">—</div>
+          <div class="stat-val" id="risk-effn">–</div>
           <div class="stat-sub" id="risk-effn-sub">&nbsp;</div>
         </div>
       </div>
 
       <div class="chart-grid-2">
         <div class="card">
-          <div class="card-title">Concentration<span class="info-tip">i<span class="tip-body">Shares of the invested value, cash excluded. Uses today's prices — no history needed.</span></span></div>
+          <div class="card-title">Concentration<span class="info-tip">i<span class="tip-body">Shares of the invested value, cash excluded. Uses today's prices, so no history is needed.</span></span></div>
           <div id="risk-conc" style="margin-top:6px;"></div>
         </div>
         <div class="card">
@@ -1699,7 +1699,7 @@
 
       <div class="card" style="margin-bottom:24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-          <div class="card-title" style="margin:0;">Risk by Holding<span class="info-tip">i<span class="tip-body">Share of portfolio risk is each holding's contribution to the portfolio's swings — weight × how much it moves with the rest. A small position in a volatile stock can carry more risk than a large ETF.</span></span></div>
+          <div class="card-title" style="margin:0;">Risk by Holding<span class="info-tip">i<span class="tip-body">Share of portfolio risk is each holding's contribution to the portfolio's swings: weight × how much it moves with the rest. A small position in a volatile stock can carry more risk than a large ETF.</span></span></div>
           <div class="range-bar" id="risk-ranges">
             <button class="range-btn active" onclick="setRiskRange('1Y',this)">1Y</button>
             <button class="range-btn" onclick="setRiskRange('3Y',this)">3Y</button>
@@ -1808,20 +1808,20 @@
   </div>
   <!-- Salary day info + budget month boundary settings -->
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--text2);margin:-12px 0 20px 4px;">
-    <div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;color:var(--gold);"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M9 8V6.5A2.5 2.5 0 0 1 11.5 4h1A2.5 2.5 0 0 1 15 6.5V8M4 13h16"/></svg> Salary day this month: <span id="e-stat-salday" style="color:var(--gold);font-weight:600;">—</span> &nbsp;·&nbsp; <span id="e-salday-note">2nd to last business day</span></div>
+    <div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;color:var(--gold);"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M9 8V6.5A2.5 2.5 0 0 1 11.5 4h1A2.5 2.5 0 0 1 15 6.5V8M4 13h16"/></svg> Salary day this month: <span id="e-stat-salday" style="color:var(--gold);font-weight:600;">–</span> &nbsp;·&nbsp; <span id="e-salday-note">2nd to last business day</span></div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <span style="font-size:11px;color:var(--text3);">Budget month boundary:</span>
       <select id="paycheck-mode" onchange="setPaycheckMode(this.value)"
         style="padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Karla,sans-serif;font-size:11px;outline:none;cursor:pointer;"
         title="How budget months are cut: plain calendar months, automatically on your salary day, or a fixed day of the month">
         <option value="off">Calendar month</option>
-        <option value="auto">Auto — salary day</option>
+        <option value="auto">Auto (salary day)</option>
         <option value="fixed">Fixed day</option>
       </select>
       <input id="paycheck-day-input" type="number" min="1" max="31" placeholder="26"
         style="display:none;width:54px;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;outline:none;text-align:center;"
         onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"
-        onchange="setPaycheckDay(this.value)" title="Default day of month — can be overridden per month">
+        onchange="setPaycheckDay(this.value)" title="Default day of month; you can change it for any month">
       <span id="paycheck-month-wrap" style="display:none;align-items:center;gap:6px;">
         <span style="font-size:11px;color:var(--text3);" id="paycheck-month-label">starts:</span>
         <input id="paycheck-month-input" type="number" min="1" max="31"
@@ -1911,19 +1911,19 @@
 
     <!-- Step 1: pick a file -->
     <div class="card" style="margin-bottom:16px;">
-      <div class="card-title">Import Bank Statement<span class="info-tip">i<span class="tip-body">Export your account movements from your bank as XLSX or CSV, then drop the file here. Everything is parsed on this computer — the file is never uploaded anywhere.</span></span></div>
-      <p class="muted" style="font-size:12px;margin:2px 0 14px;">Spreadsheet exports only (.xlsx, .xls, .csv). Parsed locally — nothing leaves your machine.</p>
+      <div class="card-title">Import Bank Statement<span class="info-tip">i<span class="tip-body">Export your account movements from your bank as XLSX or CSV, then drop the file here. Everything is parsed on this computer; the file is never uploaded anywhere.</span></span></div>
+      <p class="muted" style="font-size:12px;margin:2px 0 14px;">Spreadsheet exports only (.xlsx, .xls, .csv). Parsed locally, so nothing leaves your machine.</p>
       <div id="imp-drop" style="border:1.5px dashed var(--border);border-radius:12px;padding:26px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--gold);opacity:.8;"><path d="M12 3.5v10M8.5 10 12 13.5 15.5 10M4.5 16v3a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-3"/></svg>
         <div style="font-size:13px;font-weight:600;margin-top:8px;">Drop your statement here, or click to choose</div>
-        <div class="muted" style="font-size:11px;margin-top:3px;" id="imp-drop-sub">CGD, Millennium, Revolut, ActivoBank — any bank that exports a spreadsheet</div>
+        <div class="muted" style="font-size:11px;margin-top:3px;" id="imp-drop-sub">CGD, Millennium, Revolut, ActivoBank or any bank that exports a spreadsheet</div>
       </div>
       <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" style="display:none;">
     </div>
 
     <!-- Step 2: which column is what (remembered per bank layout) -->
     <div class="card" id="imp-map-card" style="display:none;margin-bottom:16px;">
-      <div class="card-title">Columns<span class="info-tip">i<span class="tip-body">Nexora guesses which column holds each field. Correct anything that is wrong — the mapping is remembered for this bank's layout, so future imports skip this step.</span></span></div>
+      <div class="card-title">Columns<span class="info-tip">i<span class="tip-body">Nexora guesses which column holds each field. Correct anything that is wrong. The mapping is remembered for this bank's layout, so future imports skip this step.</span></span></div>
       <div id="imp-map-fields" style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;"></div>
       <div id="imp-map-note" class="muted" style="font-size:11px;margin-top:8px;"></div>
     </div>
@@ -1984,7 +1984,7 @@
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
       <div>
         <div class="card-title" style="margin-bottom:2px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M3.5 17.5 9 12l3.5 3.5 7-7.5M14.5 8h5v5"/></svg> Investment Allocation</div>
-        <div style="font-size:12px;color:var(--text2);">Reserve money for investing — reduces your remaining budget without counting as an expense</div>
+        <div style="font-size:12px;color:var(--text2);">Reserve money for investing. It reduces your remaining budget without counting as an expense</div>
       </div>
       <div style="text-align:right;">
         <div style="font-size:11px;color:var(--text3);">Allocated this month</div>
@@ -2091,12 +2091,12 @@
 
   <!-- Income management card -->
   <div class="card" style="margin-bottom:24px;">
-    <div class="card-title" style="margin-bottom:16px;">Income — <span id="bud-month-label" style="color:var(--text2);font-size:10px;">this month</span></div>
+    <div class="card-title" style="margin-bottom:16px;">Income · <span id="bud-month-label" style="color:var(--text2);font-size:10px;">this month</span></div>
 
     <!-- Month selector for budget -->
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
       <select id="bud-month-sel" onchange="onBudgetMonthChange()" style="padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Karla,sans-serif;font-size:13px;outline:none;cursor:pointer;"></select>
-      <span style="font-size:12px;color:var(--text2);"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;color:var(--gold);"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M9 8V6.5A2.5 2.5 0 0 1 11.5 4h1A2.5 2.5 0 0 1 15 6.5V8M4 13h16"/></svg> Salary day: <span id="bud-sal-day" style="color:var(--gold);font-weight:600;">—</span></span>
+      <span style="font-size:12px;color:var(--text2);"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;color:var(--gold);"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M9 8V6.5A2.5 2.5 0 0 1 11.5 4h1A2.5 2.5 0 0 1 15 6.5V8M4 13h16"/></svg> Salary day: <span id="bud-sal-day" style="color:var(--gold);font-weight:600;">–</span></span>
     </div>
 
     <!-- Salary row -->
@@ -2153,7 +2153,7 @@
   <!-- Income vs Spending bar -->
   <div class="card" style="margin-bottom:24px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <span style="font-size:13px;font-weight:600;">Monthly Overview — Income vs Spending</span>
+      <span style="font-size:13px;font-weight:600;">Monthly Overview · Income vs Spending</span>
       <span id="budget-summary" style="font-size:13px;color:var(--text2);">€0 spent / €0 budget</span>
     </div>
     <div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--bg4);margin-bottom:8px;">
@@ -2213,22 +2213,22 @@
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;" id="fire-stats-row">
       <div style="background:var(--bg3);border-radius:10px;padding:14px;">
         <div class="div-stat-label">FIRE Number</div>
-        <div id="fire-number" class="div-stat-val" style="color:var(--gold);">—</div>
+        <div id="fire-number" class="div-stat-val" style="color:var(--gold);">–</div>
         <div class="div-stat-sub">25× annual expenses</div>
       </div>
       <div style="background:var(--bg3);border-radius:10px;padding:14px;">
         <div class="div-stat-label">Current Net Worth</div>
-        <div id="fire-nw" class="div-stat-val">—</div>
+        <div id="fire-nw" class="div-stat-val">–</div>
         <div class="div-stat-sub">assets − liabilities</div>
       </div>
       <div style="background:var(--bg3);border-radius:10px;padding:14px;">
         <div class="div-stat-label">Annual Expenses</div>
-        <div id="fire-ann-exp" class="div-stat-val">—</div>
+        <div id="fire-ann-exp" class="div-stat-val">–</div>
         <div class="div-stat-sub">12-month average</div>
       </div>
       <div style="background:var(--bg3);border-radius:10px;padding:14px;">
         <div class="div-stat-label">Annual Savings</div>
-        <div id="fire-ann-sav" class="div-stat-val">—</div>
+        <div id="fire-ann-sav" class="div-stat-val">–</div>
         <div class="div-stat-sub">income − expenses</div>
       </div>
     </div>
@@ -2249,7 +2249,7 @@
       <!-- Time to FIRE -->
       <div style="background:var(--bg3);border-radius:12px;padding:20px;text-align:center;">
         <div style="font-size:11px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">Estimated Time to FIRE</div>
-        <div id="fire-years" style="font-size:44px;font-weight:700;color:var(--gold);line-height:1;letter-spacing:-1px;">—</div>
+        <div id="fire-years" style="font-size:44px;font-weight:700;color:var(--gold);line-height:1;letter-spacing:-1px;">–</div>
         <div id="fire-years-label" style="font-size:13px;color:var(--text2);margin-top:6px;"></div>
         <div id="fire-years-sub" style="font-size:11px;color:var(--text3);margin-top:4px;"></div>
       </div>
@@ -2269,7 +2269,7 @@
         <div>
           <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
             <span style="color:var(--text2);">Monthly savings</span>
-            <span style="color:var(--gold);font-weight:700;" id="fire-savings-val">—</span>
+            <span style="color:var(--gold);font-weight:700;" id="fire-savings-val">–</span>
           </div>
           <input type="range" id="fire-savings-slider" min="0" max="5000" value="1000" step="50"
             oninput="document.getElementById('fire-savings-val').textContent='€'+Number(this.value).toLocaleString('de-DE');renderFire()"
@@ -2311,7 +2311,7 @@
   <!-- Drag-and-drop zone -->
   <div class="salary-drop-zone" id="salary-drop-zone">
     <span class="drop-icon" style="display:inline-flex;color:var(--gold);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h6.5L18 8v12.5H7z"/><path d="M13.5 3.5V8H18M10 12.5h5M10 16h5"/></svg></span>
-    <span>Drop a payslip PDF anywhere here — or use the button above</span>
+    <span>Drop a payslip PDF anywhere here, or use the button above</span>
   </div>
 
   <!-- Summary cards — rendered by JS -->

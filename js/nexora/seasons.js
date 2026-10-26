@@ -358,7 +358,7 @@
         <div class="w-goals">${d.goals.map((g, i) => `<div class="w-goal" style="--i:${i}"><span data-no-tr>${escH(g.name)}</span><i><em style="width:${Math.min(100, g.pct).toFixed(1)}%"></em></i><b>${Math.round(g.pct)}%</b></div>`).join('')}</div>` }); }
     S.push({ c: 'outro', h: `<div class="w-kicker">That was your</div><div class="w-year" data-no-tr>${d.year}</div>
       <div class="w-grid">${chip('Brought in', money(d.income.total))}${chip('Spent', money(d.spent.total))}${chip('Kept', money(d.kept.amount))}${d.nw ? chip('Net worth', fmtv(d.nw.change, 'signed')) : ''}</div>
-      <div class="w-sub">${d.partial ? 'The year isn’t over yet — there’s still time to make it count.' : `<span>See you in</span> <b data-no-tr>${d.year + 1}</b>`}</div>
+      <div class="w-sub">${d.partial ? 'The year isn’t over yet. There’s still time to make it count.' : `<span>See you in</span> <b data-no-tr>${d.year + 1}</b>`}</div>
       <div class="w-btns"><button type="button" data-w="again">Watch again</button><button type="button" data-w="close" class="w-primary">Close</button></div>` });
     return S;
   }

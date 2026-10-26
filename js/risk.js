@@ -260,14 +260,14 @@ async function buildRiskView() {
 
   const r = computeRisk(holdings, hist, benchTicker, cfg.perYear);
   if (!r) {
-    ['risk-vol', 'risk-dd', 'risk-beta'].forEach(x => _riskSet(x, '—', 'not enough price history'));
-    table.innerHTML = '<div class="muted" style="font-size:12px;padding:10px 0;">Couldn’t load enough price history — Yahoo may be busy. Try again in a few minutes.</div>';
+    ['risk-vol', 'risk-dd', 'risk-beta'].forEach(x => _riskSet(x, '–', 'not enough price history'));
+    table.innerHTML = '<div class="muted" style="font-size:12px;padding:10px 0;">Couldn’t load enough price history. Yahoo may be busy. Try again in a few minutes.</div>';
     return;
   }
 
   _riskSet('risk-vol', _pctR(r.vol), `per year${r.bench ? ` · ${benchName} ${_pctR(r.bench.vol, 0)}` : ''}`);
   _riskSet('risk-dd', _pctR(r.dd.dd), r.dd.dd < 0 ? `${_riskDate(r.dd.from)} → ${_riskDate(r.dd.to)}` : 'no fall in this period');
-  _riskSet('risk-beta', r.bench?.beta != null ? r.bench.beta.toFixed(2) : '—',
+  _riskSet('risk-beta', r.bench?.beta != null ? r.bench.beta.toFixed(2) : '–',
     r.bench?.corr != null ? `correlation ${r.bench.corr.toFixed(2)}` : 'benchmark unavailable');
   document.getElementById('risk-dd').className = 'stat-val ' + (r.dd.dd < -0.0001 ? 'down-text' : '');
 
@@ -278,7 +278,7 @@ async function buildRiskView() {
         <td style="font-weight:700;color:var(--gold);">${esc(x.ticker)}</td>
         <td style="text-align:right;">${_pctR(x.weight)}</td>
         <td style="text-align:right;">${_pctR(x.vol)}</td>
-        <td style="text-align:right;">${x.beta != null ? x.beta.toFixed(2) : '—'}</td>
+        <td style="text-align:right;">${x.beta != null ? x.beta.toFixed(2) : '–'}</td>
         <td><div style="display:flex;align-items:center;gap:10px;">${_riskBar(Math.max(0, x.rc), x.rc > x.weight * 1.25 ? 'var(--down)' : 'var(--gold)')}<span style="min-width:48px;text-align:right;font-weight:600;">${_pctR(x.rc)}</span></div></td>
       </tr>`).join('')}</tbody>
     </table>
@@ -287,7 +287,7 @@ async function buildRiskView() {
       <strong class="${r.ret >= 0 ? 'up-text' : 'down-text'}">${r.ret >= 0 ? '+' : ''}${_pctR(r.ret)}</strong>${r.bench ? ` vs ${benchName} ${r.bench.ret >= 0 ? '+' : ''}${_pctR(r.bench.ret)}` : ''},
       worst ${cfg.unit} ${_pctR(r.worst.ret)} (${_riskDate(r.worst.date)}).
       Red bars mark holdings that add more risk than their weight.
-      ${r.excluded.length ? `Not included — too little price history: ${r.excluded.map(esc).join(', ')}.` : ''}
+      ${r.excluded.length ? `Not included (too little price history): ${r.excluded.map(esc).join(', ')}.` : ''}
       Past movements, not a forecast.
     </div>`;
 }

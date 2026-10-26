@@ -1394,3 +1394,25 @@ body[data-theme="light"] .nx-close-sub b { color: var(--gold); }
 #nx-div { display: flex; flex-direction: column; gap: 20px; }
 #nx-div > .card { margin: 0; }
 .nx-close-cols.nx-fx-row span:nth-child(4) { text-align: left; }
+
+/* Purchases under a holding */
+.nx-lots { margin: 0 16px 16px 58px; padding: 14px 16px 10px; border-radius: 14px; background: var(--bg3); cursor: default; }
+.nx-lots-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.nx-lots-title { font-size: 13.5px; font-weight: 650; color: var(--text); }
+.nx-lots-sub { font-size: 12.5px; color: var(--text3); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.nx-lot-row { display: grid; grid-template-columns: 64px 56px minmax(0, .9fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr) 28px; align-items: center; gap: 12px;
+  padding: 7px 6px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text2); border-radius: 8px; }
+.nx-lot-row:not(.nx-lot-cols):hover { background: var(--bg2); }
+.nx-lot-cols { border-top: none; font-size: 11.5px; font-weight: 600; color: var(--text3); padding-top: 2px; padding-bottom: 4px; }
+.nx-lot-cols span:nth-child(n+3):nth-child(-n+7) { text-align: right; }
+.nx-lot-year { font-size: 11.5px; font-weight: 650; color: var(--text3); padding: 10px 6px 4px; letter-spacing: .02em; }
+.nx-lot-date { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.nx-lot-num { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; }
+.nx-lot-num small, .nx-lot-gain small { font-size: 11px; color: var(--text3); font-weight: 500; }
+.nx-lot-gain { display: flex; flex-direction: column; align-items: flex-end; font-weight: 650; font-variant-numeric: tabular-nums; }
+.nx-lot-gain.up { color: var(--up); } .nx-lot-gain.down { color: var(--down); }
+.nx-lot-gain.up small { color: var(--up); opacity: .8; } .nx-lot-gain.down small { color: var(--down); opacity: .8; }
+.nx-lot-row.closed > :not(.nx-row-del) { opacity: .5; }
+.nx-lot-row .nx-row-del { opacity: 0; }
+.nx-lot-row:hover .nx-row-del, .nx-lot-row .nx-row-del:focus-visible { opacity: 1; }
+@media (max-width: 1000px) { .nx-lots { margin-left: 16px; } .nx-lot-row { grid-template-columns: 56px 52px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr) 28px; } .nx-lot-row > :nth-child(5), .nx-lot-row > :nth-child(6) { display: none; } }

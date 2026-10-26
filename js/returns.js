@@ -312,7 +312,7 @@ async function buildReturnsCard() {
   const x = _xirr(allFlows);
   const xirrEl = document.getElementById('ret-xirr');
   if (xirrEl) {
-    if (x === null) { xirrEl.textContent = '—'; }
+    if (x === null) { xirrEl.textContent = '–'; }
     else {
       const pctVal = x * 100;
       xirrEl.textContent = (pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%';

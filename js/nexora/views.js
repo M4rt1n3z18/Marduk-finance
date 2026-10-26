@@ -91,7 +91,7 @@
     const reached = goals.filter(g => +g.target > 0 && +g.current >= +g.target).length;
     const tiles = goals.length + 1, cols = tiles <= 2 || tiles === 4 ? 2 : 3;
     const add = goalForm === 'new' ? goalFormHtml(null)
-      : `<button type="button" class="nx-goal-new" data-act="new">${icon('plus', 18)}<b>New goal</b><small>${goals.length ? 'Saving for something else?' : 'A trip, a car, a safety net — track what you’re saving for.'}</small></button>`;
+      : `<button type="button" class="nx-goal-new" data-act="new">${icon('plus', 18)}<b>New goal</b><small>${goals.length ? 'Saving for something else?' : 'A trip, a car, a safety net: track what you’re saving for.'}</small></button>`;
     root.innerHTML = `
       <div class="nx-goals-head"><div><div class="nx-goals-title">Your goals</div>
         ${goals.length ? `<div class="nx-goals-sum"><span>Saved</span> <b>${money(saved)}</b> <span>of</span> <b>${money(target)}</b> · <span>${goals.length === 1 ? '1 goal' : goals.length + ' goals'}</span>${reached ? ` · <span>${reached} reached</span>` : ''}</div>` : ''}</div></div>
@@ -171,7 +171,7 @@
   function drawTxList() {
     const list = document.querySelector('#nx-tx .nx-tx-list'); if (!list) return;
     const all = ap().transactions || [];
-    if (!all.length) { list.innerHTML = '<div class="nx-empty-line">No trades yet — they’re recorded when you add or import a holding.</div>'; return; }
+    if (!all.length) { list.innerHTML = '<div class="nx-empty-line">No trades yet. They’re recorded when you add or import a holding.</div>'; return; }
     const q = txQuery.trim().toLowerCase();
     const rows = all.filter(t => (txFilter === 'all' || (txFilter === 'Sell') === (t.type === 'Sell'))
       && (!q || t.ticker.toLowerCase().includes(q) || (t.notes || '').toLowerCase().includes(q)))
@@ -321,7 +321,7 @@
               <div class="nx-div-pay-main"><b>${escH(d.ticker)}</b><small>${fmtShares(d.shares)} sh × ${d.currency && d.currency !== 'EUR' ? (CURRENCY_SYMBOLS[d.currency] || d.currency + ' ') : '€'}${(+d.perShare).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</small></div>
               <span class="nx-div-pay-date">${fmtDay(d.date)}</span><span class="nx-div-pay-amt">+${eur(d.amountEur)}</span></div>`).join('')}</div>
             ${log.length > 6 ? `<button type="button" class="nx-tx-more" data-act="all">${divAll ? 'Show fewer' : `Show all ${log.length}`}</button>` : ''}`
-          : '<div class="nx-empty-line">Payments appear here as they’re paid — Nexora checks what you held on each payment date.</div>'}
+          : '<div class="nx-empty-line">Payments appear here as they’re paid. Nexora checks what you held on each payment date.</div>'}
         </div>
       </div>`;
     nxDivChart(log, proj);
@@ -388,7 +388,7 @@
         <div class="nx-cash-sub">${entries.length ? `<span>${share.toFixed(1)}% of this portfolio</span> · ` : ''}<span>counts toward its value</span></div></div>
         <button type="button" class="nx-inc-act" data-act="form">${cashForm ? 'Close' : '+ Add cash'}</button></div>
       ${cashForm ? `<form class="nx-cash-form" novalidate>
-          <label class="nx-f"><span>Currency</span><select name="ccy" class="nx-select">${CCY.map(([c, s, n]) => `<option value="${c}">${c} — ${n}</option>`).join('')}</select></label>
+          <label class="nx-f"><span>Currency</span><select name="ccy" class="nx-select">${CCY.map(([c, s, n]) => `<option value="${c}">${c} · ${n}</option>`).join('')}</select></label>
           <label class="nx-f"><span>Amount</span><input name="amt" type="number" min="0" step="0.01" placeholder="0.00"></label>
           <div class="nx-nw-form-btns"><button type="button" class="btn-ghost" data-act="cancel">Cancel</button><button class="btn" type="submit">Add</button></div>
           <small class="nx-cash-hint">Adding to a currency you already hold tops it up.</small></form>` : ''}
@@ -400,7 +400,7 @@
             <button type="button" class="nx-nw-val nx-cash-amt" data-edit="${i}" title="Click to change">${native(e.amount, e.currency)}</button>
             <div class="nx-cash-eur">${e.currency === 'EUR' ? `<span>${(inEur / (total || 1) * 100).toFixed(0)}% of your cash</span>` : `≈ ${eur(inEur)} <span class="nx-cash-rate">· 1 EUR = ${rate.toFixed(4)} ${e.currency}</span>`}</div>
           </div>`; }).join('')}</div>`
-        : `<div class="nx-empty-line">No cash recorded. Money waiting to be invested — in any currency — goes here, and counts toward the portfolio’s value.</div>`}`;
+        : `<div class="nx-empty-line">No cash recorded. Money waiting to be invested, in any currency, goes here, and counts toward the portfolio’s value.</div>`}`;
     if (cashForm) {
       const sel = root.querySelector('select[name="ccy"]'); if (free.length && sel) sel.value = free[0][0];
       setTimeout(() => root.querySelector('.nx-cash-form input')?.focus(), 30);
@@ -585,7 +585,7 @@
     const ticker = _close.ticker;
     const res = closeLots(ap(), ticker, picks.map(p => ({ lotId: p.l.id, shares: p.n })),
       { priceEur: px / rate, priceNative: px, currency: ccy, fxRate: ccy !== 'EUR' ? +(+rate).toFixed(6) : null, date, toCash: f.elements.cash.checked });
-    if (!res) return err('Nothing was closed — check the shares and the price.');
+    if (!res) return err('Nothing was closed. Check the shares and the price.');
     closeDialog();
     save(); renderAll();
     showToast(`Closed ${fmtShares(res.sold)} ${ticker} · ${res.gain >= 0 ? '+' : '−'}${eur(Math.abs(res.gain))} gain`);
@@ -604,7 +604,7 @@
     const list = a => a.length === 1 ? a[0] : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
     const html = !none.length && !old.length ? '' : `${tileI('amber', 'alert')}<div>${none.length ? `<p><b>${escH(list(none))}</b> ${none.length === 1 ? 'has' : 'have'} no price yet, so ${none.length === 1 ? 'it counts' : 'they count'} at what you paid and ${none.length === 1 ? 'its' : 'their'} gain isn’t in these totals.</p>` : ''}
       ${old.length ? `<p>The price${old.length === 1 ? '' : 's'} of <b>${escH(list(old))}</b> ${old.length === 1 ? 'is' : 'are'} more than 4 days old.</p>` : ''}
-      <p class="nx-price-note-how">Refresh prices from Actions; if it stays, check the symbol — European listings need their exchange suffix, like VWCE.DE.</p></div>`;
+      <p class="nx-price-note-how">Refresh prices from Actions; if it stays, check the symbol: European listings need their exchange suffix, like VWCE.DE.</p></div>`;
     for (const [id, anchor] of [['nx-price-note-ov', document.querySelector('#psub-portfolio-overview > .stats-grid')], ['nx-price-note-hd', document.getElementById('holdings-table-wrap')]]) {
       if (!anchor) continue;
       let n = document.getElementById(id);

@@ -143,7 +143,7 @@ function hiBuildRows(text, port) {
   const want = HI_TEMPLATE.map(h => h.toLowerCase());
   const hasStatus = header.length === 5;
   if (!(header.length === 4 || hasStatus) || header.some((h, i) => h !== want[i])) {
-    return { error: `Not the Nexora template — the first row must be: ${HI_TEMPLATE.join(', ')}. ` +
+    return { error: `Not the Nexora template. The first row must be: ${HI_TEMPLATE.join(', ')}. ` +
       'Download the template and copy your lots into it.' };
   }
 
@@ -160,7 +160,7 @@ function hiBuildRows(text, port) {
     if (!/^[A-Z0-9][A-Z0-9.\-]{0,19}$/.test(sym)) { r.err = 'Not a valid symbol'; return; }
     if (hasStatus) {
       const st = get(4).toLowerCase();
-      if (st === 'closed')                        { r.skip = 'Closed — not imported'; return; }
+      if (st === 'closed')                        { r.skip = 'Closed, not imported'; return; }
       if (st !== 'open' && st !== 'opened')       { r.err = 'Status must be Open or Closed'; return; }
     }
     const dRaw = get(1);
@@ -212,7 +212,7 @@ function hiRecompute(port) {
     if (!r.ccy) { r.block = 'Pick the currency'; continue; }
     const unit = hiUnit(r.ccy);
     if (unit !== 'EUR') {
-      if (!_hiFx[unit]) { r.block = _hiFxErr ? 'Exchange rates unavailable — try again' : 'Loading rate…'; continue; }
+      if (!_hiFx[unit]) { r.block = _hiFxErr ? 'Exchange rates unavailable, try again' : 'Loading rate…'; continue; }
       r.rate = hiRateOn(unit, r.date);
       if (!r.rate) { r.block = 'No ECB rate for this date'; continue; }
     } else r.rate = 1;
@@ -351,7 +351,7 @@ function hiStatus(r) {
 function hiRender() {
   const body = document.getElementById('hi-rows');
   if (!body || !_hiRows) return;
-  const ccyOpts = cur => `<option value=""${!cur ? ' selected' : ''}>—</option>` +
+  const ccyOpts = cur => `<option value=""${!cur ? ' selected' : ''}>–</option>` +
     HI_CCYS.map(c => `<option value="${c}"${c === cur ? ' selected' : ''}>${c}</option>`).join('');
   const sel = 'width:100%;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;';
 

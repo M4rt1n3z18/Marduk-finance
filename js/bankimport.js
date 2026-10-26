@@ -20,6 +20,10 @@ const IMP_IGNORE = '— Ignore —';        // internal transfers, not spending
 const IMP_INVEST = '— Investment —';    // money to the broker: an allocation, not an expense
 const IMP_EXTRA  = '— Extra Income —';  // a credit that is income: feeds the Budget tab's Extra
 const IMP_CASH   = '— Cash —';          // money moved to the broker and sitting there uninvested
+// How those four read on screen. The values keep their old dashes because
+// learned merchant rules store them; only what you see changed.
+const IMP_LABEL = { [IMP_IGNORE]: 'Ignore', [IMP_INVEST]: 'Investment', [IMP_EXTRA]: 'Extra income', [IMP_CASH]: 'Cash' };
+const impLabel = c => IMP_LABEL[c] || c;
 
 // ── Value parsing ────────────────────────────────────────────────────────────
 // European first (1.234,56) then US (1,234.56) — same rules as the payslip parser
@@ -294,7 +298,7 @@ function impRenderMapping(header) {
   wrap.innerHTML = fields.map(([k, label]) => `
     <div class="field"><label>${label}</label>
       <select data-impmap="${k}" style="width:100%;">
-        <option value="-1"${(_impMap[k] ?? -1) < 0 ? ' selected' : ''}>— none —</option>
+        <option value="-1"${(_impMap[k] ?? -1) < 0 ? ' selected' : ''}>None</option>
         ${opts(_impMap[k])}
       </select>
     </div>`).join('');
@@ -318,8 +322,9 @@ function impRenderReview() {
 
   const cats = impCategories();
   const catSel = (row, i) => `<select data-improw="${i}" style="width:100%;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Karla,sans-serif;font-size:12px;">
-      <option value=""${!row.cat ? ' selected' : ''}>— choose —</option>
-      ${cats.map(c => `<option${c === row.cat ? ' selected' : ''}>${c}</option>`).join('')}
+      <option value=""${!row.cat ? ' selected' : ''}>Choose…</option>
+      ${cats.filter(c => !IMP_LABEL[c]).map(c => `<option value="${esc(c)}"${c === row.cat ? ' selected' : ''}>${esc(c)}</option>`).join('')}
+      <optgroup label="Not spending">${cats.filter(c => IMP_LABEL[c]).map(c => `<option value="${esc(c)}"${c === row.cat ? ' selected' : ''}>${impLabel(c)}</option>`).join('')}</optgroup>
     </select>`;
   // Where the suggested category came from. Colour carries the meaning at a
   // glance: green = already known, gold = needs a decision, blue = income.
@@ -518,7 +523,7 @@ function renderImportView() {
       ? '<p class="muted" style="font-size:12px;">Nothing learned yet. Categories you assign during an import are remembered here.</p>'
       : `<table class="data-table"><thead><tr><th>Merchant</th><th>Category</th><th></th></tr></thead><tbody>${
           keys.map(k => `<tr>
-            <td>${esc(k)}</td><td>${esc(impRules()[k])}</td>
+            <td>${esc(k)}</td><td>${esc(impLabel(impRules()[k]))}</td>
             <td style="text-align:right;"><button class="btn-ghost" data-imprule="${encodeURIComponent(k)}" style="font-size:11px;padding:4px 10px;">Forget</button></td>
           </tr>`).join('')}</tbody></table>`;
     rules.querySelectorAll('button[data-imprule]').forEach(btn =>

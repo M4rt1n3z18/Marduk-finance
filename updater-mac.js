@@ -54,7 +54,7 @@ function installApp({ volume, currentBundle, trashDir = path.join(os.homedir(), 
   if (!name) return { error: 'The update doesn’t contain an app.' };
   const parent = path.dirname(currentBundle), newBundle = path.join(parent, name);
   const cp = spawnSync('cp', ['-Rf', path.join(volume, name), `${parent}/`], { timeout: 60000 });
-  if (cp.status !== 0) return { error: `Could not copy the update into ${parent} — check that folder is writable, or install the update manually.` };
+  if (cp.status !== 0) return { error: `Could not copy the update into ${parent}. Check that the folder is writable, or install the update manually.` };
   spawnSync('xattr', ['-cr', newBundle], { timeout: 5000 });
   let replaced = null;
   if (newBundle !== currentBundle && fs.existsSync(currentBundle)) {

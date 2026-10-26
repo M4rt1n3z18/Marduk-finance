@@ -13,8 +13,8 @@ const CHANGELOG = [
     v: '2.0.2',
     title: 'Close positions like your broker does',
     items: [
-      'Close a position by ticking the purchases you sold \u2014 all or part of each. The gain you made shows in Transactions.',
-      'Holdings that trade in dollars but whose purchases were saved in euros are flagged \u2014 convert them at each purchase date\u2019s rate in one go.',
+      'Close a position by ticking the purchases you sold, all or part of each. The gain you made shows in Transactions.',
+      'Holdings that trade in dollars but whose purchases were saved in euros are flagged, and you can convert them at each purchase date\u2019s rate in one go.',
       'Add holding picks the price currency from the ticker.',
       'A holding without a price is named above the totals.',
       'Dividends: yearly figures fill in even when Yahoo has none, a deleted holding\u2019s payments no longer count twice, and the cards are evenly spaced.',
@@ -24,10 +24,10 @@ const CHANGELOG = [
     v: '2.0.1',
     title: 'Page by page, a cleaner look',
     items: [
-      'Goals show what\u2019s left and how much to save each month to make the deadline \u2014 add money right on the card.',
+      'Goals show what\u2019s left and how much to save each month to make the deadline. Add money right on the card.',
       'Transactions are grouped by month with what each trade cost, and you can filter and search them. Deleting one asks first.',
       'Dividends on one page: received this year, expected a year, month by month and by holding.',
-      'Cash shows a card per currency \u2014 click an amount to change it.',
+      'Cash shows a card per currency. Click an amount to change it.',
       'Money set aside to invest is one bar on the Portfolio overview, and each allocation shows how much of it is invested.',
       'Dates read \u201c26 Oct 2026\u201d everywhere, and Recent expenses show their category.',
       'Top Positions and Sector Allocation line their numbers up, and Top Categories shows your five biggest.',
@@ -39,22 +39,22 @@ const CHANGELOG = [
     title: 'Marduk is now Nexora',
     items: [
       'A new name, a new look and a new icon.',
-      'Your data is encrypted with your password before it\u2019s saved \u2014 Google Drive only ever holds a locked file.',
+      'Your data is encrypted with your password before it\u2019s saved, so Google Drive only ever holds a locked file.',
       'Profiles: everyone on this computer can have their own, each with a recovery key in case a password is forgotten.',
       'My profile, in the avatar menu, holds your name, avatar, password, recovery key and preferences.',
-      'Nexora speaks English, Portuguese and Chinese \u2014 choose in My profile \u2192 Preferences.',
+      'Nexora speaks English, Portuguese and Chinese. Choose in My profile \u2192 Preferences.',
       'Arrange your Overview: move, resize or hide cards with Customize.',
       'Budget months can start on any business day counted from the end of the month, skipping your country\u2019s public holidays.',
       'Clearer Salary, Budget, Net Worth and FIRE pages, a side panel for each holding, and more measures on the Risk page.',
       'Loans count their interest, so payments and the payoff date are right.',
-      'Seasonal touches for Christmas, Halloween, New Year and your country\u2019s festivities \u2014 and in December and January, a look back at your year.',
+      'Seasonal touches for Christmas, Halloween, New Year and your country\u2019s festivities, and in December and January, a look back at your year.',
     ],
   },
   {
     v: '1.0.48',
     title: 'Ready for the next big update',
     items: [
-      'The next major version arrives with a new name and a new look — Marduk will install it automatically, like every other update.',
+      'The next major version arrives with a new name and a new look. Marduk will install it automatically, like every other update.',
       'When it does, the new app opens in place of the old one. Your data stays exactly where it is.',
     ],
   },
@@ -62,7 +62,7 @@ const CHANGELOG = [
     v: '1.0.46',
     title: 'Prices and search are back',
     items: [
-      'Prices, charts and ticker search load again — Yahoo Finance had started turning Marduk away, which showed up as “Rate limited”.',
+      'Prices, charts and ticker search load again. Yahoo Finance had started turning Marduk away, which showed up as “Rate limited”.',
       'Company details, analyst views and earnings dates load again too.',
       'Ticker suggestions are corrected: Roche, Bitcoin, Ethereum, XRP, Chainlink and several European ETFs now point to the right security, and renamed tickers are current (Block is XYZ, Polygon is POL).',
       'European ETFs in the suggestions carry their exchange (e.g. VUSA.AS, VHYL.AS), and ERNX.DE is included.',
@@ -83,7 +83,7 @@ const CHANGELOG = [
     items: [
       'Portfolio \u2192 Risk: how much your portfolio swings, its worst fall, how it moves with the market, which holdings carry the most risk, how concentrated it is and how much of it moves with exchange rates.',
       'Import CSV accepts only the Marduk template: Symbol, Trade Date, Purchase Price, Quantity, Status. Download it from the import window.',
-      'The new Status column takes Open or Closed \u2014 closed rows are shown but not imported.',
+      'The new Status column takes Open or Closed. Closed rows are shown but not imported.',
       'The XTB import has been removed; holdings you imported with it stay as they are.',
     ],
   },
@@ -93,7 +93,7 @@ const CHANGELOG = [
     items: [
       'Stock splits: Marduk spots holdings recorded before a split and offers to adjust them, so they stop showing as a big loss. Also under Actions → Check for stock splits.',
       'Far fewer requests to Yahoo, so prices, charts and company details load more reliably.',
-      'Buying in dollars or pounds now always uses the official ECB rate for that day — if no rate is available, Marduk asks you to try again rather than guessing.',
+      'Buying in dollars or pounds now always uses the official ECB rate for that day. If no rate is available, Marduk asks you to try again rather than guessing.',
       'Dividend amounts and the company window now show euros correctly.',
       'The benchmark picker on the value-history chart works.',
       'Pressing Enter on the lock screen no longer unlocks twice, and Forgot password works.',
@@ -116,7 +116,7 @@ const CHANGELOG = [
     v: '1.0.41',
     title: 'Lighter Portfolio and Expenses',
     items: [
-      'The row of section tabs is gone from Portfolio and Expenses \u2014 switch sections from the menu on each tab button.',
+      'The row of section tabs is gone from Portfolio and Expenses. Switch sections from the menu on each tab button.',
       'That menu highlights the section you are in, and its name shows under the page title.',
     ],
   },
@@ -132,7 +132,7 @@ const CHANGELOG = [
     v: '1.0.39',
     title: 'Import options and month picker',
     items: [
-      'Import: mark a row as \u2014 Cash \u2014 to add it to your portfolio\u2019s uninvested cash.',
+      'Import: mark a row as Cash to add it to your portfolio\u2019s uninvested cash.',
       'Review and Columns cards use the space properly, with centred headers.',
       'Your Month in Review: pick any of the last 12 months.',
     ],
@@ -164,7 +164,7 @@ const CHANGELOG = [
     v: '1.0.35',
     title: 'Import and chart polish',
     items: [
-      'In the import review, where a category came from is now a coloured badge \u2014 green when Marduk already knew the merchant, gold when it needs your decision, blue for credits.',
+      'In the import review, where a category came from is now a coloured badge: green when Marduk already knew the merchant, gold when it needs your decision, blue for credits.',
       'Allocation by Class: bigger ring, and the percentages sit beside their labels instead of across the card. Largest slice first.',
     ],
   },
@@ -173,7 +173,7 @@ const CHANGELOG = [
     title: 'Marduk-styled dialogs, Extra Income on import',
     items: [
       'Confirmations and messages now use Marduk\u2019s own styling instead of the grey system box.',
-      'Import: mark a credit as \u2014 Extra Income \u2014 and it becomes an Extra income entry in the Budget tab, counting toward that month\u2019s income and savings rate.',
+      'Import: mark a credit as Extra income and it becomes an Extra income entry in the Budget tab, counting toward that month\u2019s income and savings rate.',
     ],
   },
   {

@@ -436,7 +436,7 @@ function renderTransactions() {
       <td class="muted">${fmtShares(t.shares)}</td>
       <td>${eur(t.price)}</td>
       <td class="muted">${fmtDay(t.date)}</td>
-      <td class="muted">${esc(t.notes||'—')}</td>
+      <td class="muted">${esc(t.notes||'–')}</td>
       <td><button class="del-btn" onclick="delTransaction('${t.id}')">✕</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="7" class="empty">No transactions logged yet.</td></tr>';
@@ -602,7 +602,7 @@ async function refreshPrices(silent = false) {
   if (fetchedCount === 0 && !silent) {
     // Say *why*. A rate-limited fetch is not the same as a bad ticker, and
     // silently keeping old prices is what made this look like wrong data.
-    btn.textContent = _fxStatus && _fxStatus.rateLimited ? '↻ Rate limited — try later' : '↻ No prices fetched';
+    btn.textContent = _fxStatus && _fxStatus.rateLimited ? '↻ Rate limited, try later' : '↻ No prices fetched';
     btn.style.color = 'var(--down)';
     setTimeout(() => { btn.textContent = '↻ Refresh prices'; btn.style.color = ''; }, 5000);
   } else {
@@ -701,11 +701,11 @@ function _updateLiveIndicator() {
   const dot = document.getElementById('live-dot');
   if (dot) dot.style.color = fxStale ? 'var(--gold)' : (phase === 'open' ? 'var(--up)' : 'var(--text3)');
   if (el.parentElement) el.parentElement.title = fxStale
-    ? `Exchange rate unavailable — foreign holdings shown at the last known rate`
+    ? `Exchange rate unavailable: foreign holdings shown at the last known rate`
       + (_fxStatus.date ? ` (${_fxStatus.source} ${_fxStatus.date})` : '')
-    : phase === 'open'  ? 'Markets open — next automatic price refresh'
-    : phase === 'quiet' ? 'Markets closed — refreshing every 4 hours'
-    :                     'Weekend — automatic refresh paused';
+    : phase === 'open'  ? 'Markets open · next automatic price refresh'
+    : phase === 'quiet' ? 'Markets closed · refreshing every 4 hours'
+    :                     'Weekend · automatic refresh paused';
 
   if (fxStale)             { el.textContent = 'FX stale'; return; }
   if (phase === 'weekend') { el.textContent = 'closed';   return; }
@@ -920,7 +920,7 @@ async function delAllocation(id) {
   const a = (state.allocations || []).find(x => x.id === id);
   if (!a) return;
   const msg = a.amountInvested > 0
-    ? `Delete this allocation? ${eur(a.amountInvested)} of it was already marked as invested — that history will be lost.`
+    ? `Delete this allocation? ${eur(a.amountInvested)} of it was already marked as invested, and that history will be lost.`
     : 'Delete this allocation?';
   if (!await nexoraConfirm(msg)) return;
   state.allocations = state.allocations.filter(x => x.id !== id);
@@ -935,7 +935,7 @@ async function openBackupsModal() {
   modal.style.display = 'flex';
   const backups = (await window.NexoraVault?.listBackups()) || [];
   if (!backups.length) {
-    list.innerHTML = '<div class="empty" style="padding:20px 0;">No backups yet — one is created automatically each day you use Nexora.</div>';
+    list.innerHTML = '<div class="empty" style="padding:20px 0;">No backups yet. One is created automatically each day you use Nexora.</div>';
     return;
   }
   list.innerHTML = '';
