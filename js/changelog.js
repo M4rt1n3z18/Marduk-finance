@@ -10,6 +10,19 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '2.0.3',
+    title: 'Tidier, form by form',
+    items: [
+      'Add a purchase names the company, shows what you already hold, and what it costs in euros at that day\u2019s ECB rate, before you save.',
+      'Click an expense to change it. The log is grouped by day, with each day\u2019s total.',
+      'Recurring expenses can be added or skipped one by one.',
+      'Negative numbers are shown in brackets, like \u20ac(3,29).',
+      'AI features now live in My profile, with what the key does and what it sees.',
+      'The purchases under each holding have a new look, with + Add purchase.',
+      'Cleaner windows and confirmations. Deleting asks with a red button.',
+    ],
+  },
+  {
     v: '2.0.2',
     title: 'Close positions like your broker does',
     items: [
