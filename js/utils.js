@@ -147,8 +147,13 @@ document.addEventListener('click', e => {
 
 
 const uid = () => Math.random().toString(36).slice(2,9);
-const eur = (n, d=2) => '€' + Number(n).toLocaleString('de-DE', {minimumFractionDigits:d, maximumFractionDigits:d});
-const pct = n => (n>=0?'+':'')+Number(n).toFixed(2)+'%';
+// Negative amounts in brackets, as in accounts: €(3,29), (0.61%). A value that
+// rounds to zero is just zero, never €(0,00).
+const eur = (n, d=2) => {
+  const v = Number(n), s = Math.abs(v).toLocaleString('de-DE', {minimumFractionDigits:d, maximumFractionDigits:d});
+  return v < 0 && Math.abs(v) >= 0.5 * 10 ** -d ? `€(${s})` : '€' + s;
+};
+const pct = n => Number(n) <= -0.005 ? `(${Math.abs(n).toFixed(2)}%)` : '+' + Math.abs(Number(n) || 0).toFixed(2) + '%';
 
 // Text from outside the app — Yahoo names and descriptions, bank statement
 // lines, file names — goes through this before it is put into innerHTML.

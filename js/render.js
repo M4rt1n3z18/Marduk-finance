@@ -1317,8 +1317,7 @@ function setBudgetSort(v) {
 }
 
 function updateBuyLabel() {
-  const cur = document.getElementById('h-buy-currency').value;
-  const sym = { EUR:'€', USD:'$', GBP:'£', CHF:'₣', BRL:'R$' }[cur] || cur;
-  document.getElementById('h-buy-label').textContent = `Avg Buy Price (${sym})`;
+  // the currency sits beside the price, so the label stays the same
+  document.getElementById('h-buy-label').textContent = 'Price per share';
 }
 

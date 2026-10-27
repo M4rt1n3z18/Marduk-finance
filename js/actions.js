@@ -274,7 +274,8 @@ function portFx() {
 function eurPort(val) {
   const sym = CURRENCY_SYMBOLS[portCurrency()] || '€';
   const converted = val * portFx();
-  return sym + converted.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const s = Math.abs(converted).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return converted <= -0.005 ? `${sym}(${s})` : sym + s;   // negatives in brackets, like eur()
 }
 
 function setPortCurrency(val) {
@@ -303,6 +304,20 @@ function addExpense() {
 }
 
 function delExpense(id) { state.expenses = state.expenses.filter(e=>e.id!==id); save(); renderAll(); }
+
+// Change an expense. A loan linked by keyword was paid down by the old amount
+// when the expense was added; that is undone and the new amount applied, so
+// fixing a typo in a payment doesn't leave the loan's balance wrong.
+function editExpense(id, patch) {
+  const e = state.expenses.find(x => x.id === id);
+  if (!e) return false;
+  const linked = desc => state.liabilities.filter(l => l.isCredit && l.linkedKeyword && String(desc || '').toLowerCase().includes(l.linkedKeyword.toLowerCase()));
+  for (const l of linked(e.desc)) l.value = parseFloat((l.value + Number(e.amount)).toFixed(2));
+  Object.assign(e, patch);
+  for (const l of linked(e.desc)) l.value = parseFloat(Math.max(0, l.value - Number(e.amount)).toFixed(2));
+  save(); renderAll();
+  return true;
+}
 
 function addAsset() {
   const name = document.getElementById('a-name').value.trim();
@@ -481,27 +496,27 @@ function checkRecurring() {
   listEl.innerHTML = '';
   unique.forEach(r => {
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);';
+    row.className = 'nx-recur-row';
+    const ci = CATS.indexOf(r.cat);
     row.innerHTML = `
-      <span style="flex:1;font-size:13px;">${esc(r.desc)}</span>
-      <span class="muted" style="font-size:12px;">${r.cat}</span>
-      <span style="font-weight:600;">${eur(r.amount)}</span>`;
+      <span class="nx-el-dot" style="background:${ci >= 0 ? CAT_COLORS[ci] : 'var(--text3)'}"></span>
+      <span class="nx-recur-desc">${esc(r.desc)}</span>
+      <span class="nx-el-cat">${esc(r.cat)}</span>
+      <span class="nx-el-amt">${eur(r.amount)}</span>`;
+
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'nx-goal-link';
+    dismissBtn.title = 'Not this month';
+    dismissBtn.textContent = 'Skip';
+    dismissBtn.addEventListener('click', () => dismissRecurring(r.id));
 
     const addBtn = document.createElement('button');
-    addBtn.className = 'btn-ghost';
-    addBtn.style.cssText = 'font-size:11px;padding:4px 10px;';
+    addBtn.className = 'nx-inc-act';
     addBtn.textContent = 'Add';
     addBtn.addEventListener('click', () => addOneRecurring(r.id));
 
-    const dismissBtn = document.createElement('button');
-    dismissBtn.className = 'btn-ghost';
-    dismissBtn.style.cssText = 'font-size:11px;padding:4px 8px;color:var(--text3);border-color:transparent;';
-    dismissBtn.title = 'Skip this month';
-    dismissBtn.textContent = '✕';
-    dismissBtn.addEventListener('click', () => dismissRecurring(r.id));
-
-    row.appendChild(addBtn);
     row.appendChild(dismissBtn);
+    row.appendChild(addBtn);
     listEl.appendChild(row);
   });
 }

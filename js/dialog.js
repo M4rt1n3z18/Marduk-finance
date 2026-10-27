@@ -20,17 +20,23 @@ function _dlgKey(e) {
   else if (e.key === 'Enter') { e.preventDefault(); _dlgClose(true); }
 }
 
-function _dlgOpen(message, { title = 'Nexora', confirm = false, okLabel = 'OK' } = {}) {
+function _dlgOpen(message, { title = '', confirm = false, okLabel = 'OK' } = {}) {
   const m = document.getElementById('dlg-modal');
   // No modal in the DOM (or called before load) — fall back rather than lose the
   // message entirely, and keep confirm's meaning intact.
   if (!m) return Promise.resolve(confirm ? window.confirm(message) : (window.alert(message), true));
 
-  document.getElementById('dlg-title').textContent = title;
+  // A title only when the caller has one; the message carries the question
+  document.getElementById('dlg-title').textContent = title || '';
+  const head = document.getElementById('dlg-head');
+  if (head) head.style.display = title ? '' : 'none';
   document.getElementById('dlg-body').textContent  = message;
   const ok     = document.getElementById('dlg-ok');
   const cancel = document.getElementById('dlg-cancel');
-  ok.textContent = okLabel;
+  // Deleting or removing something says so, in red, instead of a neutral "Confirm"
+  const verb = confirm && (message.match(/^\s*(Delete|Remove)\b/) || [])[1];
+  ok.textContent = verb || okLabel;
+  ok.classList.toggle('btn-danger', !!verb);
   cancel.style.display = confirm ? '' : 'none';
 
   ok.onclick     = () => _dlgClose(true);

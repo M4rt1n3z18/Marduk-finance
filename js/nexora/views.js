@@ -713,6 +713,145 @@
   }
   window.nxFxCheck = nxFxCheck;
 
+  // ══════════════ EXPENSES → LOGS ══════════════
+  // One card: search and category inside it, expenses grouped by day with the
+  // day's total, and any expense opens in place to be changed or deleted.
+  let elQuery = '', elCat = 'All', elShow = 60, elEdit = null;
+  const REC = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5"/></svg>';
+  function dayLabel(iso) {
+    const t = todayNoon(), d = noon(iso), diff = Math.round((t - d) / dayMs);
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+  }
+  function nxExpenseLog() {
+    const pane = document.getElementById('psub-expenses-logs');
+    const body = document.getElementById('expenses-body');
+    if (!pane || !body) return;
+    let root = document.getElementById('nx-elog');
+    if (!root) {
+      hide(document.getElementById('e-search')?.parentElement);
+      hide(document.getElementById('expense-filters'));
+      hide(body.closest('.card'));
+      root = Object.assign(document.createElement('div'), { id: 'nx-elog', className: 'card' });
+      pane.appendChild(root);
+      root.addEventListener('input', e => { if (e.target.matches('.nx-tx-search input')) { elQuery = e.target.value; elShow = 60; drawElog(); } });
+      root.addEventListener('change', e => { if (e.target.matches('.nx-elog-cat')) { elCat = e.target.value; elShow = 60; nxExpenseLog(); } });
+      root.addEventListener('click', onElogClick);
+      root.addEventListener('submit', onElogSubmit);
+      root.addEventListener('keydown', e => { if (e.key === 'Escape' && elEdit) { elEdit = null; drawElog(); } });
+    }
+    if (root.querySelector('.nx-tx-search input') === document.activeElement) return drawElog();
+    const month = state.expenses.filter(e => expenseBelongsToMonth(e, selectedExpenseMonth));
+    const counts = {}; month.forEach(e => { counts[e.cat] = (counts[e.cat] || 0) + 1; });
+    if (elCat !== 'All' && !CATS.includes(elCat)) elCat = 'All';
+    const total = month.reduce((s, e) => s + Number(e.amount), 0);
+    root.innerHTML = `
+      <div class="nx-tx-head"><div><div class="card-title" style="margin:0;">Expenses</div>
+        <div class="nx-tx-sum">${month.length ? `<span>${month.length === 1 ? '1 expense' : month.length + ' expenses'}</span> · <b>${eur(total)}</b>` : ''}</div></div>
+        <div class="nx-tx-tools">
+          <select class="nx-select nx-elog-cat">${['All', ...CATS].map(c => `<option value="${escH(c)}"${c === elCat ? ' selected' : ''}>${escH(c)}${(c === 'All' ? month.length : counts[c]) ? ` (${c === 'All' ? month.length : counts[c]})` : ''}</option>`).join('')}</select>
+          <label class="nx-tx-search">${SEARCH}<input type="search" placeholder="Search expenses…" value="${escH(elQuery)}"></label></div></div>
+      <div class="nx-elog-list"></div>`;
+    drawElog();
+  }
+  function drawElog() {
+    const list = document.querySelector('#nx-elog .nx-elog-list'); if (!list) return;
+    const q = elQuery.trim().toLowerCase();
+    const month = state.expenses.filter(e => expenseBelongsToMonth(e, selectedExpenseMonth));
+    const rows = month.filter(e => (elCat === 'All' || e.cat === elCat) && (!q || e.desc.toLowerCase().includes(q) || e.cat.toLowerCase().includes(q)))
+      .sort((a, b) => b.date.localeCompare(a.date));
+    if (!rows.length) { list.innerHTML = `<div class="nx-empty-line">${month.length ? 'Nothing matches.' : 'No expenses this month yet.'}</div>`; return; }
+    const shown = rows.slice(0, elShow), days = new Map();
+    for (const e of shown) { if (!days.has(e.date)) days.set(e.date, []); days.get(e.date).push(e); }
+    let html = '';
+    for (const [d, es] of days) {
+      const dayTotal = rows.filter(e => e.date === d).reduce((s, e) => s + Number(e.amount), 0);
+      html += `<div class="nx-tx-month"><span>${dayLabel(d)}</span><small>${eur(dayTotal)}</small></div>`;
+      html += es.map(e => {
+        const ci = CATS.indexOf(e.cat), col = ci >= 0 ? CAT_COLORS[ci] : 'var(--text3)';
+        if (elEdit === e.id) return `<form class="nx-el-edit" data-id="${escH(e.id)}" novalidate>
+            <label class="nx-f"><span>Description</span><input name="desc" value="${escH(e.desc)}"></label>
+            <label class="nx-f"><span>Amount (€)</span><input name="amount" type="number" step="any" min="0" value="${+e.amount}"></label>
+            <label class="nx-f"><span>Category</span><select name="cat" class="nx-select">${CATS.map(c => `<option${c === e.cat ? ' selected' : ''}>${escH(c)}</option>`).join('')}</select></label>
+            <label class="nx-f"><span>Date</span><input id="nx-el-date" class="date-field" readonly></label>
+            <label class="nx-ae-rec"><input type="checkbox" name="rec"${e.recurring ? ' checked' : ''}><span>Every month</span></label>
+            <div class="nx-el-edit-btns"><button type="button" class="nx-goal-link" data-act="del">Delete</button>
+              <button type="button" class="btn-ghost" data-act="cancel">Cancel</button><button class="btn" type="submit">Save</button></div>
+          </form>`;
+        return `<div class="nx-el-row" data-id="${escH(e.id)}" title="Click to change">
+          <span class="nx-el-dot" style="background:${col}"></span>
+          <span class="nx-el-desc"><b>${escH(e.desc)}</b>${e.recurring ? `<span class="nx-el-rec">${REC}<span>Monthly</span></span>` : ''}</span>
+          <span class="nx-el-cat">${escH(e.cat)}</span>
+          <span class="nx-el-amt">${eur(e.amount)}</span>
+          <button type="button" class="nx-row-del" data-act="del" title="Delete">${icon('trash', 14)}</button></div>`;
+      }).join('');
+    }
+    if (rows.length > elShow) html += `<button type="button" class="nx-tx-more" data-act="more">Show ${Math.min(60, rows.length - elShow)} more <span class="nx-tx-more-of">· ${rows.length - elShow} left</span></button>`;
+    list.innerHTML = html;
+    const ed = elEdit && state.expenses.find(x => x.id === elEdit);
+    if (ed) { setDateField('nx-el-date', ed.date); setTimeout(() => list.querySelector('.nx-el-edit input[name="desc"]')?.focus(), 30); }
+  }
+  async function onElogClick(ev) {
+    const b = ev.target.closest('[data-act]'), row = ev.target.closest('[data-id]');
+    if (b?.dataset.act === 'more') { elShow += 60; return drawElog(); }
+    if (b?.dataset.act === 'cancel') { elEdit = null; return drawElog(); }
+    if (b?.dataset.act === 'del' && row) {
+      const e = state.expenses.find(x => x.id === row.dataset.id); if (!e) return;
+      if (!await nexoraConfirm(`Delete the expense “${e.desc}” of ${eur(e.amount)}?`)) return;
+      elEdit = null; return delExpense(e.id);
+    }
+    if (row && row.classList.contains('nx-el-row') && !b) { elEdit = row.dataset.id; drawElog(); }
+  }
+  function onElogSubmit(ev) {
+    ev.preventDefault();
+    const f = ev.target, amount = parseFloat(f.elements.amount.value), desc = f.elements.desc.value.trim();
+    if (!desc) return f.elements.desc.focus();
+    if (!(amount > 0)) return f.elements.amount.focus();
+    const id = f.dataset.id; elEdit = null;
+    editExpense(id, { desc, amount, cat: f.elements.cat.value, date: getDateRaw('nx-el-date') || localIso(), recurring: f.elements.rec.checked });
+  }
+
+  // ══════════════ ADD A PURCHASE: the line under the form ══════════════
+  // Says which company the ticker is, what you already hold of it, and what the
+  // purchase comes to in euros at the ECB rate of its date, before it's saved.
+  // That last part is what would have shown dollar prices being taken as euros.
+  const _acNames = new Map(), _rates = new Map();
+  let _ahSeq = 0;
+  const pxFmt = v => (+v).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  async function nxAhInfo() {
+    const out = document.getElementById('h-info'); if (!out) return;
+    const t = (document.getElementById('h-ticker').value || '').trim().toUpperCase();
+    const n = parseFloat(document.getElementById('h-shares').value), px = parseFloat(document.getElementById('h-buy').value);
+    const ccy = document.getElementById('h-buy-currency').value, date = getDateRaw('h-date') || localIso();
+    const seq = ++_ahSeq;
+    if (!t) { out.innerHTML = '<span>Type a ticker or a company name. The price goes in the currency it trades in, and Nexora works out the euros.</span>'; return; }
+    const name = _acNames.get(t) || TICKER_DB.find(x => x.t === t)?.n || SYMBOL_DIR.find(x => x.t === t)?.n;
+    const held = (ap().holdings || []).find(h => h.ticker === t);
+    const parts = [];
+    if (name) parts.push(`<b>${escH(name)}</b>`);
+    if (held) parts.push(`<span>you hold</span> ${fmtShares(held.shares)} <span>sh at</span> ${eur(held.buyPrice)} <span>average</span>`);
+    let calc = '';
+    if (n > 0 && px > 0) {
+      const sym = CURRENCY_SYMBOLS[ccy] || ccy + ' ';
+      calc = `${fmtShares(n)} × ${sym}${pxFmt(px)} = <b>${sym}${pxFmt(n * px)}</b>`;
+      if (ccy !== 'EUR') {
+        const key = ccy + '|' + date;
+        if (!_rates.has(key)) {
+          out.innerHTML = [...parts, calc + ' · <span>getting the ECB rate…</span>'].join(' · ');
+          let r = null;
+          try { r = await window.electronAPI?.fetchFxRate?.({ date, fromCurrency: ccy }); } catch (e) {}
+          if (r > 0) _rates.set(key, r);
+          if (seq !== _ahSeq) return;   // something changed while waiting
+        }
+        const r = _rates.get(key);
+        calc += r ? ` = <b class="nx-ah-eur">${eur(n * px / r)}</b> <span>at the ECB rate of</span> ${fmtDay(date)} <span class="nx-ah-rate">(1 EUR = ${(+r).toLocaleString('de-DE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} ${ccy})</span>`
+                  : ` · <span class="nx-stale">Couldn’t get the ECB rate for that date, so this can’t be added yet.</span>`;
+      }
+    }
+    out.innerHTML = [...parts, calc].filter(Boolean).join(' · ') || '<span>New to this portfolio.</span>';
+  }
+
   // ══════════════ wiring ══════════════
   const after = (name, fn) => {
     const orig = window[name]; if (typeof orig !== 'function') return;
@@ -727,5 +866,12 @@
     after('renderAllocations', nxAllocHistory);
     after('renderPortfolio', nxPriceNote);
     after('renderPortfolio', nxFxNote);
+    after('renderExpenses', nxExpenseLog);
+    // the purchase line follows every field, including picks from the suggestions and the date picker
+    const panel = document.getElementById('add-holding-panel');
+    if (panel) { panel.addEventListener('input', () => nxAhInfo()); panel.addEventListener('change', () => nxAhInfo()); }
+    for (const f of ['acSelect', 'acAutoDetect', 'openAddHolding']) after(f, () => setTimeout(nxAhInfo, 0));
+    window.addHolding = (orig => async function () { const r = await orig.apply(this, arguments); nxAhInfo(); return r; })(window.addHolding);
+    window.renderAcDrop = (orig => function (matches) { (matches || []).forEach(m => m?.t && m.n && _acNames.set(m.t, m.n)); return orig.apply(this, arguments); })(window.renderAcDrop);
   });
 })();

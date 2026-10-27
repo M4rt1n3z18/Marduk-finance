@@ -180,10 +180,23 @@
         const valueAxis = horizontal ? key === 'x' : key === 'y';
         s.border = { display: false };
         s.ticks = Object.assign({}, s.ticks, { padding: 8, font: { size: 11 } }, valueAxis ? { maxTicksLimit: 6 } : {});
+        if (valueAxis) {
+          const cb = s.ticks.callback;
+          s.ticks.callback = function (v, i, t) {
+            const out = cb ? cb.call(this, v, i, t) : Orig.Ticks.formatters.numeric.call(this, v, i, t);
+            return Array.isArray(out) ? out.map(x => nxNeg(String(x), true)) : nxNeg(String(out), true);
+          };
+        }
         if (s.grid && s.grid.display === false) continue;
         s.grid = Object.assign({}, s.grid, valueAxis ? { color: css('--border'), drawTicks: false } : { display: false });
       }
       o.plugins = o.plugins || {};
+      const tcb = Object.assign({}, o.plugins.tooltip?.callbacks), lab = tcb.label;
+      tcb.label = function (c) {
+        const out = lab ? lab.call(this, c) : `${c.dataset.label ? c.dataset.label + ': ' : ''}${c.formattedValue}`;
+        return Array.isArray(out) ? out.map(x => nxNeg(String(x), true)) : nxNeg(String(out), true);
+      };
+      o.plugins.tooltip = Object.assign({}, o.plugins.tooltip, { callbacks: tcb });
       o.plugins.tooltip = Object.assign({
         backgroundColor: css('--bg2'), titleColor: css('--text'), bodyColor: css('--text2'),
         borderColor: css('--border-strong'), borderWidth: 1, padding: 11, cornerRadius: 10,
@@ -221,6 +234,24 @@
     Chart.prototype = Orig.prototype;
     window.Chart = Chart;
     Orig.defaults.font.family = "'Inter', system-ui, sans-serif";
+  }
+
+  // ── Negative numbers in brackets, as in accounts: €(3,29), (0.61%) ──
+  // Applied to text as it reaches the screen (the language pass below) and to
+  // chart labels, so every view follows the rule without its own formatter.
+  // `bare` also brackets plain numbers; only for chart axes and tooltips.
+  const NEG_SYM = '(?:€|\\$|£|₣|R\\$)';
+  const NEG_RE = [
+    [new RegExp(`[-−](${NEG_SYM})\\s?(\\d[\\d.,]*(?:\\s?[kM])?)`, 'g'), '$1($2)'],    // −€3,29 → €(3,29)
+    [new RegExp(`(${NEG_SYM})\\s?[-−](\\d[\\d.,]*(?:\\s?[kM])?)`, 'g'), '$1($2)'],    // €-3,29 → €(3,29)
+    [/(^|[\s(·:,])[-−](\d[\d.,]*)\s?%/g, '$1($2%)'],                              // −0.61% → (0.61%)
+    [/\(\((\d[\d.,]*%)\)\)/g, '($1)'],                                             // (−0.61%) was wrapped already
+    [/\(\+(\d[\d.,]*%)\)/g, '+$1'],                                                 // (+0.42%) → +0.42%, so brackets mean "negative"
+  ];
+  function nxNeg(s, bare) {
+    if (typeof s !== 'string' || !/[-−]|\(\+/.test(s)) return s;
+    for (const [re, to] of NEG_RE) s = s.replace(re, to);
+    return bare ? s.replace(/(^|[\s:])[-−](\d[\d.,]*)(?=\s|$)/g, '$1($2)') : s;
   }
 
   // ── A modern categorical palette: the old one was built around gold
@@ -1812,7 +1843,7 @@
     if (orig === undefined || cur !== n.__nxSet) { orig = cur; ORIG.set(n, orig); }   // the app wrote new text
     const src = orig, key = src.replace(/\s+/g, ' ').trim();
     const tr = key && /[A-Za-z]/.test(key) ? trKey(key) : null;
-    const want = tr == null ? src : src.match(/^\s*/)[0] + tr + src.match(/\s*$/)[0];
+    const want = nxNeg(tr == null ? src : src.match(/^\s*/)[0] + tr + src.match(/\s*$/)[0]);
     n.__nxSet = want;
     if (cur !== want) n.nodeValue = want;
   }
@@ -1853,7 +1884,8 @@
 
   // ══════════════ MY PROFILE ══════════════
   let meSec = 'profile', meRk = null, mePeek = false, mePeekText = '', meAvTab = 'initials';
-  const ME_SECTIONS = [['profile', 'user', 'Profile'], ['security', 'shieldCheck', 'Security'], ['prefs', 'sliders', 'Preferences'], ['data', 'database', 'Data & privacy']];
+  const ME_SECTIONS = [['profile', 'user', 'Profile'], ['security', 'shieldCheck', 'Security'], ['prefs', 'sliders', 'Preferences'], ['ai', 'sparkles', 'AI features'], ['data', 'database', 'Data & privacy']];
+  let meAi = { loaded: false, masked: null };   // the AI key as main.js reports it (masked), once asked
   const fmtLong = iso => iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '–';
   const seg = (name, cur, opts) => `<div class="nx-seg" data-seg="${name}">${opts.map(([v, l]) => `<button type="button" data-v="${v}" class="${String(cur) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   function meBody() {
@@ -1873,6 +1905,20 @@
         <div class="nx-auth-err"></div>
         <div class="nx-me-foot"><span class="nx-me-meta">Member since ${fmtLong(a.createdAt)}</span><button class="btn" type="submit">Save changes</button></div>
       </form>`;
+    if (meSec === 'ai') {
+      if (!meAi.loaded) { api?.getAiKeyStatus?.().then(m => { meAi = { loaded: true, masked: m || null }; if (meSec === 'ai') renderMe(); }).catch(() => {}); }
+      const on = !!meAi.masked;
+      return `
+      <div class="nx-me-group nx-me-inline"><div><h3>${on ? 'On' : 'Off'}</h3><p>${on ? `<span>Using the key</span> <b>${escH(meAi.masked)}</b>` : 'Add an Anthropic API key to turn these on. Everything else in Nexora works without one.'}</p></div>
+        ${on ? `<button type="button" class="nx-goal-link" data-act="ai-remove">Remove key</button>` : ''}</div>
+      <div class="nx-me-group"><h3>What it does</h3>
+        <ul class="nx-me-facts"><li>${icon('note', 15)}<span><b>Reads payslips</b>: any language and any layout. Without a key, Nexora uses its own pattern reader.</span></li>
+          <li>${icon('receipt', 15)}<span><b>Suggests a category</b> for an expense it hasn’t seen before.</span></li>
+          <li>${icon('sparkles', 15)}<span><b>Sums up your month</b> in a few lines on the Overview.</span></li></ul></div>
+      <div class="nx-me-group"><h3>What it sees</h3><p>The payslip you import, an expense’s description when it suggests a category, and the month’s totals for the summary. Never your list of transactions, your holdings or your password.</p></div>
+      <div class="nx-me-group"><h3>${on ? 'Replace the key' : 'Your key'}</h3><p>Stored only on this computer, never in Google Drive. Get one at console.anthropic.com; it costs a few cents per payslip, and less for the rest.</p>
+        <form id="nx-me-ai" novalidate class="nx-me-rk-form"><label class="nx-f"><span>API key</span><input name="key" type="password" autocomplete="off" placeholder="sk-ant-…"></label><button class="btn" type="submit">Save key</button><div class="nx-auth-err"></div></form></div>`;
+    }
     if (meSec === 'security') { const al = typeof getAutolockMode === 'function' ? String(getAutolockMode()) : '10'; return `
       <div class="nx-me-group"><h3>Password</h3><p>The password you use to open Nexora.</p>
         <form id="nx-me-pw" novalidate>
@@ -1914,7 +1960,7 @@
       <div class="nx-me-group"><h3>Where your data lives</h3>
         <ul class="nx-me-facts"><li>${icon('lock', 15)}<span><b>Your finances</b>: encrypted on this computer with your password, then saved as one file in your Google Drive folder. Without your password or recovery key it’s unreadable, to Google too.</span></li>
           <li>${icon('shieldCheck', 15)}<span><b>Your password</b>: never stored anywhere. It only unlocks the key that opens your file.</span></li>
-          <li>${icon('sparkles', 15)}<span><b>AI features</b>: off unless you add a key; they receive totals, never your transactions.</span></li></ul>
+          <li>${icon('sparkles', 15)}<span><b>AI features</b>: off unless you add a key. What they see is listed under AI features.</span></li></ul>
         <button type="button" class="nx-me-link" data-act="peek">${icon('eye', 14)}${mePeek ? 'Hide' : 'See'} what’s saved in your Drive</button>
         ${mePeek ? `<pre class="nx-me-peek">${escH(mePeekText)}…</pre>` : ''}</div>
       <div class="nx-me-danger"><div><h3>Delete profile</h3><p>Removes ${escH(a.name)}'s profile from this computer.</p></div><button type="button" class="nx-btn-danger" data-act="delete">Delete profile</button></div>`;
@@ -2023,9 +2069,13 @@
         if (act === 'export') exportData();
         if (act === 'import') { el.classList.remove('open'); importData(); }
         if (act === 'backups') { el.classList.remove('open'); openBackupsModal(); }
+        if (act === 'ai-remove') {
+          if (!await nexoraConfirm('Remove the AI key? Payslips go back to the built-in reader, and categories and the monthly summary stop.')) return;
+          await api?.clearAiKey?.(); meAi = { loaded: true, masked: null }; renderMe(); showToast('AI key removed');
+        }
         if (act === 'delete') {
           const a = currentAccount();
-          if (!await nexoraConfirm(`Delete ${a.name}'s profile?\n\nIt disappears from Nexora on every computer. Its encrypted file is kept in this computer's backups.`, 'DELETE PROFILE')) return;
+          if (!await nexoraConfirm(`Delete ${a.name}'s profile?\n\nIt disappears from Nexora on every computer. Its encrypted file is kept in this computer's backups.`, 'Delete profile')) return;
           await enqueue(() => api?.profileRemove(a.id));
           saveAccounts(accounts().filter(x => x.id !== a.id));
           localStorage.removeItem(lockKey(a.id));
@@ -2051,6 +2101,13 @@
           // only the key is re-wrapped; the data stays as it is
           if (!await rekey(currentId, 'password', pw)) return err('Couldn’t save. Check that the Google Drive folder is available.');
           renderMe(); showToast('Password updated');
+        }
+        if (f.id === 'nx-me-ai') {
+          const key = f.elements.key.value.trim();
+          if (!key) return err('Paste your API key first.');
+          const res = await api?.setAiKey?.(key);
+          if (!res?.ok) return err(res?.error || 'Couldn’t save the key.');
+          meAi = { loaded: false, masked: null }; renderMe(); showToast('AI key saved');
         }
         if (f.id === 'nx-me-rk') {
           let opened = null; try { opened = await openFile(currentId, f.elements.cur.value); } catch (x) {}
@@ -2490,7 +2547,6 @@
       el.addEventListener('click', e => {
         const a = e.target.closest('[data-act]')?.dataset.act;
         if (a === 'close') closeHolding();
-        if (a === 'window') { const tk = _nxHdTicker; closeHolding(); _nxOrigOpen(tk); }
         if (a === 'more') e.target.closest('.nx-hd-about').classList.toggle('open');
         if (a === 'closepos') { const tk = _nxHdTicker; closeHolding(); window.nxClosePosition?.(tk); }
         const r = e.target.closest('[data-hdr]');
@@ -2542,7 +2598,6 @@
       <header class="nx-hd-head">${logo}
         <div class="nx-hd-names"><div class="nx-hd-title">${escH(info.longName || ticker)}</div>
           <div class="nx-hd-sub">${[ticker, info.exchange, cur].filter(Boolean).map(escH).join(' · ')}</div></div>
-        <button class="nx-hd-btn" data-act="window" title="Open as a window instead">${icon('monitor', 16)}</button>
         <button class="nx-hd-btn" data-act="close" title="Close">${icon('close', 16)}</button>
       </header>
       <div class="nx-hd-body">
@@ -2614,12 +2669,13 @@
   }
 
   // Shared with js/nexora/views.js (the redesigned Goals, Transactions, Dividends, Cash and allocation views)
-  window.NX_UI = { MI, I, icon, tile, escH, flagIc, CCY, cssv, decorate };
+  window.NX_UI = { MI, I, icon, tile, escH, flagIc, CCY, cssv, decorate, nxNeg };
 
   window.addEventListener('load', () => {
     installLoanLogic();
     window.secondToLastBusinessDay = (year, month) => nthLastBusinessDay(year, month, _bizN);
     if (MODERN) { _nxOrigOpen = window.openCompanyModal; window.openCompanyModal = nxOpenHolding; }
+    window.openAiSettings = () => window.nxOpenMe('ai');
     if (MODERN) {
       window.renderNetWorth = (orig => function () { orig.apply(this, arguments); try { nxNetWorth(); } catch (e) { console.error(e); } })(window.renderNetWorth);
       // charts can only be drawn once their tab is visible

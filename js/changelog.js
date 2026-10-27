@@ -310,14 +310,9 @@ function renderChangelog(entries) {
   const body = document.getElementById('changelog-body');
   if (!body) return;
   body.innerHTML = entries.map(e => `
-    <div style="margin-bottom:22px;">
-      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:8px;">
-        <span style="font-family:'Cinzel',serif;font-size:15px;font-weight:700;color:var(--gold);">${e.title}</span>
-        <span style="font-size:11px;color:var(--text3);">v${e.v}</span>
-      </div>
-      <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px;">
-        ${e.items.map(i => `<li style="font-size:13px;line-height:1.55;color:var(--text2);">${i}</li>`).join('')}
-      </ul>
+    <div class="nx-cl-entry">
+      <div class="nx-cl-head"><span class="nx-cl-title">${e.title}</span><span class="nx-cl-v">${e.v}</span></div>
+      <ul class="nx-cl-list">${e.items.map(i => `<li>${i}</li>`).join('')}</ul>
     </div>`).join('');
 }
 

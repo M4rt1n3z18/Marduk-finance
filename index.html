@@ -824,7 +824,7 @@
     <!-- Header -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;">
       <div>
-        <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);">IMPORT PAYSLIP
+        <div class="nx-win-title">Import payslip
           <span id="ps-ai-badge" style="display:none;font-size:10px;font-family:Karla,sans-serif;letter-spacing:0.5px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);color:var(--gold);border-radius:20px;padding:2px 10px;margin-left:8px;vertical-align:2px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M12 4.5 13.8 10 19.5 12l-5.7 2L12 19.5 10.2 14 4.5 12l5.7-2z"/><path d="M18.5 3.5v3M17 5h3"/></svg> Parsed with AI</span>
         </div>
         <div id="ps-hint" style="font-size:11px;color:var(--text2);margin-top:2px;">Click a field on the left, then select the correct value in the PDF on the right.</div>
@@ -916,11 +916,8 @@
 <!-- Themed replacement for native alert()/confirm() -->
 <div id="dlg-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10050;align-items:center;justify-content:center;">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:440px;max-width:90vw;box-shadow:0 8px 48px rgba(0,0,0,0.6);overflow:hidden;">
-    <div style="padding:22px 26px 0;display:flex;align-items:center;gap:9px;">
-      <svg id="dlg-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="color:var(--gold);flex-shrink:0;"><path d="M12 2.6l2.6 5.6 6.1.8-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 9l6.1-.8z"/></svg>
-      <span id="dlg-title" style="font-family:'Cinzel',serif;font-size:13px;letter-spacing:2px;color:var(--gold);">Nexora</span>
-    </div>
-    <div id="dlg-body" style="padding:12px 26px 22px;font-size:13px;line-height:1.6;color:var(--text2);white-space:pre-wrap;"></div>
+    <div id="dlg-head" class="nx-win-title" style="padding:22px 26px 0;display:none;"><span id="dlg-title"></span></div>
+    <div id="dlg-body" style="padding:22px 26px 20px;font-size:14px;line-height:1.6;color:var(--text);white-space:pre-wrap;"></div>
     <div style="padding:0 26px 22px;display:flex;justify-content:flex-end;gap:9px;">
       <button id="dlg-cancel" class="btn-ghost" style="font-size:12px;display:none;">Cancel</button>
       <button id="dlg-ok" class="btn" style="font-size:12px;">OK</button>
@@ -932,11 +929,8 @@
 <div id="changelog-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10002;align-items:center;justify-content:center;">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:560px;max-width:92vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
     <div style="padding:24px 26px 14px;border-bottom:1px solid var(--border);">
-      <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);display:flex;align-items:center;gap:8px;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.6l2.6 5.6 6.1.8-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 9l6.1-.8z"/></svg>
-        CHANGELOG
-      </div>
-      <div style="font-size:12px;color:var(--text3);margin-top:5px;">What changed in this update.</div>
+      <div class="nx-win-title">What’s new</div>
+      <div class="nx-win-sub">What changed in this update.</div>
     </div>
     <div id="changelog-body" style="padding:20px 26px;overflow-y:auto;flex:1;"></div>
     <div style="padding:14px 26px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">
@@ -949,8 +943,8 @@
 <div id="hold-import-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;align-items:center;justify-content:center;">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:1040px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
     <div style="padding:22px 26px 14px;border-bottom:1px solid var(--border);">
-      <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);">IMPORT HOLDINGS</div>
-      <div style="font-size:12px;color:var(--text3);margin-top:5px;">Into <strong id="hi-port-name" style="color:var(--text2);"></strong></div>
+      <div class="nx-win-title">Import holdings</div>
+      <div class="nx-win-sub">Into <strong id="hi-port-name"></strong></div>
     </div>
     <div style="padding:18px 26px;overflow-y:auto;flex:1;">
       <div id="hi-pick">
@@ -1001,7 +995,7 @@
 
 <div id="backups-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;align-items:center;justify-content:center;">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:480px;max-width:92vw;padding:24px;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
-    <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/></svg> AUTOMATIC BACKUPS</div>
+    <div class="nx-win-title">Backups</div>
     <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px;">
       Nexora keeps a daily copy of your data on this computer (last 10 days), still encrypted.
       If anything ever goes wrong with your data file, restore from here.
@@ -1016,7 +1010,7 @@
 <!-- ── AI Parsing Settings Modal ── -->
 <div id="ai-settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10001;align-items:center;justify-content:center;">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:460px;max-width:92vw;padding:24px;box-shadow:0 8px 48px rgba(0,0,0,0.6);">
-    <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M12 4.5 13.8 10 19.5 12l-5.7 2L12 19.5 10.2 14 4.5 12l5.7-2z"/><path d="M18.5 3.5v3M17 5h3"/></svg> AI PAYSLIP PARSING</div>
+    <div class="nx-win-title">AI features</div>
     <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px;">
       With an Anthropic API key, payslips are read by Claude AI: any language, any format, any company.
       Without a key, Nexora uses the built-in pattern parser. Costs a few cents per payslip.
@@ -1165,7 +1159,7 @@
         </button>
         <button class="settings-item" onclick="closeSettingsMenu();openAiSettings()">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5 13.8 10 19.5 12l-5.7 2L12 19.5 10.2 14 4.5 12l5.7-2z"/><path d="M18.5 3.5v3M17 5h3"/></svg>
-          AI Settings
+          AI features
         </button>
         <div class="settings-divider"></div>
         <button class="settings-item" onclick="toggleThemeSubmenu(event)">
@@ -1315,6 +1309,7 @@
 
   <div class="card" style="margin-bottom:0;">
     <div class="card-title">Income History · Last 6 Months</div>
+    <div class="nx-sal-keys nx-chart-key"><span><i style="background:var(--up)"></i>Salary</span><span><i style="background:var(--gold)"></i>Extra</span><span><i style="background:var(--down)"></i>Expenses</span></div>
     <div class="chart-wrap"><canvas id="chart-income-history"></canvas></div>
   </div>
 </div>
@@ -1529,7 +1524,6 @@
     <div class="holdings-head">
       <div class="holdings-subtab-bar">
         <button class="holdings-subtab active" id="hstab-general"  onclick="setHoldingsSubTab('general',this)">General</button>
-        <button class="holdings-subtab"        id="hstab-dividends" onclick="setHoldingsSubTab('dividends',this)">Dividends</button>
         <button class="holdings-subtab"        id="hstab-returns"  onclick="setHoldingsSubTab('returns',this)">Returns</button>
       </div>
       <div class="holdings-actions">
@@ -1540,41 +1534,21 @@
     </div>
 
     <div id="add-holding-panel" style="display:none;">
-    <div class="add-holding-grid">
-      <div class="field autocomplete-wrap">
-        <label>Ticker / Name</label>
-        <input id="h-ticker" placeholder="e.g. AAPL, Nvidia…" autocomplete="off" oninput="acTicker(this)" onkeydown="acKey(event)" onblur="acAutoDetect(this)">
+    <div class="nx-ah">
+      <div class="nx-ah-head"><div class="nx-ah-title">Add a purchase</div><div class="nx-ah-sub">A new holding, or more of one you already have.</div></div>
+      <div class="add-holding-grid nx-ah-grid">
+        <label class="nx-f autocomplete-wrap"><span>Ticker or name</span>
+          <input id="h-ticker" placeholder="e.g. AAPL, VWCE.DE, Nvidia" autocomplete="off" oninput="acTicker(this)" onkeydown="acKey(event)" onblur="acAutoDetect(this)"></label>
+        <label class="nx-f"><span>Shares</span><input id="h-shares" type="number" step="any" min="0" placeholder="10"></label>
+        <label class="nx-f"><span id="h-buy-label">Price per share</span><span class="nx-ah-px">
+          <select id="h-buy-currency" class="nx-select" onchange="updateBuyLabel()">
+            <option value="EUR">EUR</option><option value="USD">USD</option><option value="GBP">GBP</option><option value="CHF">CHF</option><option value="BRL">BRL</option>
+          </select><input id="h-buy" type="number" step="any" min="0" placeholder="150.00"></span></label>
+        <label class="nx-f"><span>Date</span><input id="h-date" type="text" class="date-field" readonly placeholder="Select date…"></label>
+        <button class="btn nx-ah-add" onclick="addHolding()">Add</button>
       </div>
+      <div class="nx-ah-info"><span id="h-class-badge" class="badge stock">Stock</span><span id="h-info"></span></div>
       <input type="hidden" id="h-class" value="Stock">
-      <div class="class-detect">
-        <label style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;">Class</label>
-        <span id="h-class-badge" class="badge stock">Stock</span>
-      </div>
-      <div class="field">
-        <label>Shares / Units</label>
-        <input id="h-shares" type="number" placeholder="10">
-      </div>
-      <div class="field">
-        <label>Buy Currency</label>
-        <select id="h-buy-currency" onchange="updateBuyLabel()">
-          <option value="EUR">€ EUR</option>
-          <option value="USD">$ USD</option>
-          <option value="GBP">£ GBP</option>
-          <option value="CHF">₣ CHF</option>
-          <option value="BRL">R$ BRL</option>
-        </select>
-      </div>
-      <div class="field">
-        <label id="h-buy-label">Avg Buy Price (€)</label>
-        <input id="h-buy" type="number" placeholder="150.00">
-      </div>
-      <div class="field">
-        <label>Date</label>
-        <input id="h-date" type="text" class="date-field" readonly placeholder="Select date…">
-      </div>
-      <div style="display:flex;align-items:flex-end;">
-        <button class="btn" onclick="addHolding()" style="width:100%;">Add</button>
-      </div>
     </div>
     </div><!-- /add-holding-panel -->
 
@@ -1833,11 +1807,10 @@
     </div>
   </div>
   <!-- Recurring suggestions banner -->
-  <div id="recurring-banner" style="display:none;margin-bottom:12px;background:rgba(201,168,76,0.08);border-color:rgba(201,168,76,0.3);" class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <span style="font-size:13px;font-weight:600;color:var(--gold);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5"/></svg> Recurring expenses to add this month</span>
-      <button class="btn-ghost" onclick="addAllRecurring()" style="font-size:11px;padding:5px 12px;">Add All</button>
-    </div>
+  <div id="recurring-banner" style="display:none;" class="card nx-recur">
+    <div class="nx-recur-head"><div><div class="nx-ah-title">Recurring expenses for this month</div>
+      <div class="nx-ah-sub">They repeat every month and haven’t been added yet.</div></div>
+      <button class="btn" onclick="addAllRecurring()">Add all</button></div>
     <div id="recurring-list"></div>
   </div>
   <!-- Chart + category breakdown -->
@@ -1866,24 +1839,19 @@
 
   <div class="psub" id="psub-expenses-logs">
   <!-- Add expense -->
-  <div class="card" style="margin-bottom:16px;">
-    <div class="form-row">
-      <div class="field" style="flex:1;min-width:160px;"><label>Description</label><input id="e-desc" placeholder="e.g. Grocery run"></div>
-      <div class="field"><label>Amount (€)</label><input id="e-amount" type="number" placeholder="0.00" style="width:110px;"></div>
-      <div class="field"><label>Category</label>
-        <select id="e-cat" style="width:140px;">
+  <div class="card nx-ae">
+    <div class="nx-ah-title">Add an expense</div>
+    <div class="nx-ae-grid">
+      <label class="nx-f"><span>Description</span><input id="e-desc" placeholder="e.g. Grocery run"></label>
+      <label class="nx-f"><span>Amount (€)</span><input id="e-amount" type="number" step="any" min="0" placeholder="0.00"></label>
+      <label class="nx-f"><span>Category</span>
+        <select id="e-cat" class="nx-select">
           <option>Housing</option><option>Food</option><option>Transport</option><option>Healthcare</option>
           <option>Entertainment</option><option>Shopping</option><option>Utilities</option><option>Other</option>
-        </select>
-      </div>
-      <div class="field"><label>Date</label><input id="e-date" type="text" class="date-field" readonly placeholder="Select date…" style="width:140px;"></div>
-      <div class="field"><label>Recurring</label>
-        <div style="display:flex;align-items:center;gap:8px;padding:9px 0;">
-          <input type="checkbox" id="e-recurring" style="width:16px;height:16px;accent-color:var(--gold);cursor:pointer;">
-          <span style="font-size:12px;color:var(--text2);">Monthly</span>
-        </div>
-      </div>
-      <button class="btn" onclick="addExpense()">Add</button>
+        </select></label>
+      <label class="nx-f"><span>Date</span><input id="e-date" type="text" class="date-field" readonly placeholder="Select date…"></label>
+      <label class="nx-ae-rec"><input type="checkbox" id="e-recurring"><span>Every month</span></label>
+      <button class="btn nx-ah-add" onclick="addExpense()">Add</button>
     </div>
   </div>
   <!-- Search bar -->
@@ -2303,7 +2271,7 @@
       <div class="sec-sub">Track income evolution · compare periods · see your progression</div>
     </div>
     <div style="display:flex;gap:10px;align-items:center;">
-      <button class="btn-ghost settings-btn" style="font-size:12px;" onclick="openAiSettings()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5 13.8 10 19.5 12l-5.7 2L12 19.5 10.2 14 4.5 12l5.7-2z"/><path d="M18.5 3.5v3M17 5h3"/></svg> AI Settings</button>
+      <button class="btn-ghost settings-btn" style="font-size:12px;" onclick="openAiSettings()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5 13.8 10 19.5 12l-5.7 2L12 19.5 10.2 14 4.5 12l5.7-2z"/><path d="M18.5 3.5v3M17 5h3"/></svg> AI features</button>
       <button class="btn" onclick="importPayslip()">↑ Import Payslip (PDF)</button>
     </div>
   </div>

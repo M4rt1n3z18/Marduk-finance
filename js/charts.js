@@ -189,7 +189,7 @@ function buildIncomeHistoryChart() {
       { label:'Expenses', data:spendData, backgroundColor:'rgba(224,92,92,0.7)', borderRadius:4, borderSkipped:false, stack:'expenses' }
     ]},
     options: { responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:textColor(),font:{size:11}}},tooltip:{callbacks:{label:c=>' '+eur(c.raw)}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.dataset.label+'  '+eur(c.raw)}}},
       scales:{
         x:{grid:{display:false},ticks:{color:textColor()}},
         y:{grid:{color:gridColor()},ticks:{color:textColor(),callback:v=>eur(v,0)}}
@@ -517,17 +517,17 @@ function renderHoldingsGeneral() {
         </td>
         <td class="${h.dayChangePct != null && h.currentPrice ? (h.dayChangePct >= 0 ? 'up-text' : 'down-text') : ''}" style="font-weight:600;text-align:right;">
           ${h.dayChangePct != null && h.currentPrice
-            ? `<div>${eurPort(val - val / (1 + h.dayChangePct / 100))}</div><div style="font-size:11px;">(${pct(h.dayChangePct)})</div>`
+            ? `<div>${eurPort(val - val / (1 + h.dayChangePct / 100))}</div><div style="font-size:11px;">${pct(h.dayChangePct)}</div>`
             : '<span class="muted">–</span>'}
         </td>
         <td class="${gain>=0?'up-text':'down-text'}" style="font-weight:600;text-align:right;">
           <div>${eurPort(gain)}</div>
-          <div style="font-size:11px;">(${pct(gainPct)})</div>
+          <div style="font-size:11px;">${pct(gainPct)}</div>
         </td>
         <td style="text-align:right;color:var(--text2);font-size:12px;">${portShare.toFixed(1)}%</td>
         <td style="white-space:nowrap;">
           <button class="btn-ghost" onclick="event.stopPropagation();nxClosePosition('${h.ticker}')" title="Close all or part of this position" style="font-size:10px;padding:4px 8px;">Close</button>
-          <button class="del-btn" onclick="event.stopPropagation();delHolding('${h.id}')" title="Delete">✕</button>
+          <button class="nx-row-del" onclick="event.stopPropagation();delHolding('${h.id}')" title="Delete this holding"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
         </td>
       </tr>
       <tr class="holding-detail" id="hdetail-${h.id}" style="display:none;">
@@ -589,7 +589,7 @@ function renderHoldingsDividends() {
         <td style="text-align:right;font-size:12px;color:var(--text2);">${fmtD(nextPay)}</td>
         <td style="text-align:right;font-size:12px;color:var(--text2);">${fmtD(nextEarnings)}</td>
         <td style="text-align:right;">
-          <button class="del-btn" onclick="event.stopPropagation();delHolding('${h.id}')" title="Delete">✕</button>
+          <button class="nx-row-del" onclick="event.stopPropagation();delHolding('${h.id}')" title="Delete this holding"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
         </td>
       </tr>
       <tr class="holding-detail" id="hdetail-${h.id}" style="display:none;">
@@ -641,13 +641,13 @@ function renderHoldingsReturns() {
         <td style="text-align:right;font-weight:600;">${eurPort(cost)}</td>
         <td style="text-align:right;font-weight:600;">${eurPort(val)}</td>
         <td class="${gain>=0?'up-text':'down-text'}" style="font-weight:600;text-align:right;">
-          <div>${eurPort(gain)}</div><div style="font-size:11px;">(${pct(gainPct)})</div>
+          <div>${eurPort(gain)}</div><div style="font-size:11px;">${pct(gainPct)}</div>
         </td>
         <td style="text-align:right;font-weight:600;${annReturn!==null?(annReturn>=0?'color:var(--up)':'color:var(--down)'):''}">
           ${annReturn !== null ? (annReturn >= 0 ? '+' : '') + annReturn.toFixed(2) + '%/yr' : '<span class="muted">–</span>'}
         </td>
         <td style="text-align:right;">
-          <button class="del-btn" onclick="event.stopPropagation();delHolding('${h.id}')" title="Delete">✕</button>
+          <button class="nx-row-del" onclick="event.stopPropagation();delHolding('${h.id}')" title="Delete this holding"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
         </td>
       </tr>
       <tr class="holding-detail" id="hdetail-${h.id}" style="display:none;">
