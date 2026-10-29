@@ -2482,7 +2482,7 @@
     let box = document.getElementById('nx-risk-extra');
     if (!box) { box = Object.assign(document.createElement('div'), { id: 'nx-risk-extra', className: 'chart-grid-2' }); body.querySelector('.stats-grid').after(box); }
     if (!r) { box.innerHTML = ''; return; }
-    const benchName = selectedBenchmarkTicker ? selectedBenchmarkName : 'S&P 500';
+    const benchName = riskBenchmark().name;
     const port = ap(), value = (port.holdings || []).reduce((s, h) => s + (h.currentPrice || h.buyPrice || 0) * (h.shares || 0), 0);
     const rec = riskRecovery(r.series.V, r.series.d);
     const cap = r.series.rb ? riskCapture(r.series.rp, r.series.rb) : null;

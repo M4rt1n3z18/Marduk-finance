@@ -713,6 +713,178 @@
   }
   window.nxFxCheck = nxFxCheck;
 
+  // ══════════════ RISK: risk vs reward, losses in euros, crises, correlation ══════════════
+  // The measures a risk manager adds to volatility and drawdown. Maths in
+  // risk.js; this draws the cards around the app's own Risk view. Each card
+  // fills in as its prices arrive: a year of daily prices (losses in a day,
+  // correlation, volatility over time), three years of weekly prices (the
+  // ratios, losses in a month) and ten years of daily prices (the crises).
+  let _rmSeq = 0, _rvChart = null;
+  // negatives in brackets, like the rest of the app: (0.9%), (0.22)
+  const rNum = (v, d, unit = '') => { const t = Math.abs(v).toFixed(d) + unit; return v < 0 && +t.replace(/[^\d.]/g, '') ? `(${t})` : t; };
+  const rPct = (v, d = 1) => v == null || !isFinite(v) ? '–' : rNum(v * 100, d, '%');
+  const rSigned = (v, d = 1) => v == null || !isFinite(v) ? '–' : (v >= 0 ? '+' : '') + rNum(v * 100, d, '%');
+  const rDay = s => s ? fmtDay(s) : '';
+  const chip = (txt, cls) => `<em class="nx-rr-chip ${cls}">${txt}</em>`;
+  function grade(v, cuts) {   // cuts: [[upper, label, cls], …], first match wins
+    for (const [u, l, c] of cuts) if (v < u) return chip(l, c);
+    return chip(cuts[cuts.length - 1][1], cuts[cuts.length - 1][2]);
+  }
+  const SHARPE_CUTS = [[0, 'Below cash', 'bad'], [0.5, 'Low', 'low'], [1, 'Fair', 'mid'], [1.5, 'Good', 'good'], [Infinity, 'Very good', 'good']];
+  const SORTINO_CUTS = [[0, 'Below cash', 'bad'], [0.75, 'Low', 'low'], [1.5, 'Fair', 'mid'], [2, 'Good', 'good'], [Infinity, 'Very good', 'good']];
+  const IR_CUTS = [[0, 'Behind', 'bad'], [0.25, 'Low', 'low'], [0.5, 'Fair', 'mid'], [1, 'Good', 'good'], [Infinity, 'Very good', 'good']];
+  const span2 = (a, b) => `<span>${a}</span> – <span>${b}</span>`;   // two dates, each translated on its own
+
+  function rmEnsure(body) {
+    const grid = body.querySelector('.stats-grid');
+    let bar = document.getElementById('nx-risk-bar');
+    if (!bar) {
+      bar = Object.assign(document.createElement('div'), { id: 'nx-risk-bar', className: 'nx-risk-bar' });
+      grid.before(bar);
+      bar.addEventListener('change', e => { if (e.target.matches('select')) setRiskBenchmark(e.target.value); });
+    }
+    const b = riskBenchmark();
+    bar.innerHTML = `<span>Compared with</span><select class="nx-select">${RISK_BENCHMARKS.map(x => `<option value="${x.ticker}"${x.ticker === b.ticker ? ' selected' : ''}>${escH(x.name)}</option>`).join('')}</select><small>${escH(b.label)}</small>`;
+    const mk = (id, cls) => document.getElementById(id) || Object.assign(document.createElement('div'), { id, className: cls });
+    const rr = mk('nx-rr', 'card nx-rr'), loss = mk('nx-loss-row', 'chart-grid-2'), move = mk('nx-move-row', 'chart-grid-2');
+    // order: figures · risk vs reward · losses + crises · (market moves + falls) · correlation + volatility over time
+    grid.after(rr); rr.after(loss);
+    const extra = document.getElementById('nx-risk-extra');
+    if (extra) loss.after(extra);
+    (extra || loss).after(move);
+    return { rr, loss, move };
+  }
+
+  async function nxRiskMore() {
+    const body = document.getElementById('risk-body');
+    if (!body || !body.offsetParent) return;
+    const port = ap(), holdings = (port.holdings || []).filter(h => h.shares > 0);
+    if (!holdings.length) return;
+    const { rr, loss, move } = rmEnsure(body);
+    const seq = ++_rmSeq, b = riskBenchmark();
+    const tickers = [...new Set([...holdings.map(h => h.ticker), 'EURUSD=X', b.ticker])];
+    const value = holdings.reduce((s, h) => s + (h.currentPrice || h.buyPrice || 0) * h.shares, 0);
+    const waiting = t => `<div class="nx-empty-line">${t}</div>`;
+    if (!rr.innerHTML) rr.innerHTML = `<div class="card-title">Risk vs reward</div>${waiting('Loading three years of prices…')}`;
+    if (!loss.innerHTML) loss.innerHTML = `<div class="card"><div class="card-title">How much you could lose</div>${waiting('Loading prices…')}</div><div class="card"><div class="card-title">Real crises, replayed</div>${waiting('Loading ten years of prices…')}</div>`;
+    nxDollarShock(holdings, port);
+
+    // a year of daily prices: losses in a day, correlation, volatility over time
+    const d1 = await riskFetch(tickers, '1d', '1y');
+    if (seq !== _rmSeq) return;
+    const s1 = riskValueSeries(holdings, d1, b.ticker);
+    // three years of weekly prices: the ratios and losses in a month
+    const w3 = await riskFetch(tickers, '1wk', '3y');
+    if (seq !== _rmSeq) return;
+    const s3 = riskValueSeries(holdings, w3, b.ticker);
+    let rf = null;
+    if (s3) { try { rf = await window.electronAPI?.fetchRiskFree?.({ from: s3.d[0], to: s3.d[s3.d.length - 1] }); } catch (e) {} }
+    if (seq !== _rmSeq) return;
+    nxRiskReward(rr, s3, rf, b);
+    nxLossCard(loss, s1, s3, value);
+    nxMoveRow(move, s1, b);
+    // ten years of daily prices: crises replayed on today's holdings
+    const d10 = await riskFetch(tickers, '1d', '10y');
+    if (seq !== _rmSeq) return;
+    nxCrisesCard(loss, holdings, d10, b);
+  }
+
+  function nxRiskReward(el, s, rf, b) {
+    const head = `<div class="nx-rr-head"><div class="card-title" style="margin:0;">Risk vs reward<span class="info-tip">i<span class="tip-body">Whether the risk was paid for. Sharpe and Sortino compare the return above cash with the swings (Sortino counts only the falls); the information ratio compares how much you beat or lagged the index with how far you strayed from it. The labels are the rough scale professionals use; past results, not a forecast.</span></span></div>
+      <span class="nx-rr-basis">Today’s holdings · 3 years of weekly prices · in euros</span></div>`;
+    if (!s) { el.innerHTML = head + '<div class="nx-empty-line">Couldn’t load three years of prices. Yahoo may be busy; try again in a few minutes.</div>'; return; }
+    const R = rf ? riskRatios(s.V, s.bv, 52, rf.avg) : null;
+    if (!rf) { el.innerHTML = head + '<div class="nx-empty-line">Couldn’t get the euro cash rate (€STR) from the ECB, so these are left out for now.</div>'; return; }
+    if (R.years < 1) { el.innerHTML = head + '<div class="nx-empty-line">Needs at least a year of prices for today’s holdings.</div>'; return; }
+    const tile = (k, v, c, line) => `<div class="nx-rr-tile"><span class="nx-rr-k">${k}</span><div class="nx-rr-v"><b>${v}</b>${c}</div><small>${line}</small></div>`;
+    const f2 = v => v == null ? '–' : rNum(v, 2);
+    el.innerHTML = head + `<div class="nx-rr-grid">
+      ${tile('Sharpe ratio', f2(R.sharpe), R.sharpe != null ? grade(R.sharpe, SHARPE_CUTS) : '', R.sharpe != null && R.sharpe < 0 ? '<span>Returned less than cash, for the risk taken.</span>' : `<span>Return above cash per unit of volatility.</span>`)}
+      ${tile('Sortino ratio', f2(R.sortino), R.sortino != null ? grade(R.sortino, SORTINO_CUTS) : '', '<span>The same, counting only the falls.</span>')}
+      ${R.ir != null ? tile('Information ratio', f2(R.ir), grade(R.ir, IR_CUTS), `${R.active >= 0 ? 'Beat' : 'Lagged'} ${escH(b.name)} by ${rPct(Math.abs(R.active))} a year.`) : ''}
+      ${R.te != null ? tile('Tracking error', rPct(R.te), chip(R.te < 0.02 ? 'Close to the index' : R.te < 0.05 ? 'Moderate' : 'Its own path', 'mid'), `How far your returns strayed from ${escH(b.name)}, a year.`) : ''}
+    </div>
+    <div class="nx-rr-facts">
+      <span><i>Period</i><b>${span2(rDay(s.d[0]), rDay(s.d[s.d.length - 1]))}</b></span>
+      <span><i>Return, a year</i><b>${rSigned(R.ret)}</b></span>
+      <span><i>Volatility, a year</i><b>${rPct(R.vol)}</b></span>
+      <span><i>Cash (€STR), a year</i><b>${rf.avg.toFixed(2)}%</b></span>
+      ${R.benchRet != null ? `<span><i>${escH(b.name)}, a year</i><b>${rSigned(R.benchRet)}</b></span>` : ''}
+    </div>${s.excluded.length ? `<div class="nx-rr-foot"><span>Not included (too little history):</span> ${s.excluded.map(escH).join(', ')}.</div>` : ''}`;
+  }
+
+  function nxLossCard(row, s1, s3, value) {
+    const card = row.children[0] || row.appendChild(document.createElement('div'));
+    card.className = 'card';
+    const v1 = s1 ? riskVaR(s1.V, 1) : null, v4 = s3 ? riskVaR(s3.V, 4) : null;
+    const line = (k, sub, f) => `<div class="nx-loss-row"><div><b>${k}</b><small>${sub}</small></div><span class="nx-loss-amt">${f == null ? '–' : eurPort(-f * value)}</span><span class="nx-loss-pct">${f == null ? '' : rPct(-f)}</span></div>`;
+    card.innerHTML = `<div class="card-title">How much you could lose<span class="info-tip">i<span class="tip-body">Value at risk and expected shortfall at 95%, from the portfolio’s own past days and months (historical simulation, no bell curve), applied to today’s value. Bad days come in clusters, so a bad month can be far worse than a few bad days. Past movements, not a forecast.</span></span></div>
+      ${v1 ? line('On a bad day', '1 day in 20 lost at least this · value at risk', v1.var) : ''}
+      ${v4 ? line('In a bad month', '1 month in 20 lost at least this · value at risk', v4.var) : ''}
+      ${v1 ? line('When a day is that bad', 'the average loss on those days · expected shortfall', v1.es) : ''}
+      ${!v1 && !v4 ? '<div class="nx-empty-line">Not enough price history yet.</div>' : ''}
+      <div class="nx-rr-foot"><span>On today’s value of</span> ${eurPort(value)} · <span>days from the last 12 months, months from the last 3 years.</span></div>`;
+  }
+
+  function nxCrisesCard(row, holdings, hist, b) {
+    let card = row.children[1];
+    if (!card) { card = document.createElement('div'); row.appendChild(card); }
+    card.className = 'card';
+    const scs = RISK_SCENARIOS.map(sc => riskScenario(holdings, hist, b.ticker, sc));
+    const big = Math.max(0.01, ...scs.map(s => Math.abs(s.ret ?? 0)));
+    const missing = [...new Set(scs.flatMap(s => s.missing))];
+    card.innerHTML = `<div class="card-title">Real crises, replayed<span class="info-tip">i<span class="tip-body">Each holding you have today moved by what its own price did between the two dates, in euros at the exchange rate of the time. Holdings that weren’t listed yet are left out and named below.</span></span></div>
+      ${scs.map(s => `<div class="nx-sc-row"><b class="nx-sc-name">${s.name}</b>
+        ${s.ret == null ? '<span class="nx-sc-none">No prices for today’s holdings then.</span>' : `<span class="nx-sc-pct ${s.ret < 0 ? 'down-text' : 'up-text'}">${rSigned(s.ret)}</span><span class="nx-sc-eur">${eurPort(s.eur)}</span>
+        <span class="nx-sc-bar"><span class="${s.ret < 0 ? 'down' : 'up'}" style="width:${(Math.abs(s.ret) / big * 100).toFixed(1)}%"></span></span>`}
+        <small class="nx-sc-dates">${span2(rDay(s.from), rDay(s.to))}</small>
+        ${s.bench != null ? `<small class="nx-sc-bench">${escH(b.name)} ${rSigned(s.bench)}</small>` : ''}</div>`).join('')}
+      ${missing.length ? `<div class="nx-rr-foot"><span>Not included where they weren’t listed yet:</span> ${missing.map(escH).join(', ')}.</div>` : ''}`;
+  }
+
+  function nxMoveRow(row, s1, b) {
+    if (!s1) { row.innerHTML = ''; return; }
+    const C = riskCorrelation(s1.holdingCols, s1.V), n = C.tickers.length, short = t => t.replace(/\.[A-Z]+$/, '');
+    const pairs = [];
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) pairs.push([C.tickers[i], C.tickers[j], C.m[i][j]]);
+    pairs.sort((a, b) => b[2] - a[2]);
+    const close = pairs.filter(p => p[2] >= 0.6).slice(0, 3);
+    const cell = (v, i, j) => {
+      const a = Math.min(1, Math.abs(v)) * 0.85, bg = i === j ? 'var(--bg3)' : v >= 0 ? `rgba(242,112,109,${a.toFixed(2)})` : `rgba(var(--mint-rgb),${a.toFixed(2)})`;
+      return `<span class="nx-corr-c" style="background:${bg}" title="${escH(C.tickers[i])} · ${escH(C.tickers[j])}: ${rNum(v, 2)}">${n <= 9 ? (i === j ? '' : rNum(v, 2)) : ''}</span>`;
+    };
+    const rv = riskRollingVol(s1.V, 63, 252), rb = s1.bv ? riskRollingVol(s1.bv, 63, 252) : null;
+    row.innerHTML = `<div class="card"><div class="card-title">How holdings move together<span class="info-tip">i<span class="tip-body">Correlation of daily returns over the last 12 months: 1 moves as one, 0 unrelated, below 0 opposite. Holdings that move as one add up to one bigger bet. Red is together, green is apart.</span></span></div>
+        <div class="nx-corr" style="--n:${n}"><span></span>${C.tickers.map(t => `<span class="nx-corr-h" title="${escH(t)}">${escH(short(t))}</span>`).join('')}
+          ${C.m.map((r, i) => `<span class="nx-corr-l" title="${escH(C.tickers[i])}">${escH(short(C.tickers[i]))}</span>${r.map((v, j) => cell(v, i, j)).join('')}`).join('')}</div>
+        <div class="nx-corr-sum">${C.reduction != null ? `<p>Mixing them makes the portfolio swing ${rPct(C.reduction, 0)} less than its holdings would on their own.</p>` : ''}
+          ${close.length ? `<p><span>Move most closely together:</span> ${close.map(p => `<b>${escH(short(p[0]))} · ${escH(short(p[1]))}</b> ${p[2].toFixed(2)}`).join(', ')}.</p>` : '<p>No two holdings move closely together.</p>'}</div></div>
+      <div class="card"><div class="nx-nw-head"><div class="card-title" style="margin:0;">Volatility over time<span class="info-tip">i<span class="tip-body">Volatility over the 3 months before each day, a year. A rising line means the portfolio has been swinging more.</span></span></div>
+          <div class="nx-sal-keys"><span><i style="background:var(--gold)"></i>Portfolio</span>${rb ? `<span><i class="nx-key-dash"></i>${escH(b.name)}</span>` : ''}</div></div>
+        <div class="chart-wrap" style="height:210px;"><canvas id="nx-rv-chart"></canvas></div></div>`;
+    if (_rvChart) { _rvChart.destroy(); _rvChart = null; }
+    const cv = document.getElementById('nx-rv-chart'), d = s1.d.slice(s1.d.length - rv.length);
+    _rvChart = new Chart(cv, {
+      type: 'line',
+      data: { labels: d.map(x => fmtDay(x, false)), datasets: [
+        { label: 'Portfolio', data: rv.map(x => +(x * 100).toFixed(2)), borderColor: cssv('--gold'), backgroundColor: cssv('--gold'), fill: false },
+        ...(rb ? [{ label: b.name, data: rb.slice(rb.length - rv.length).map(x => +(x * 100).toFixed(2)), borderColor: cssv('--text3'), borderDash: [5, 4], backgroundColor: cssv('--text3'), fill: false }] : []) ] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.dataset.label}  ${c.raw.toFixed(1)}%` } } },
+        scales: { x: { ticks: { color: cssv('--text3'), maxTicksLimit: 6, maxRotation: 0 } }, y: { beginAtZero: true, ticks: { color: cssv('--text3'), callback: v => v + '%' }, grid: {} } } },
+    });
+  }
+
+  // A fall in a foreign currency, in euros: the holdings priced in it lose that much
+  function nxDollarShock(holdings, port) {
+    const box = document.getElementById('risk-ccy'); if (!box) return;
+    box.querySelector('.nx-fx-shock')?.remove();
+    const ccys = riskCurrencyExposure(holdings, port.cashEntries).filter(c => c.ccy !== 'EUR' && c.ccy !== 'Unknown' && c.w >= 0.05);
+    if (!ccys.length) return;
+    const total = riskCurrencyExposure(holdings, port.cashEntries).reduce((s, c) => s + c.v, 0);
+    box.insertAdjacentHTML('beforeend', `<div class="nx-fx-shock"><div class="nx-fx-shock-t">If a currency fell 10% against the euro</div>
+      ${ccys.map(c => `<div class="nx-fx-shock-r"><span><span>${CCY.find(x => x[0] === c.ccy)?.[2] || c.ccy}</span> (${c.ccy})</span><b>${eurPort(-0.1 * c.v)}</b><small>${rPct(-0.1 * c.v / total)} <span>of the portfolio</span></small></div>`).join('')}</div>`);
+  }
+
   // ══════════════ EXPENSES → LOGS ══════════════
   // One card: search and category inside it, expenses grouped by day with the
   // day's total, and any expense opens in place to be changed or deleted.
@@ -867,6 +1039,9 @@
     after('renderPortfolio', nxPriceNote);
     after('renderPortfolio', nxFxNote);
     after('renderExpenses', nxExpenseLog);
+    // the further risk measures fill in once the app's Risk view has drawn
+    window.buildRiskView = (orig => async function () { const out = await orig.apply(this, arguments); try { await nxRiskMore(); } catch (e) { console.error(e); } return out; })(window.buildRiskView);
+    if (typeof SUB_BUILDERS !== 'undefined' && SUB_BUILDERS.portfolio) SUB_BUILDERS.portfolio.risk = window.buildRiskView;
     // the purchase line follows every field, including picks from the suggestions and the date picker
     const panel = document.getElementById('add-holding-panel');
     if (panel) { panel.addEventListener('input', () => nxAhInfo()); panel.addEventListener('change', () => nxAhInfo()); }

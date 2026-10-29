@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchDividendHistory: (tickers) => ipcRenderer.invoke('fetch-dividend-history', tickers),
   fetchFxRate:    (params)  => ipcRenderer.invoke('fetch-fx-rate', params),
   fetchFxHistory: (params)  => ipcRenderer.invoke('fetch-fx-history', params),
+  fetchRiskFree:  (params)  => ipcRenderer.invoke('fetch-risk-free', params),
   fetchSplits:    (items)   => ipcRenderer.invoke('fetch-splits', items),
 
   // Ticker search

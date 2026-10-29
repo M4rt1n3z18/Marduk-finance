@@ -5,9 +5,13 @@
 // to describe a portfolio's risk, and independent of when you happened to buy.
 // Concentration and currency exposure need no prices at all.
 //
-// Deliberately absent: Sharpe ratio and Value-at-Risk. Sharpe needs a
-// risk-free-rate assumption and years of history to mean anything; VaR implies
-// a precision that a year of prices can't support.
+// Risk vs reward (Sharpe, Sortino, information ratio) and losses in euros (VaR,
+// expected shortfall) were left out at first: Sharpe needs a risk-free rate and
+// years of history, and VaR can look more precise than a year of prices allows.
+// They're here now on those terms: the risk-free rate is €STR from the ECB (no
+// assumption), ratios use three years of weekly prices with the period shown,
+// too little history hides them, and losses come from the portfolio's own past
+// days (historical simulation), never from a bell curve.
 //
 // The figures describe; they don't advise. Notes state facts ("one holding is
 // 31% of the portfolio"), never what to do about them.
@@ -17,6 +21,26 @@ const RISK_RANGES = {
   '3Y': { interval: '1wk', range: '3y', perYear: 52,  unit: 'week', label: '3 years of weekly prices' },
 };
 let riskRange = '1Y';
+
+// What the risk measures compare against. A euro investor whose core is a
+// global fund is best measured against a global index in euros; the S&P 500
+// was the old default. Kept on this computer, apart from the Overview chart's line.
+const RISK_BENCHMARKS = [
+  { ticker: 'VWCE.DE', name: 'FTSE All-World', label: 'Global shares, in euros (Vanguard FTSE All-World)' },
+  { ticker: 'EUNL.DE', name: 'MSCI World', label: 'Developed markets, in euros (iShares Core MSCI World)' },
+  { ticker: 'SPY',     name: 'S&P 500', label: 'US large companies (SPDR S&P 500)' },
+  { ticker: 'QQQ',     name: 'NASDAQ 100', label: 'US technology (Invesco QQQ)' },
+  { ticker: 'EXS1.DE', name: 'Euro Stoxx 50', label: 'Eurozone large companies (iShares Euro Stoxx 50)' },
+];
+function riskBenchmark() {
+  let t = null;
+  try { t = localStorage.getItem('nexora_risk_bench'); } catch (e) {}
+  return RISK_BENCHMARKS.find(b => b.ticker === t) || RISK_BENCHMARKS[0];
+}
+function setRiskBenchmark(ticker) {
+  try { localStorage.setItem('nexora_risk_bench', ticker); } catch (e) {}
+  buildRiskView();
+}
 let _riskFetchId = 0;
 let _riskCache = null;   // { key, at, hist } — see buildRiskView()
 
@@ -144,6 +168,138 @@ function computeRisk(holdings, hist, benchTicker, perYear) {
   };
 }
 
+// ── Series for the further measures ───────────────────────────────────────────
+// Today's holdings valued in euros on one date grid, as computeRisk builds them,
+// with each holding's own column kept (correlations need them). Null when there
+// isn't enough overlapping history.
+function riskValueSeries(holdings, hist, benchTicker) {
+  const iso = ts => new Date(ts * 1000).toISOString().slice(0, 10);
+  const series = {};
+  const add = (key, d) => {
+    if (!d?.timestamps?.length) return;
+    const pts = d.timestamps.map((t, i) => [iso(t), d.closes[i]]).filter(p => p[1] != null);
+    if (pts.length) series[key] = pts;
+  };
+  const withData = holdings.filter(h => h.shares > 0 && hist[h.ticker]);
+  withData.forEach(h => add(h.ticker, hist[h.ticker]));
+  add('EURUSD=X', hist['EURUSD=X']);
+  if (benchTicker) add('__bench', hist[benchTicker]);
+  const stockKeys = withData.filter(h => !_isCryptoTicker(h.ticker) && series[h.ticker]).map(h => h.ticker);
+  const { dates, cols } = riskAlign(series, stockKeys.length ? stockKeys : withData.map(h => h.ticker));
+  if (dates.length < 25) return null;
+  const firstIdx = k => cols[k] ? cols[k].findIndex(v => v != null) : -1;
+  const included = withData.filter(h => { const f = firstIdx(h.ticker); return f >= 0 && f <= dates.length * 0.1; });
+  if (!included.length) return null;
+  const start = Math.max(...included.map(h => firstIdx(h.ticker)), cols.__bench ? Math.max(0, firstIdx('__bench')) : 0);
+  const fxAt = i => cols['EURUSD=X']?.[i] || null;
+  const holdingCols = included.map(h => ({ ticker: h.ticker,
+    values: cols[h.ticker].slice(start).map((c, j) => h.shares * histCloseToEur(c, hist[h.ticker].currency, fxAt(start + j))) }));
+  const V = holdingCols[0].values.map((_, i) => holdingCols.reduce((s, c) => s + c.values[i], 0));
+  let bv = cols.__bench && firstIdx('__bench') >= 0 ? cols.__bench.slice(start).map((c, j) => histCloseToEur(c, hist[benchTicker].currency, fxAt(start + j))) : null;
+  if (bv && !bv.every(v => v > 0)) bv = null;
+  const d = dates.slice(start);
+  if (V.length < 25) return null;
+  return { d, V, bv, holdingCols, excluded: holdings.filter(h => h.shares > 0 && !included.includes(h)).map(h => h.ticker) };
+}
+
+// Sharpe, Sortino, information ratio and tracking error, all a year. `rf` is the
+// average risk-free rate over the period, in % a year. Arithmetic means of the
+// period returns, the textbook form, so the ratios compare with published ones.
+function riskRatios(V, bv, perYear, rf) {
+  const rp = _returns(V), n = rp.length;
+  const rfP = Math.pow(1 + rf / 100, 1 / perYear) - 1;          // risk-free return per period
+  const ex = rp.map(r => r - rfP);
+  const vol = _stdev(rp) * Math.sqrt(perYear);
+  const downside = Math.sqrt(ex.reduce((s, x) => s + Math.min(0, x) ** 2, 0) / n) * Math.sqrt(perYear);
+  const out = {
+    ret: Math.pow(V[V.length - 1] / V[0], perYear / n) - 1,       // a year, compounded
+    vol, rf: rf / 100, years: n / perYear,
+    sharpe: vol > 0 ? _mean(ex) * perYear / vol : null,
+    sortino: downside > 0 ? _mean(ex) * perYear / downside : null,
+  };
+  if (bv) {
+    const rb = _returns(bv), act = rp.map((r, i) => r - rb[i]);
+    out.benchRet = Math.pow(bv[bv.length - 1] / bv[0], perYear / n) - 1;
+    out.te = _stdev(act) * Math.sqrt(perYear);
+    out.active = _mean(act) * perYear;
+    out.ir = out.te > 0 ? out.active / out.te : null;
+  }
+  return out;
+}
+
+// Historical value at risk and expected shortfall at 95%: the loss exceeded on
+// the worst 5% of past periods, and the average loss on those periods.
+// `h` > 1 uses overlapping windows of h periods (a month from weekly prices).
+function riskVaR(V, h = 1, conf = 0.95) {
+  const r = [];
+  for (let i = h; i < V.length; i++) r.push(V[i] / V[i - h] - 1);
+  if (r.length < 20) return null;
+  r.sort((a, b) => a - b);
+  const k = Math.max(1, Math.floor(r.length * (1 - conf)));
+  return { var: -r[k - 1], es: -_mean(r.slice(0, k)), samples: r.length };
+}
+
+// Real crises replayed on today's holdings: each position moves by what its own
+// price did between the two dates, in euros at the exchange rate of the time.
+const RISK_SCENARIOS = [
+  { id: 'covid', name: 'COVID crash', from: '2020-02-19', to: '2020-03-23' },
+  { id: 'rates', name: '2022 rate rises', from: '2022-01-03', to: '2022-10-12' },
+  { id: '2018',  name: '2018 sell-off', from: '2018-09-20', to: '2018-12-24' },
+];
+function riskScenario(holdings, hist, benchTicker, sc) {
+  const iso = ts => new Date(ts * 1000).toISOString().slice(0, 10);
+  const at = (d, day) => {                                         // last close on or before `day`
+    if (!d?.timestamps?.length) return null;
+    let v = null, first = iso(d.timestamps[0]);
+    if (first > day) return null;                                  // not listed yet
+    for (let i = 0; i < d.timestamps.length; i++) { if (iso(d.timestamps[i]) > day) break; if (d.closes[i] != null) v = d.closes[i]; }
+    return v;
+  };
+  const fx = hist['EURUSD=X'];
+  const move = d => { const a = at(d, sc.from), b = at(d, sc.to); if (!(a > 0 && b > 0)) return null;
+    return histCloseToEur(b, d.currency, at(fx, sc.to)) / histCloseToEur(a, d.currency, at(fx, sc.from)) - 1; };
+  let covered = 0, change = 0; const missing = [];
+  for (const h of holdings) {
+    const v = (h.currentPrice || h.buyPrice || 0) * h.shares;
+    if (!(v > 0)) continue;
+    const m = move(hist[h.ticker]);
+    if (m == null || !Number.isFinite(m)) { missing.push(h.ticker); continue; }
+    covered += v; change += v * m;
+  }
+  const bench = benchTicker ? move(hist[benchTicker]) : null;
+  return covered > 0 ? { ...sc, ret: change / covered, eur: change, covered, missing, bench } : { ...sc, ret: null, missing, bench };
+}
+
+// Pairwise correlation of the holdings' returns, and how much the mix lowers
+// volatility compared with the same holdings' volatilities simply added up.
+function riskCorrelation(holdingCols, V) {
+  const R = holdingCols.map(c => _returns(c.values));
+  const m = R.map(a => R.map(b => { const v = Math.sqrt(_cov(a, a) * _cov(b, b)); return v > 0 ? _cov(a, b) / v : 0; }));
+  const total = V[V.length - 1];
+  const weighted = holdingCols.reduce((s, c, i) => s + (c.values[c.values.length - 1] / total) * _stdev(R[i]), 0);
+  const port = _stdev(_returns(V));
+  return { tickers: holdingCols.map(c => c.ticker), m, reduction: weighted > 0 ? 1 - port / weighted : null };
+}
+
+// Volatility over a rolling window of `win` periods, a year
+function riskRollingVol(V, win, perYear) {
+  const r = _returns(V), out = [];
+  for (let i = win; i <= r.length; i++) out.push(_stdev(r.slice(i - win, i)) * Math.sqrt(perYear));
+  return out;
+}
+
+// Price history for the further measures: one request per ticker, kept 15 min
+// here on top of the main process's own cache, like the rest of this view.
+const _riskHist = new Map();
+async function riskFetch(tickers, interval, range) {
+  const key = `${interval}|${range}|${[...tickers].sort().join(',')}`, hit = _riskHist.get(key);
+  if (hit && Date.now() - hit.at < 15 * 60 * 1000) return hit.hist;
+  let hist = {};
+  try { hist = await window.electronAPI?.fetchHistory?.({ tickers, interval, range }) || {}; } catch (e) {}
+  if (Object.keys(hist).length > 1) _riskHist.set(key, { at: Date.now(), hist });
+  return hist;
+}
+
 // No prices needed: how concentrated the portfolio is right now
 function riskConcentration(holdings) {
   const vals = holdings.map(h => ({ h, v: (h.currentPrice || h.buyPrice) * h.shares })).filter(x => x.v > 0);
@@ -234,8 +390,7 @@ async function buildRiskView() {
 
   // ── Backtest: needs price history ──────────────────────────────────────────
   const cfg = RISK_RANGES[riskRange];
-  const benchTicker = selectedBenchmarkTicker || 'SPY';
-  const benchName   = selectedBenchmarkTicker ? selectedBenchmarkName : 'S&P 500';
+  const { ticker: benchTicker, name: benchName } = riskBenchmark();
   document.getElementById('risk-beta-label').textContent = `Beta vs ${benchName}`;
   const table = document.getElementById('risk-table');
 

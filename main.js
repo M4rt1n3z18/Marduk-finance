@@ -904,6 +904,30 @@ ipcMain.handle('fetch-fx-history', async (event, { currencies, from, to }) => {
   catch (e) { return { error: e.message || String(e) }; }
 });
 
+// ── Risk-free rate for the Risk view's ratios ─────────────────────────────────
+// €STR, the euro short-term rate: what euro cash earned overnight, from the same
+// ECB data service as the exchange rates (free, no key). Returns the average
+// over [from, to] and the latest value, in % a year; null when the ECB is
+// unreachable, and the view then leaves the ratios out instead of assuming one.
+const _rfCache = new Map();
+ipcMain.handle('fetch-risk-free', async (event, { from, to }) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '')) return null;
+  const key = from + '|' + to, hit = _rfCache.get(key);
+  if (hit && Date.now() - hit.at < FX_TTL_MS) return hit.value;
+  try {
+    const res = await fetch(`https://data-api.ecb.europa.eu/service/data/EST/B.EU000A2X2A25.WT?startPeriod=${from}&endPeriod=${to}&format=csvdata&detail=dataonly`,
+      { headers: { 'User-Agent': FX_UA, 'Accept': 'text/csv' } });
+    if (!res.ok) throw new Error('ECB HTTP ' + res.status);
+    const lines = (await res.text()).trim().split(/\r?\n/);
+    const head = lines.shift().split(','), iD = head.indexOf('TIME_PERIOD'), iV = head.indexOf('OBS_VALUE');
+    const obs = lines.map(l => l.split(',')).map(f => [f[iD], parseFloat(f[iV])]).filter(o => Number.isFinite(o[1]));
+    if (!obs.length) return null;
+    const value = { avg: obs.reduce((s, o) => s + o[1], 0) / obs.length, last: obs[obs.length - 1][1], lastDate: obs[obs.length - 1][0] };
+    _rfCache.set(key, { at: Date.now(), value });
+    return value;
+  } catch (e) { console.error('€STR failed:', e.message); return null; }
+});
+
 // ── Historical FX rate for a single date (Add Holding) ────────────────────────
 // Units of `fromCurrency` per 1 EUR on `date` (USD → 1.09), the last published
 // rate on or before it. ECB first; Yahoo only if the ECB is unreachable; `null`
