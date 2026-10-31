@@ -10,6 +10,20 @@
 // Newest first. `v` must match package.json exactly.
 const CHANGELOG = [
   {
+    v: '2.0.4',
+    title: 'A closer look at risk',
+    items: [
+      'Risk opens with you against an index you choose: return, volatility and worst fall side by side, then what that means in plain words.',
+      'Compare with FTSE All-World, MSCI World, S&P 500, NASDAQ 100 or Euro Stoxx 50.',
+      'How much you could lose on a bad day or in a bad month, in euros.',
+      'Real crises replayed on what you hold today: the COVID crash, the 2022 rate rises and the 2018 sell-off.',
+      'The Sharpe ratio, measured against the ECB\u2019s euro cash rate, with the scale professionals use.',
+      'What a 10% fall of the dollar, or any other currency you hold, would cost you.',
+      'More measures when you want them: Sortino, information ratio, tracking error, expected shortfall, how your holdings move together and volatility over time.',
+      'Every card says which period it covers.',
+    ],
+  },
+  {
     v: '2.0.3',
     title: 'Tidier, form by form',
     items: [
