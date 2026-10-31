@@ -936,7 +936,7 @@
         <div class="nx-cap-track"><span class="nx-cap-fill" style="width:${Math.max(0, Math.min(100, v / 2 * 100)).toFixed(1)}%;background:${good === true ? 'var(--up)' : good === false ? 'var(--down)' : 'var(--gold)'};"></span><i class="nx-cap-mark" title="100% = moves exactly like the benchmark"></i></div><small>${sub}</small></div>`;
     el.innerHTML = rkHead('How you move with the market', TIP.market, per) + `
       <div class="nx-rec">
-        <div><span>Volatility</span><b>${rPct(r.vol)}</b><small>${r.bench ? `per year · ${name} ${rPct(r.bench.vol, 0)}` : 'per year'}</small></div>
+        <div><span>Volatility</span><b>${rPct(r.vol)}</b><small>${r.bench ? `per year · ${name} ${rPct(r.bench.vol)}` : 'per year'}</small></div>
         <div><span>Beta</span><b>${r.bench?.beta != null ? rNum(r.bench.beta, 2) : '–'}</b><small>${r.bench?.corr != null ? `correlation ${rNum(r.bench.corr, 2)}` : 'Needs the benchmark’s prices.'}</small></div>
       </div>` + (cap && cap.up != null && cap.down != null
       ? capRow(`On days ${name} rose`, cap.up, cap.up >= 1 ? true : null,
