@@ -770,8 +770,11 @@
     body.querySelector('.stats-grid')?.classList.add('nx-rk-old');
     const C = (id, cls = 'card') => `<div class="${cls}" id="${id}"></div>`;
     body.insertAdjacentHTML('afterbegin', `
-      <div class="nx-risk-bar" id="nx-rk-top"><span>Compared with</span><select class="nx-select" id="nx-rk-bench"></select><small id="nx-rk-bench-label"></small><span class="nx-rk-period" id="nx-rk-period"><span>Period</span></span></div>
-      <p class="nx-rk-lede" id="nx-rk-lede"></p>
+      <div class="card nx-rk-hero" id="nx-rk-top">
+        <div class="nx-rk-hero-head"><label class="nx-rk-vs"><span>You vs</span><select class="nx-select" id="nx-rk-bench"></select></label><span class="nx-rk-period" id="nx-rk-period"></span></div>
+        <div id="nx-rk-cmp">${waiting('Loading prices…')}</div>
+        <p class="nx-rk-lede" id="nx-rk-lede"></p>
+      </div>
       <h3 class="nx-rk-sec">How much could I lose?</h3>
       <div class="chart-grid-2 nx-rk-row">${C('nx-rk-falls')}${C('nx-rk-loss')}</div>
       <div class="card" id="nx-rk-stress">${rkHead('Stress tests', TIP.stress)}
@@ -786,6 +789,7 @@
         <div class="nx-rk-more-body">${C('nx-rk-detail')}<div class="chart-grid-2 nx-rk-row">${C('nx-rk-corr')}${C('nx-rk-rv')}</div></div>
       </details>`);
     $('nx-rk-period').appendChild(ranges);
+    ranges.querySelectorAll('.range-btn').forEach((btn, i) => { btn.textContent = ['12 months', '3 years'][i]; });   // the words every card tag uses
     $('nx-rk-sec-where').after(hold); hold.after(pair);
     hold.id = 'nx-rk-holdings'; hold.style.marginBottom = '';
     hold.firstElementChild.insertAdjacentHTML('beforeend', '<span class="nx-rk-tag" id="nx-rk-hold-tag"></span>');
@@ -814,12 +818,11 @@
     if (!holdings.length) return;
     const seq = ++_rmSeq, b = riskBenchmark(), r = RK().data(), per = perLabel();
     $('nx-rk-bench').innerHTML = RISK_BENCHMARKS.map(x => `<option value="${x.ticker}"${x.ticker === b.ticker ? ' selected' : ''}>${escH(x.name)}</option>`).join('');
-    $('nx-rk-bench-label').textContent = b.label;
     $('nx-rk-hold-tag').textContent = per;
     const value = holdings.reduce((s, h) => s + (h.currentPrice || h.buyPrice || 0) * h.shares, 0);
 
     // straight away: what the app's own pass computed for the chosen period
-    nxRkLede(r, b, per);
+    nxRkHero(r, b);
     nxRkFalls(r, per);
     nxRkMarket(r, b, per);
     nxRkWhatIf(r, b, per, value);
@@ -849,15 +852,30 @@
     nxRkCrises(holdings, d10, b);
   }
 
-  function nxRkLede(r, b, per) {
-    const el = $('nx-rk-lede');
-    if (!r) { el.innerHTML = ''; return; }
-    const rec = RK().recovery(r.series.V, r.series.d);
-    const v = r.bench ? `Swung ${rPct(r.vol)} a year, ${r.vol < r.bench.vol * 0.9 ? 'less than' : r.vol > r.bench.vol * 1.1 ? 'more than' : 'about the same as'} ${escH(b.name)} (${rPct(r.bench.vol)}).` : `Swung ${rPct(r.vol)} a year.`;
-    const f = rec.dd > -0.0005 ? 'No fall from a high in this period.'
-      : rec.recDays != null ? `Worst fall ${rPct(rec.dd)}, back at its high after ${RK().dur(rec.recDays)}.`
-      : `Worst fall ${rPct(rec.dd)}, still ${rPct(Math.abs(rec.below))} below its high.`;
-    el.innerHTML = `<b>${per}:</b> <span>${v}</span> <span>${f}</span>`;
+  // You against the index over the chosen period, then what that comes to in words.
+  // Return is a year's: the 12 months as they are, 3 years compounded to a year
+  // the way the Sharpe card does it, so the two agree.
+  function nxRkHero(r, b) {
+    const cmp = $('nx-rk-cmp'), lede = $('nx-rk-lede');
+    if (!r) { cmp.innerHTML = waiting('Not enough price history yet.'); lede.innerHTML = ''; return; }
+    const { d, V, bv } = r.series, rec = RK().recovery, dur = RK().dur;
+    const ayear = ret => typeof riskRange !== 'undefined' && riskRange === '3Y' ? Math.pow(1 + ret, 52 / (V.length - 1)) - 1 : ret;
+    const me = { ret: ayear(r.ret), vol: r.vol, fall: rec(V, d) };
+    const ix = r.bench && bv ? { ret: ayear(r.bench.ret), vol: r.bench.vol, fall: rec(bv, d) } : null;
+    const fallCell = f => f.dd > -0.0005 ? '<b>–</b><small>No fall</small>'
+      : `<b>${rPct(f.dd)}</b><small>${f.recDays != null ? `back in ${dur(f.recDays)}` : `still ${rPct(Math.abs(f.below))} below`}</small>`;
+    const row = (who, sub, x, cls) => `<div class="nx-rk-cmp-row ${cls}"><div class="nx-rk-who"><b>${who}</b>${sub ? `<small>${sub}</small>` : ''}</div>
+        <div class="nx-rk-val"><b>${rSigned(x.ret)}</b></div><div class="nx-rk-val"><b>${rPct(x.vol)}</b></div><div class="nx-rk-val">${fallCell(x.fall)}</div></div>`;
+    cmp.innerHTML = `<div class="nx-rk-cmp"><div class="nx-rk-cmp-row nx-rk-cmp-h"><span></span><span>Return, a year</span><span>Volatility</span><span>Worst fall</span></div>
+      ${row('You', '', me, 'me')}${ix ? row(escH(b.name), escH(b.label), ix, 'ix') : ''}</div>${ix ? '' : waiting('Needs the benchmark’s prices.')}`;
+    if (!ix) { lede.innerHTML = ''; return; }
+    const v = me.vol < ix.vol * 0.9 ? 'less than' : me.vol > ix.vol * 1.1 ? 'more than' : 'about as much as';
+    const f = Math.abs(me.fall.dd) - Math.abs(ix.fall.dd), shown = x => +(x * 100).toFixed(1), gap = shown(me.ret) - shown(ix.ret);   // from the figures on screen, so the sentence adds up
+    lede.innerHTML = [
+      `Swings ${v} ${escH(b.name)}.`,
+      Math.abs(f) < 0.01 ? 'Its worst fall was about the same.' : f < 0 ? 'Its worst fall was smaller.' : 'Its worst fall was deeper.',
+      Math.abs(gap) < 0.5 ? 'Returned about the same.' : `Returned ${Math.abs(gap).toFixed(1)} points a year ${gap > 0 ? 'more' : 'less'}.`,
+    ].map(x => `<span>${x}</span>`).join(' ');
   }
 
   function nxRkFalls(r, per) {
