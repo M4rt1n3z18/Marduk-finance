@@ -2401,11 +2401,13 @@
     nwForm = null; save(); renderAll();
   }
 
-  // ══════════════ RISK — four more measures ══════════════
+  // ══════════════ RISK — the series behind the redesigned view ══════════════
   // computeRisk as in risk.js, plus the portfolio and benchmark value series the
-  // new measures need (to port: return `series` from the app's computeRisk).
+  // further measures need (to port: return `series` from the app's computeRisk).
+  // views.js draws the Risk view from it (NX_UI.risk).
   let _nxRisk = null;
   function computeRiskWithSeries(holdings, hist, benchTicker, perYear) {
+    _nxRisk = null;                      // never last portfolio's figures under this one
     const iso = ts => new Date(ts * 1000).toISOString().slice(0, 10);
     const series = {};
     const add = (key, d) => { if (!d?.timestamps?.length) return; const pts = d.timestamps.map((tt, i) => [iso(tt), d.closes[i]]).filter(q => q[1] != null); if (pts.length) series[key] = pts; };
@@ -2474,53 +2476,6 @@
              below: V[V.length - 1] / Math.max(...V) - 1, underwater: V.map((_, i) => V[i] / Math.max(...V.slice(0, i + 1)) - 1) };
   }
   const dur = days => days < 14 ? `${days} day${days === 1 ? '' : 's'}` : days < 70 ? `${Math.round(days / 7)} weeks` : days < 730 ? `${Math.round(days / 30.4)} months` : `${(days / 365).toFixed(1)} years`;
-
-  let _nxDdChart = null;
-  function nxRiskExtras() {
-    const body = document.getElementById('risk-body'), r = _nxRisk;
-    if (!body || !body.offsetParent) return;
-    let box = document.getElementById('nx-risk-extra');
-    if (!box) { box = Object.assign(document.createElement('div'), { id: 'nx-risk-extra', className: 'chart-grid-2' }); body.querySelector('.stats-grid').after(box); }
-    if (!r) { box.innerHTML = ''; return; }
-    const benchName = riskBenchmark().name;
-    const port = ap(), value = (port.holdings || []).reduce((s, h) => s + (h.currentPrice || h.buyPrice || 0) * (h.shares || 0), 0);
-    const rec = riskRecovery(r.series.V, r.series.d);
-    const cap = r.series.rb ? riskCapture(r.series.rp, r.series.rb) : null;
-    const beta = r.bench?.beta;
-    const pctTxt = v => (v * 100).toFixed(1).replace('-', '−') + '%';
-    const capRow = (label, v, good, sub) => `<div class="nx-cap-row"><div class="nx-cap-top"><span>${label}</span><b class="${good === true ? 'up-text' : good === false ? 'down-text' : ''}">${String(Math.round(v * 100)).replace('-', '−')}%</b></div>
-        <div class="nx-cap-track"><span class="nx-cap-fill" style="width:${Math.max(0, Math.min(100, v / 2 * 100)).toFixed(1)}%;background:${good === true ? 'var(--up)' : good === false ? 'var(--down)' : 'var(--gold)'};"></span><i class="nx-cap-mark" title="100% = moves exactly like the benchmark"></i></div><small>${sub}</small></div>`;
-    const stress = beta != null ? [0.1, 0.2, 0.3].map(f => {
-      const est = Math.max(-1, -f * beta);
-      return `<div class="nx-stress-row"><span>${benchName} −${f * 100}%</span><span class="nx-stress-bar"><span style="width:${Math.min(100, Math.abs(est) / 0.45 * 100).toFixed(1)}%"></span></span><b>${pctTxt(est)}</b><span class="nx-stress-eur">−${eurPort(Math.abs(est) * value)}</span></div>`;
-    }).join('') : '<div class="muted" style="font-size:12px;">Needs the benchmark’s prices.</div>';
-    box.innerHTML = `
-      <div class="card">
-        <div class="card-title">When the market moves<span class="info-tip">i<span class="tip-body">Capture compares your average gain on days ${escH(benchName)} rose, and your average loss on days it fell, with its own. 100% means you move exactly like it.</span></span></div>
-        ${cap && cap.up != null && cap.down != null ? capRow(`On days ${escH(benchName)} rose`, cap.up, cap.up >= 1 ? true : null,
-            cap.up < 0 ? 'On those days you fell slightly, on average.' : `You rose ${Math.round(cap.up * 100)}% as much as it did${cap.up >= 1 ? ', more than the market' : ''}.`) +
-          capRow(`On days ${escH(benchName)} fell`, cap.down, cap.down <= 1,
-            cap.down < 0 ? 'On those days you rose slightly, on average.' : `You fell ${Math.round(cap.down * 100)}% as much as it did${cap.down < 1 ? ', a cushion' : ', harder than the market'}.`) : '<div class="muted" style="font-size:12px;">Needs the benchmark’s prices.</div>'}
-        <div class="nx-stress"><div class="nx-stress-title">If ${escH(benchName)} fell…<span class="info-tip">i<span class="tip-body">An estimate from your beta over this period (${beta != null ? beta.toFixed(2) : '–'}). Real falls rarely follow beta exactly: sectors and currencies move on their own.</span></span></div>${stress}</div>
-      </div>
-      <div class="card">
-        <div class="card-title">Falls and recoveries<span class="info-tip">i<span class="tip-body">How far below its previous high the portfolio was on each day, and how long its worst fall took to recover.</span></span></div>
-        <div class="nx-rec">
-          <div><span>Worst fall</span><b class="down-text">${pctTxt(rec.dd)}</b><small>${_riskDate(rec.peak)} → ${_riskDate(rec.trough)} · over ${dur(rec.fallDays)}</small></div>
-          <div><span>Time to recover</span><b>${rec.recDays != null ? dur(rec.recDays) : 'Not yet'}</b><small>${rec.recovered ? `back at the old high on ${_riskDate(rec.recovered)}` : `still ${(Math.abs(rec.below) * 100).toFixed(1)}% below the high`}</small></div>
-        </div>
-        <div class="chart-wrap" style="height:170px;"><canvas id="nx-dd-chart"></canvas></div>
-      </div>`;
-    if (_nxDdChart) { _nxDdChart.destroy(); _nxDdChart = null; }
-    const cv = document.getElementById('nx-dd-chart');
-    const fmtD = s => new Date(s + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-    _nxDdChart = new Chart(cv, {
-      type: 'line',
-      data: { labels: r.series.d.map(fmtD), datasets: [{ label: 'Below previous high', data: rec.underwater.map(x => +(x * 100).toFixed(2)), borderColor: cssv('--down'), backgroundColor: cssv('--down'), fill: true }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.raw.toFixed(1)}% below the high` } } },
-        scales: { x: { ticks: { color: cssv('--text3'), maxTicksLimit: 6 } }, y: { max: 0, ticks: { color: cssv('--text3'), callback: v => v + '%' }, grid: {} } } },
-    });
-  }
 
   // ══════════════ HOLDING SIDE PANEL ══════════════
   // Slides in from the right so the holdings table stays in view. Order: price and
@@ -2669,7 +2624,8 @@
   }
 
   // Shared with js/nexora/views.js (the redesigned Goals, Transactions, Dividends, Cash and allocation views)
-  window.NX_UI = { MI, I, icon, tile, escH, flagIc, CCY, cssv, decorate, nxNeg };
+  window.NX_UI = { MI, I, icon, tile, escH, flagIc, CCY, cssv, decorate, nxNeg,
+    risk: { data: () => _nxRisk, capture: riskCapture, recovery: riskRecovery, dur } };
 
   window.addEventListener('load', () => {
     installLoanLogic();
@@ -2681,8 +2637,6 @@
       // charts can only be drawn once their tab is visible
       window.showTab = (orig => function (name) { const out = orig.apply(this, arguments); if (name === 'networth') setTimeout(() => { try { nxNwChart(); } catch (e) { console.error(e); } }, 30); return out; })(window.showTab);
       window.computeRisk = computeRiskWithSeries;
-      window.buildRiskView = (orig => async function () { await orig.apply(this, arguments); try { nxRiskExtras(); } catch (e) { console.error(e); } })(window.buildRiskView);
-      if (typeof SUB_BUILDERS !== 'undefined' && SUB_BUILDERS.portfolio) SUB_BUILDERS.portfolio.risk = window.buildRiskView;
       // The app's lock screen gives way to the profile-aware one
       window.lockApp = (orig => function () {
         orig.apply(this, arguments);
